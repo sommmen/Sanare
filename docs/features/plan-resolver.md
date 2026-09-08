@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: partial — persistent approved-plan resolution slice implemented; authoring-dependent behavior remains deferred.
 
 | Field | Value |
 |-------|-------|
@@ -15,85 +16,67 @@
 
 ## Purpose
 
-Every consumer request starts here: *for this source and this schema, is there an approved plan, and which
-commit is it?* The resolver answers that in microseconds from a warm cache, decides whether to trigger
-authoring when the answer is "no", and guarantees that two simultaneous requests for an unauthored source
-produce **one** authoring run rather than two. It is also the component that makes cache keys correct, by
-being the single place a plan commit id is bound to a request.
+The implemented resolver binds an approved extraction plan and its immutable git commit to a source/schema request. It first serves compatible plans from an in-memory index and otherwise resolves the latest numbered approval tag from the script repository. It never authors or executes a plan.
 
 ## Scope
 
-**Included:**
+### Implemented slice
 
-- `IPlanResolver` — resolve `(sourceId, schemaHash)` → `ResolvedPlan` (plan + commit id + approval tag).
-- The approved-plan index: git approval tags materialised into an in-memory `ConcurrentDictionary`.
-- Cache invalidation on repository change (new tag, rollback, branch update).
-- Plan lifecycle state evaluation: `Approved`, `AwaitingApproval`, `Degraded`, `Superseded`, `Absent`.
-- Miss handling: trigger authoring, return `NoPlanAvailable`, or return `AwaitingApproval` per policy.
-- **Single-flight coalescing** of concurrent authoring triggers per `(sourceId, schemaHash)`.
-- Schema-hash compatibility checks — a schema change invalidates a plan.
-- Preview resolution (explicit opt-in to a candidate plan, for the admin/dev path).
-- Emitting the commit id that the result cache key and the run record must carry.
+- `IPlanResolver` resolves an approved plan for `(sourceId, schemaName, schemaVersion, schemaHash)`.
+- A lock-free `ConcurrentDictionary` warm index is keyed by `(sourceId, schemaName, schemaVersion)`.
+- A cold resolution enumerates `approved/{source-id}/{schema-name}@{schemaVersion}/{n}` tags, selects the highest numeric `n`, loads that commit, deserializes the plan, and caches it.
+- Schema-hash compatibility is checked on both warm and cold paths. A mismatch returns `SNR-PLAN-003`; an absent approval tag returns `SNR-PLAN-004`; a tag whose plan is absent returns `SNR-GIT-002`.
+- `Invalidate(sourceId, schemaHash?)` drops matching warm-index entries. The `GitBackedExtractionPlanProvider` adapts this resolver to the unchanged `IExtractionPlanProvider` runner boundary.
 
-**Excluded:**
+### Deferred target-state scope
 
-- Reading/writing git objects — `script-repository`.
-- Producing plans — `authoring-workflow`.
-- Deciding a plan has degraded — `quality-evaluator` (this component only reads the flag).
-- Executing plans — `plan-runtime`.
+This specification also records the planned resolver behavior. Repository-change notifications and preload-on-start; plan lifecycle states beyond an approved plan or `NoPlanAvailable`; authoring on a miss, single-flight coordination, cooldowns, and `AwaitingApproval`; preview resolution; and degraded-plan diagnostics are not implemented. These require future authoring, administration, and quality-evaluator workflows.
+
+Reading and writing git objects remains `script-repository` responsibility; producing and executing plans remain `authoring-workflow` and `plan-runtime` responsibility.
 
 ## Core Responsibilities
 
-1. **Resolve** the approved plan for a request, fast and correctly.
-2. **Index** approval tags and keep the index coherent with the repository.
-3. **Coalesce** concurrent misses into one authoring run.
-4. **Enforce** that only `Approved` plans serve normal traffic.
-5. **Detect** schema drift and refuse a plan authored for a different schema hash.
-6. **Expose** the resolved commit id so caching and provenance stay honest.
+1. Resolve the latest approved plan for a request.
+2. Cache resolved plans by source, schema name, and schema version.
+3. Reject cached or loaded plans whose schema hash differs from the request.
+4. Return the resolved commit id and approval tag for provenance.
+5. Remove selected cached entries on explicit invalidation.
 
 ## Interfaces
 
 ### Inputs
 
-- **`PlanResolutionRequest`** — `SourceId`, `SchemaHash`, `SchemaName`, `SchemaVersion`, `Mode`
-  (`ApprovedOnly` | `AllowPreview`), `AllowAuthoring`.
-- **Repository change notifications** from `script-repository`.
-- **Source health flags** from `quality-evaluator` (`Degraded`).
+- **`PlanResolutionRequest`** — `SourceId`, `SchemaName`, `SchemaVersion`, and `SchemaHash`.
 
 ### Outputs
 
-- **`ResolvedPlan`** — `ExtractionPlan`, `CommitId`, `ApprovalTag`, `PlanState`, `ResolvedAt`, `Origin`
-  (`Cache` | `Repository` | `Authored`).
-- **`PlanResolutionFailure`** — status (`NoPlanAvailable`, `AwaitingApproval`, `AuthoringFailed`,
-  `SchemaValidationFailed`) with an error code and message.
+- **`ResolvedPlan`** — `ExtractionPlan`, `CommitId`, and `ApprovalTag`.
+- **`PlanResolution`** — a resolved plan or `PlanResolutionFailure.NoPlanAvailable` with an error code and message.
 
 ### Dependencies
 
-- **`script-repository`** — tag enumeration, plan load by commit, change notifications.
-- **`extraction-plan-model`** — plan deserialization and validation.
-- **`authoring-workflow`** — invoked on a miss (via an interface, to avoid a package cycle).
+- **`script-repository`** — approval-tag enumeration and plan loading at an immutable commit ref.
+- **`extraction-plan-model`** — plan deserialization.
+- **`IExtractionPlanProvider`** — consumed through `GitBackedExtractionPlanProvider`, preserving the runner contract.
+
+The authoring workflow is not a dependency of the implemented resolver because a miss does not invoke authoring.
 
 ## Data Flow
 
 ```mermaid
 flowchart TD
-    A[PlanResolutionRequest] --> B{index hit for sourceId+schemaHash?}
-    B -- yes --> C{plan state}
-    C -- Approved --> D[ResolvedPlan origin=Cache]
-    C -- Degraded --> E[ResolvedPlan + degraded diagnostic]
-    C -- Superseded --> F[Re-read index entry]
-    B -- no --> G[Enumerate approval tags from repository]
-    G --> H{tag found?}
-    H -- yes --> I[Load plan at commit, validate schemaHash]
-    I --> J{schemaHash matches?}
-    J -- no --> K[SNR-PLAN-003 SchemaDrift -> treat as miss]
-    J -- yes --> L[Populate index, return ResolvedPlan]
-    H -- no --> M{AllowAuthoring and Authoring.Mode allows?}
-    M -- no --> N[NoPlanAvailable]
-    M -- yes --> O[Single-flight: join or start authoring]
-    O --> P{RequireApproval?}
-    P -- yes --> Q[AwaitingApproval]
-    P -- no --> R[Approve, index, ResolvedPlan origin=Authored]
+    A[PlanResolutionRequest] --> B{Warm index hit?}
+    B -- yes --> C{Schema hash matches?}
+    C -- yes --> D[Return ResolvedPlan]
+    C -- no --> E[SNR-PLAN-003]
+    B -- no --> F[Enumerate matching approval tags]
+    F --> G{Highest numeric tag found?}
+    G -- no --> H[SNR-PLAN-004 NoPlanAvailable]
+    G -- yes --> I[Load plan at tag target commit]
+    I --> J{Plan exists and schema hash matches?}
+    J -- no plan --> K[SNR-GIT-002]
+    J -- mismatch --> E
+    J -- yes --> L[Cache and return ResolvedPlan]
 ```
 
 ## Key Behaviors
@@ -107,155 +90,67 @@ public interface IPlanResolver
         PlanResolutionRequest request, CancellationToken ct = default);
 
     void Invalidate(string sourceId, string? schemaHash = null);
-
-    PlanIndexStatistics GetStatistics();
-}
-
-public readonly record struct PlanResolution(
-    ResolvedPlan? Plan, ScrapeStatus Status, string? ErrorCode, string? Message)
-{
-    public bool IsResolved => Plan is not null;
 }
 ```
 
-### The index
+### Warm index and tag resolution
 
-- Key: `(sourceId, schemaHash)`. Value: `ResolvedPlan` plus the tag name and commit id.
-- Built lazily on first miss for a source, and eagerly at startup when
-  `Resolver.PreloadOnStart = true` (the production default — a cold first request should not pay for tag
-  enumeration).
-- Backed by `ConcurrentDictionary`; reads are lock-free.
-- The approval tag namespace `approved/{source-id}/{schema-name}@{schemaVersion}/{n}` is enumerated and the
-  **highest `n`** wins. `n` is a monotonic integer, so a rollback is a *new* tag pointing at an *older*
-  commit, and the resolver needs no special rollback logic — the highest tag is always the truth.
+- The index key is `(sourceId, schemaName, schemaVersion)`; the schema hash is evaluated after lookup.
+- A warm hit is lock-free and does not query the repository.
+- On a cold request, tags in the matching approval namespace are parsed and the highest valid numeric suffix wins.
+- The selected tag's target commit is used to read the plan, so a resolution is bound to immutable content.
 
-### Invalidation
+### Schema compatibility and invalidation
 
-| Event | Action |
-|-------|--------|
-| New approval tag | Replace the entry for that `(sourceId, schemaHash)` |
-| Rollback (new tag → older commit) | Same path; the entry now points at the older commit |
-| Heal branch commit | No effect — heal branches are not approved |
-| Repository externally modified (file-watcher or explicit `Invalidate`) | Drop affected entries, re-resolve on next request |
-| Source config change | Drop all entries for the source |
-
-Invalidation is by *removal*, never by mutation, so a concurrent reader either sees the old complete entry
-or misses and re-resolves. There is no window where a half-updated plan is observable.
-
-### Single-flight authoring
-
-```
-key = (sourceId, schemaHash)
-if an authoring task exists for key -> await it
-else -> create and register it, await, remove on completion
-```
-
-- Implemented over `ConcurrentDictionary<PlanKey, Lazy<Task<PlanResolution>>>` with
-  `LazyThreadSafetyMode.ExecutionAndPublication`.
-- 10 concurrent first-time requests for the same source produce exactly **one** authoring run and 10
-  identical results (AC-021). Without this, the first cold request for a popular source would fan out into
-  ten LLM authoring runs and ten bursts of traffic at the target — expensive and rude.
-- A failed authoring task is removed immediately so the next request may retry, but a per-key
-  `AuthoringCooldown` (default 5 min) prevents a hard-failing source from being re-authored on every
-  request.
-- Cancellation of one waiter does not cancel the shared authoring task; other waiters still complete.
-
-### Schema drift
-
-The plan records `schemaHash`. If the caller's hash differs, the plan is not usable — the schema is a
-contract and a plan authored against a different contract may silently populate the wrong fields. The
-resolver treats this as a miss (`SNR-PLAN-003`), logs the drift with both hashes, and follows the normal
-miss path (authoring or `NoPlanAvailable`). It never attempts a partial reuse.
-
-### Approval gating (§11.2)
-
-| `RequireApproval` | `Authoring.Mode` | Behaviour on miss |
-|-------------------|------------------|-------------------|
-| `true` (prod default) | `Manual` | Author candidate, return `AwaitingApproval` with the candidate branch name |
-| `true` | `Automatic` | Author candidate, return `AwaitingApproval` |
-| `false` (dev) | `Automatic` | Author, auto-approve, tag, return the plan |
-| any | authoring disabled | `NoPlanAvailable` |
-
-`AllowPreview` mode is the only way to resolve a non-approved plan, is available through the administration
-API only, and stamps `Origin = Preview` on the result so no preview run can be mistaken for production data.
-
-### Degraded plans still serve
-
-A plan marked `Degraded` by the evaluator is **still returned** and still executed, with a diagnostic
-attached. Withholding data because quality dropped would turn a partial outage into a total one; the
-aggregation pipeline is better served by degraded data plus a loud signal.
+- A differing request schema hash is rejected with `SNR-PLAN-003` on either a warm or cold path.
+- `Invalidate` removes index entries for a source; a non-null second argument narrows removal to entries whose cached plan schema hash matches it.
+- The current repository has no change notification or preload mechanism; hosts must explicitly call `Invalidate` when they need to discard cached entries.
 
 ## Constraints
 
-- Resolution from a warm index must be allocation-light and lock-free; the target is < 1 ms p99, since it is
-  on every request path.
-- Exactly one authoring run per `(sourceId, schemaHash)` at a time — not configurable.
-- Only `Approved` plans serve non-preview traffic.
-- The returned commit id is mandatory and flows into the result-cache key (AC-022) and the run record.
-- No I/O on the warm path — a cache hit touches no git objects and no disk.
-- Thread-safe under high concurrency; the index supports at least 10 000 entries without degradation.
+- Only approval tags are eligible for resolution.
+- The resolver is thread-safe and warm-path lookups use no repository I/O.
+- No authoring, approval, or degraded-state policy is performed on a miss.
 
 ## Acceptance Criteria
 
 | AC-ID | Priority | Criterion | Expected Result | Verification Method |
 |-------|----------|-----------|-----------------|---------------------|
-| AC-001 | P0 | Given a source with an approved plan | Resolution returns the plan and its commit id without invoking authoring | Unit — warm path |
-| AC-011 | P0 | Given a rollback tag pointing at an older commit | The resolver returns the older plan on the next request | Integration — real repository |
-| AC-012 | P0 | Given no approved plan and authoring enabled with `RequireApproval = true` | Status is `AwaitingApproval`; no plan is returned; the candidate branch is named | Unit — gating |
-| AC-021 | P0 | Given 10 concurrent requests for an unauthored source | Exactly 1 authoring invocation; all 10 receive identical results | Integration — concurrency |
-| AC-021b | P0 | Given 10 concurrent requests where authoring fails | Exactly 1 invocation; all 10 receive the same failure; a second wave within the cooldown does not re-invoke | Integration — failure coalescing |
-| AC-022 | P0 | Given a resolved plan | The returned commit id is non-empty and matches the tag's target commit | Unit — provenance |
-| AC-PR-001 | P0 | Given a caller schema hash differing from the plan's | Resolution is a miss with `SNR-PLAN-003` logged, showing both hashes | Unit — schema drift |
-| AC-PR-002 | P0 | Given authoring disabled and no plan | Status is `NoPlanAvailable`; authoring is never invoked | Unit — negative |
-| AC-PR-003 | P0 | Given two approval tags `/1` and `/2` for the same source and schema | Tag `/2` wins | Unit — tag ordering |
-| AC-PR-004 | P0 | Given approval tags `/9` and `/10` | `/10` wins (numeric, not lexicographic, ordering) | Unit — the classic ordering bug |
-| AC-PR-005 | P0 | Given a new approval tag after a warm cache hit | The next resolution returns the new commit | Integration — invalidation |
-| AC-PR-006 | P0 | Given `Invalidate(sourceId)` during concurrent reads | Readers see either the complete old entry or a fresh resolution; never a partial entry | Integration — race |
-| AC-PR-007 | P0 | Given a plan marked `Degraded` | It is still returned, with a degradation diagnostic attached | Unit — availability over purity |
-| AC-PR-008 | P0 | Given a request with `Mode = AllowPreview` and only a candidate plan | The candidate is returned with `Origin = Preview` | Unit — preview path |
-| AC-PR-009 | P0 | Given a normal request and only a candidate plan | The candidate is **not** returned | Unit — negative |
-| AC-PR-010 | P0 | Given a corrupt plan document at the approved commit | Resolution fails with `SNR-PLAN-001`, not a raw deserialization exception | Unit — robustness |
-| AC-PR-011 | P0 | Given a warm index hit | Zero git and zero filesystem operations occur | Unit — I/O counting fake |
-| AC-PR-012 | P0 | Given one waiter cancels during shared authoring | The remaining waiters still receive a result | Integration — cancellation isolation |
-| AC-PR-013 | P1 | Given `PreloadOnStart = true` and 50 approved sources | All entries are indexed at startup; the first request is a warm hit | Integration — preload |
-| AC-PR-014 | P1 | Given 10 000 indexed entries | Resolution p99 stays under 1 ms | Benchmark — index scale |
-| AC-PR-015 | P1 | Given a source config change | All entries for that source are dropped | Unit — invalidation scope |
+| AC-001 | P0 | Given a highest-numbered valid approval tag | Resolution returns the plan, its target commit id, and tag | Unit |
+| AC-022 | P0 | Given a resolved plan | The returned commit id matches the approval tag target commit | Unit |
+| AC-PR-001 | P0 | Given a caller schema hash differing from the plan's | Resolution fails with `SNR-PLAN-003` | Unit |
+| AC-PR-002 | P0 | Given no matching approval tags | Resolution fails with `SNR-PLAN-004` | Unit |
+| AC-PR-003 | P0 | Given a resolved plan followed by a compatible request | The second request is served from the index without repository lookup | Unit |
+| AC-PR-004 | P0 | Given explicit invalidation | The next request re-reads approval tags from the repository | Unit |
+| AC-PR-005 | P0 | Given a stored plan document that fails canonical deserialization | Resolution fails with `SNR-PLAN-001` and is not cached | Unit |
 
 ## Error Handling
 
-| Code | Raised when | Severity | Status | Behavior |
-|------|-------------|----------|--------|----------|
-| `SNR-PLAN-001` | Plan document at the approved commit is unreadable or invalid | Error | `PlanInvalid` | Do not fall back to an older plan; surface it |
-| `SNR-PLAN-003` | Plan `schemaHash` differs from the request's | Warning | miss path | Log both hashes; author or `NoPlanAvailable` |
-| `SNR-GIT-002` | Tag enumeration failed | Error | `NoPlanAvailable` | Retry once, then fail |
-| `AuthoringFailed` | The coalesced authoring run failed | Error | `AuthoringFailed` | Shared with all waiters; cooldown applied |
-
-A resolver failure never falls back to an arbitrary older plan: serving data from an unknown plan version
-would break the provenance guarantee the whole design rests on.
+| Code | Condition | Retryable | Resolver action |
+|------|-----------|-----------|-----------------|
+| `SNR-PLAN-001` | Stored plan document fails canonical deserialization | No | Return `PlanInvalid`; do not cache. |
+| `SNR-PLAN-003` | Plan schema hash differs from request | No | Return unresolved result; do not cache a cold mismatch. |
+| `SNR-PLAN-004` | No valid approval tag exists | No | Return `NoPlanAvailable`. |
+| `SNR-GIT-002` | Selected approval-tag commit has no plan at the expected path | No | Return unresolved result. |
 
 ## File Structure
+
+The implemented resolver is intentionally smaller than the target-state layout described elsewhere in this specification:
 
 ```
 src/
 └── Sanare.Core/
     └── Resolution/
+        ├── ApprovalTagParser.cs
         ├── IPlanResolver.cs
-        ├── PlanResolver.cs
-        ├── PlanResolutionRequest.cs
         ├── PlanResolution.cs
-        ├── ResolvedPlan.cs
-        ├── PlanKey.cs
-        ├── PlanState.cs
-        ├── PlanIndexStatistics.cs
-        ├── Index/
-        │   ├── IApprovedPlanIndex.cs
-        │   ├── ApprovedPlanIndex.cs
-        │   └── ApprovalTagParser.cs
-        ├── SingleFlight/
-        │   ├── AuthoringCoordinator.cs
-        │   └── AuthoringCooldown.cs
-        └── PlanIndexPreloader.cs
+        ├── PlanResolutionFailure.cs
+        ├── PlanResolutionRequest.cs
+        ├── PlanResolver.cs
+        └── ResolvedPlan.cs
 ```
+
+`GitBackedExtractionPlanProvider.cs` is in `Sanare.Core/` because it adapts the resolver to the existing runner-facing provider contract.
 
 ## Test Module
 
@@ -263,20 +158,8 @@ src/
 
 **Test scope**:
 
-- **Unit**: tag parsing and numeric ordering (`/9` vs `/10`); state-to-behaviour mapping for every
-  `PlanState`; approval-gating matrix across `RequireApproval` × `Authoring.Mode` × `AllowAuthoring`;
-  schema-drift detection; preview mode; corrupt-plan handling; warm-hit I/O counting with a recording
-  repository fake; cooldown boundaries with a fake `TimeProvider`.
-- **Integration**: a real `LibGit2Sharp` repository in a temp directory exercising approve → resolve →
-  rollback → resolve; invalidation under concurrent reads; 10-way single-flight with a counting authoring
-  fake for both success and failure; cancellation isolation; startup preload of 50 sources.
-- **Benchmark**: `benchmarks/Sanare.Benchmarks/PlanResolutionBenchmarks.cs` covering warm
-  resolution at 10 000 entries.
-- **Fixtures / Mocks**: `RecordingScriptRepository` (counts git operations), `CountingAuthoringWorkflow`
-  (counts invocations and can be made to fail or hang), sample plan documents under
-  `tests/Sanare.Core.Tests/Fixtures/Plans/`, and a fake `TimeProvider`.
+- **Unit**: no approval-tag miss; highest numeric tag selection (`/9` versus `/10`); schema-drift rejection on warm and cold paths; warm-hit repository-I/O avoidance; and explicit invalidation.
+- **Integration**: resolver tests use the in-memory repository test double. Git-backed behavior is covered by `GitScriptRepositoryTests`.
+- **Fixtures / Mocks**: a recording `IScriptRepository` test double and canonical `ExtractionPlan` fixtures.
 
-Companion test files: `tests/Sanare.Core.Tests/Resolution/ApprovedPlanIndexTests.cs`,
-`tests/Sanare.Core.Tests/Resolution/AuthoringCoordinatorTests.cs`,
-`tests/Sanare.Core.Tests/Resolution/ApprovalTagParserTests.cs`,
-`tests/Sanare.Core.Tests/Resolution/PlanResolverConcurrencyTests.cs`.
+The target-state test suite will add authoring, lifecycle, preview, preload, and concurrency cases when those capabilities are implemented.

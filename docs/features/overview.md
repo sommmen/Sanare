@@ -2,12 +2,12 @@
 
 > Implementation index for the Sanare technical design.
 > Canonical architecture: [Sanare Technical Design](../sanare/tech-design.md)
-> Status: draft
+> Status: active — implementation tracking
 > Updated: 2026-09-06
 
 ## Status
 
-These specifications are implementation-ready drafts generated from the canonical technical design. The
+These specifications are implementation-ready drafts generated from the canonical technical design. A `partial` status records a deliberately implemented subset; `draft` remains unimplemented. The
 `#` column below is the **only ordering authority**: dependencies expressed elsewhere are explanatory and
 must not be used to renumber or reorder work.
 
@@ -18,14 +18,14 @@ must not be used to renumber or reorder work.
 | 1 | Scrape API Contracts | `scrape-api-contracts` | L0 | — | P0 | draft | [scrape-api-contracts.md](scrape-api-contracts.md) |
 | 2 | Schema Engine | `schema-engine` | L1 | 1 | P0 | draft | [schema-engine.md](schema-engine.md) |
 | 3 | Extraction Plan Model | `extraction-plan-model` | L1 | 1, 2 | P0 | draft | [extraction-plan-model.md](extraction-plan-model.md) |
-| 4 | Script Repository | `script-repository` | L1 | 3 | P0 | draft | [script-repository.md](script-repository.md) |
+| 4 | Script Repository | `script-repository` | L1 | 3 | P0 | partial | [script-repository.md](script-repository.md) |
 | 5 | Fixture Corpus | `fixture-corpus` | L1 | 1 | P0 | draft | [fixture-corpus.md](fixture-corpus.md) |
 | 6 | Acquisition Pipeline | `acquisition-pipeline` | L2 | 1, 5 | P0 | draft | [acquisition-pipeline.md](acquisition-pipeline.md) |
 | 7 | Browsing Identity | `browsing-identity` | L2 | 6 | P0 | draft | [browsing-identity.md](browsing-identity.md) |
 | 8 | Browser Tier | `browser-tier` | L2 | 6, 7 | P0 | draft | [browser-tier.md](browser-tier.md) |
 | 9 | Plan Runtime | `plan-runtime` | L3 | 2, 3, 6 | P0 | draft | [plan-runtime.md](plan-runtime.md) |
 | 10 | Pagination Engine | `pagination-engine` | L3 | 9 | P0 | draft | [pagination-engine.md](pagination-engine.md) |
-| 11 | Plan Resolver | `plan-resolver` | L3 | 3, 4 | P0 | draft | [plan-resolver.md](plan-resolver.md) |
+| 11 | Plan Resolver | `plan-resolver` | L3 | 3, 4 | P0 | partial | [plan-resolver.md](plan-resolver.md) |
 | 12 | Authoring Workflow | `authoring-workflow` | L4 | 2, 3, 4, 5, 9, 13 | P0 | draft | [authoring-workflow.md](authoring-workflow.md) |
 | 13 | Agent Toolset | `agent-toolset` | L4 | 5, 9 | P0 | draft | [agent-toolset.md](agent-toolset.md) |
 | 14 | Quality Evaluator | `quality-evaluator` | L4 | 2, 11 | P0 | draft | [quality-evaluator.md](quality-evaluator.md) |

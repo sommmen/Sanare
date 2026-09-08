@@ -1850,6 +1850,8 @@ disallowed operation, and oversized response.
 | M6 | Self-healing | `quality-evaluator`, `healing-workflow`, post-heal verification | A deliberately mutated fixture triggers detection, repair, regression validation, and commit; AC-013…AC-015, AC-026 pass |
 | M7 | Sample + hardening | `sample-app-lenovo`, `observability`, `hosting-configuration`, docs, packaging | Both Lenovo scenarios run from a clean checkout; full AC set green; packages publishable |
 
+**Implementation note:** The current persistent-plan-storage slice implements the foundational approved-plan repository and resolver paths only: local repository bootstrap, canonical commits, monotonic approval tags, and warm/cold approved-plan resolution with schema-hash validation. M3 remains incomplete: its administration API, rollback, diff, and full milestone exit criteria are deferred.
+
 Ordering rationale: every later milestone depends on M1's deterministic core, and authoring (M4) is
 deliberately built **after** the runtime and the repository, so the agent has a validated target to write
 against rather than the design being shaped around what an LLM happens to emit.
