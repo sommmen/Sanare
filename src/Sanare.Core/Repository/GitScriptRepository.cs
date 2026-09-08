@@ -293,7 +293,7 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
         using var repo = new GitRepository(options.RepositoryPath);
         var entries = repo.Tags
             .Where(tag => tag.FriendlyName.StartsWith(prefix, StringComparison.Ordinal))
-            .Select(tag => new ApprovalTagEntry(tag.FriendlyName, tag.Target.Sha))
+            .Select(tag => new ApprovalTagEntry(tag.FriendlyName, PeelToCommit(tag)?.Sha ?? tag.Target.Sha))
             .ToArray();
         return ValueTask.FromResult<IReadOnlyList<ApprovalTagEntry>>(entries);
     }
@@ -313,7 +313,7 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
             .OrderByDescending(entry => entry.Number)
             .FirstOrDefault();
 
-        if (highest.Tag is not null && string.Equals(highest.Tag.Target.Sha, commitId, StringComparison.Ordinal))
+        if (highest.Tag is not null && string.Equals(PeelToCommit(highest.Tag)?.Sha, commitId, StringComparison.Ordinal))
         {
             return ValueTask.FromResult(fallback with { ApprovalTag = highest.Tag.FriendlyName });
         }
@@ -350,7 +350,8 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
             return direct;
         }
 
-        return (repo.Branches[reference.Value]?.Tip) ?? repo.Tags[reference.Value]?.Target as Commit;
+        var tag = repo.Tags[reference.Value];
+        return (repo.Branches[reference.Value]?.Tip) ?? (tag is not null ? PeelToCommit(tag) : null);
     }
 
     private void EnsureDefaultBranch(GitRepository repo)
@@ -362,6 +363,14 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
     }
 
     private Signature BuildSignature() => new(options.CommitterName, options.CommitterEmail, DateTimeOffset.UtcNow);
+
+    private static Commit? PeelToCommit(Tag tag)
+    {
+        // For annotated tags, Tag.Target is a TagAnnotation object (not a Commit).
+        // Tag.PeeledTarget returns the final non-tag object regardless of annotation.
+        // For lightweight tags, PeeledTarget is the direct Commit.
+        return tag.PeeledTarget as Commit;
+    }
 
     private static void ValidateIdentifiers(string sourceId, string schemaName)
     {
