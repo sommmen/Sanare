@@ -429,6 +429,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# Serena MCP local project index/cache (not part of the project source)
+.serena/
+
 
 ### VisualStudioCode ###
 # Visual Studio Code

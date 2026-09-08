@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sanare.Abstractions</RootNamespace>
+    <AssemblyName>Sanare.Abstractions</AssemblyName>
+    <!--
+      This project must have zero third-party dependencies (BCL only). It defines the
+      public contract surface shared by every other Sanare package. See
+      docs/sanare/tech-design.md §6.3.
+    -->
+  </PropertyGroup>
+
+</Project>

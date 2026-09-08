@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sanare.Abstractions/Sanare.Abstractions.csproj" />
+    <Project Path="src/Sanare.Core/Sanare.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sanare.Abstractions.Tests/Sanare.Abstractions.Tests.csproj" />
+    <Project Path="tests/Sanare.Core.Tests/Sanare.Core.Tests.csproj" />
+  </Folder>
+</Solution>
