@@ -14,16 +14,16 @@ The initial reference scenarios cover Lenovo tablet-list pagination and product/
 
 ## Current status: v0.1 foundation
 
-This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, and a minimal, deterministic, offline execution path that proves the intended architecture end-to-end. No user-facing product features (live acquisition, plan authoring, browser automation, pagination, persistence) are implemented yet — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
+This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, a minimal deterministic offline execution path, a local Git-backed approved-plan storage slice, and the on-disk fixture corpus. Live acquisition, plan authoring/healing, browser automation, and pagination remain unimplemented — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
 
 ### Project structure
 
 | Project | Purpose |
 | --- | --- |
 | `src/Sanare.Abstractions` | Core domain and engine contracts: `ScrapeRequest`/`ScrapeResult`/`ScrapeStatus`, the `IScrapeRunner` execution interface, extraction-plan models, the closed `PlanOperation` vocabulary, schema attributes, diagnostics, and quality/provenance types. No infrastructure dependencies. |
-| `src/Sanare.Core` | The minimal v0.1 engine: schema derivation/coercion/materialization, an AngleSharp-backed HTML document adapter, a narrow `PlanExecutor`, in-memory plan/fixture provider boundaries, and `FixtureScrapeRunner`, the `IScrapeRunner` implementation that composes the full path. |
+| `src/Sanare.Core` | The v0.1 engine and local infrastructure: schema derivation/coercion/materialization, an AngleSharp-backed HTML document adapter, a narrow `PlanExecutor`, `FixtureScrapeRunner`, local Git-backed approved-plan storage, and an on-disk fixture corpus with mandatory redaction and DR-011 retention. |
 | `tests/Sanare.Abstractions.Tests` | Contract tests for request validation and the operation catalog. |
-| `tests/Sanare.Core.Tests` | Unit tests for schema derivation/coercion and an integration-style test suite exercising `FixtureScrapeRunner` end-to-end (success, invalid input, and each error path). |
+| `tests/Sanare.Core.Tests` | Unit and integration-style tests for schema execution, fixture capture/redaction/normalization/retention, Git-backed plan storage, and deterministic zero-socket offline replay. |
 
 ### Engine execution path (v0.1)
 
@@ -38,7 +38,7 @@ ScrapeRequest
   → ScrapeResult<TSchema>        (status, payload, diagnostics, provenance)
 ```
 
-Plans are hand-authored in-process via `InMemoryExtractionPlanProvider` (no untrusted JSON is deserialized in this milestone), and fixture content is served from `InMemoryFixtureContentProvider`. Both are explicit infrastructure boundaries designed to be replaced by persistent/live implementations without changing `Sanare.Core`'s core logic.
+The minimal runner example remains usable with hand-authored plans through `InMemoryExtractionPlanProvider` and deterministic content through `InMemoryFixtureContentProvider`. The repository also includes a partial local Git-backed approved-plan repository/resolver and an independent on-disk fixture corpus. The corpus captures redacted, size-capped responses, deduplicates normalized content, rewrites its manifest atomically, applies DR-011 pyramid retention, and supports bounded slicing and offline replay without network access.
 
 ### Requirements
 
@@ -70,12 +70,11 @@ The following are explicitly out of scope for v0.1 and are left as extension poi
 
 - Live HTTP/browser acquisition (only deterministic fixture content is served).
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows.
-- Persistent/Git-backed plan storage and `IPlanValidator` structural validation — both belong to the full `extraction-plan-model` feature (see [docs/features/extraction-plan-model.md](docs/features/extraction-plan-model.md)) and are deferred because v0.1 plans are hand-authored in-process, not deserialized from untrusted JSON.
+- The unimplemented remainder of Git-backed plan storage/resolution and `IPlanValidator` structural validation — advanced history/diff, heal branches, rollback, CLI-backed Git operation, and authoring integration remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md), [docs/features/plan-resolver.md](docs/features/plan-resolver.md), and [docs/features/extraction-plan-model.md](docs/features/extraction-plan-model.md)).
 - Pagination (`StreamAsync` throws `NotSupportedException` by design).
 - Browser-tier acquisition (Playwright) and JSON/structured-data (JSON-LD, microdata) extraction operations.
-- A committed fixture corpus (fixtures currently live inline in test code).
 - Observability/telemetry (OpenTelemetry/Aspire), caching, and request pacing.
 
 ### Recommended next step
 
-The recommended first architecture stress test is **persistent extraction-plan storage and resolution** (the `plan-resolver`/`script-repository` features): swapping `InMemoryExtractionPlanProvider` for a Git-backed or file-backed plan store is the smallest change that exercises a new infrastructure boundary without requiring the LLM authoring/healing workflows, and it unblocks introducing `IPlanValidator` for real, since plans would then originate from outside the process.
+The recommended next architecture increment is to complete the **persistent extraction-plan model and validation boundary**: add `IPlanValidator`, canonical/versioned plan serialization, and the remaining `plan-resolver`/`script-repository` operations before introducing LLM authoring and healing workflows.

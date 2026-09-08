@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: implemented — the on-disk corpus, redaction, normalized deduplication, atomic capture, DR-011 retention, bounded slicing, and offline replay are covered by focused tests.
 
 | Field | Value |
 |-------|-------|
@@ -220,9 +221,10 @@ elided. This is what keeps authoring prompts affordable on a half-megabyte Lenov
 
 - **Manifest writes are atomic** — temp file plus `File.Move(overwrite: true)`; a crash mid-write must
   never leave an unparseable manifest.
-- **Manifest is loaded once into memory** and guarded by a reader-writer lock; queries are O(1)/O(n-small).
+- **Manifest is loaded once into memory**; asynchronous mutations are serialized and queries scan the small in-memory index.
 - **No secrets on disk, ever** — redaction is not optional and cannot be disabled by configuration.
-- **Fixtures are not in git** — they are large; git holds plans and notes only.
+- **Operational captures are not in git** — their bodies live under the Sanare state root or in a CI
+  artifact store. Small, redacted, size-capped fixtures may be committed as deterministic CI test data.
 - **Corrupt fixture ⇒ loud failure** (`SNR-FIX-002`), never a silent skip, because a silently skipped
   fixture would weaken the heal regression gate.
 - Maximum stored fixture size 8 MB; larger responses are truncated with a recorded flag and are ineligible
@@ -262,6 +264,7 @@ elided. This is what keeps authoring prompts affordable on a half-megabyte Lenov
 | `SNR-FIX-001` | Requested fixture does not exist (notably in offline mode) | Error | Status `FixtureNotFound`; no network fallback |
 | `SNR-FIX-002` | Manifest unparseable, entry orphaned, or file corrupt | Error | Startup or read fails loudly; corpus never silently degrades |
 | `SNR-FIX-003` | Capture requested while offline | Error | Capture refused |
+| `SNR-FIX-004` | Requested slice context exceeds 32 000 characters | Warning | Context is clamped to the hard cap and the bounded slice is returned |
 
 ## File Structure
 
@@ -308,11 +311,12 @@ src/
 - **Integration**: manifest atomicity under simulated crash; 200-way concurrent capture stress; offline
   mode with a connect-throwing HTTP handler proving zero sockets; end-to-end replay of the Lenovo lister
   and product fixtures.
-- **Fixtures / Mocks**: real captured pages under
+- **Fixtures / Mocks**: small, clearly labelled synthetic stand-ins for real captures under
   `tests/Sanare.Core.Tests/Fixtures/Data/lenovo-com/` — `tablet-lister-page1.html`,
   `tablet-lister-page2.html`, `tablet-product-yoga-tab-gen2.html`, `consent-wall.html`,
-  `empty-result.html`, and `bol-com/product-lister.json`; plus a synthetic `pii-sample.html` for
-  redaction tests. A fake clock supplies deterministic timestamps so fixture ids are stable in snapshots.
+  `empty-result.html` — and `tests/Sanare.Core.Tests/Fixtures/Data/bol-com/product-lister.json`; plus
+  `pii-sample.html` for redaction tests. No network fetch is required. A fake clock supplies deterministic
+  timestamps so fixture ids are stable in assertions.
 
 Companion test files: `tests/Sanare.Core.Tests/Fixtures/RedactorTests.cs`,
 `tests/Sanare.Core.Tests/Fixtures/FixturePrunerTests.cs`,
