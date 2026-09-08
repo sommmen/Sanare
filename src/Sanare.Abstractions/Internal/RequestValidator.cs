@@ -106,8 +106,13 @@ public static class RequestValidator
     {
         try
         {
-            _ = CultureInfo.GetCultureInfo(name);
-            return true;
+            var resolved = CultureInfo.GetCultureInfo(name);
+
+            // ICU (used on Linux/macOS) resolves malformed names loosely instead of throwing
+            // (e.g. "this-is-not-a-culture-name" silently becomes "this-IS"), unlike the Windows
+            // NLS backend. Requiring the resolved name to round-trip keeps behaviour consistent
+            // across platforms.
+            return string.Equals(resolved.Name, name, StringComparison.OrdinalIgnoreCase);
         }
         catch (CultureNotFoundException)
         {
