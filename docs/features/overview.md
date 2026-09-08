@@ -30,7 +30,7 @@ must not be used to renumber or reorder work.
 | 13 | Agent Toolset | `agent-toolset` | L4 | 5, 9 | P0 | draft | [agent-toolset.md](agent-toolset.md) |
 | 14 | Quality Evaluator | `quality-evaluator` | L4 | 2, 11 | P0 | draft | [quality-evaluator.md](quality-evaluator.md) |
 | 15 | Healing Workflow | `healing-workflow` | L4 | 4, 5, 9, 12, 13, 14 | P0 | draft | [healing-workflow.md](healing-workflow.md) |
-| 16 | Observability | `observability` | cross | 1 | P1 | draft | [observability.md](observability.md) |
+| 16 | Observability | `observability` | cross | 1 | P1 | partial | [observability.md](observability.md) |
 | 17 | Hosting & Configuration | `hosting-configuration` | cross | 1–16 | P0 | draft | [hosting-configuration.md](hosting-configuration.md) |
 | 18 | Lenovo Sample Application | `sample-app-lenovo` | app | 17 | P0 | draft | [sample-app-lenovo.md](sample-app-lenovo.md) |
 
