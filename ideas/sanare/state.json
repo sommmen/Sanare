@@ -1,0 +1,20 @@
+{
+  "idea": "sanare",
+  "status": "graduated",
+  "created": "2026-09-06T00:00:00Z",
+  "updated": "2026-09-06T00:00:00Z",
+  "session_count": 1,
+  "draft_version": 1,
+  "validation": {
+    "problem_evidence": "Product-data aggregation requires Lenovo (nl/nl catalogue + spec pages) and bol.com data; neither exposes a usable public product API. Hand-written scrapers decay silently on layout change and produce quietly-wrong data.",
+    "demand_evidence": "Concrete in-hand requirement: two named Lenovo URLs (tablet lister + Yoga Tab Gen 2 spec table) must be scraped into typed schemas for an existing aggregation system, with bol.com named as the next source.",
+    "competitive_analysis": true,
+    "not_build_analysis": "Without it: N hand-maintained scrapers, days of latency per breakage, live-site hammering during debugging, no version history, and the dominant failure mode is silently incomplete data ingested into the product catalogue.",
+    "validated": true
+  },
+  "graduated_to": [
+    "docs/project-sanare.md",
+    "docs/sanare/tech-design.md",
+    "docs/features/"
+  ]
+}
