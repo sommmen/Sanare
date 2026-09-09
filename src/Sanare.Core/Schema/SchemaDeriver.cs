@@ -32,7 +32,7 @@ public sealed class SchemaDeriver : ISchemaDeriver
         var culture = schemaType.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? defaultCulture;
         var fields = new List<FieldDescriptor>();
         string? collectionPointer = null;
-        Visit(schemaType, string.Empty, culture, 0, new HashSet<Type>(), fields, ref collectionPointer);
+        Visit(schemaType, string.Empty, culture, 0, [], fields, ref collectionPointer);
         var ordered = fields.OrderBy(static x => x.JsonPointer, StringComparer.Ordinal).ToArray();
         var json = SchemaHasher.CreateCanonicalJson(schemaType.Name, typeField?.Version ?? 1, ordered);
         var descriptor = new SchemaDescriptor(schemaType, schemaType.Name, typeField?.Version ?? 1, json, string.Empty, ordered, collectionPointer);

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Sanare.Core.Schema;
@@ -32,7 +31,7 @@ public sealed class SchemaValidator : ISchemaValidator
         return new SchemaValidationResult(violations.Length == 0, violations);
     }
 
-    private static void ValidateField(JsonNode document, FieldDescriptor field, ICollection<SchemaViolation> violations)
+    private static void ValidateField(JsonNode document, FieldDescriptor field, List<SchemaViolation> violations)
     {
         var nodes = ResolveNodes(document, field.JsonPointer).ToArray();
         if (nodes.Length == 0 || nodes.All(static node => node is null))
@@ -92,11 +91,9 @@ public sealed class SchemaValidator : ISchemaValidator
             return false;
         }
 
-        return type == typeof(string) || type == typeof(Uri) || type.IsEnum
-            ? value.TryGetValue<string>(out _)
-            : type == typeof(bool)
-                ? value.TryGetValue<bool>(out _)
-                : type == typeof(int)
+        return (type == typeof(string) || type == typeof(Uri) || type.IsEnum) ? value.TryGetValue<string>(out _)
+            : type == typeof(bool) ? value.TryGetValue<bool>(out _)
+            : type == typeof(int)
                     ? value.TryGetValue<int>(out _)
                     : type == typeof(long)
                         ? value.TryGetValue<long>(out _)

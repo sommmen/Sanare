@@ -16,7 +16,7 @@ public sealed class TypeCoercer : ITypeCoercer
         if (raw is null || TextNormalizer.Normalize(raw).Length == 0)
         {
             return field.Required
-                ? Failure(raw, field, "SNR-SCH-004: A required value is missing.")
+                ? Failure(raw, "SNR-SCH-004: A required value is missing.")
                 : new CoercionOutcome(true, null, raw, null, null);
         }
 
@@ -26,20 +26,20 @@ public sealed class TypeCoercer : ITypeCoercer
         {
             return context.IsPresent
                 ? Success(true, raw, null)
-                : Failure(raw, field, "SNR-SCH-004: A required value is missing.");
+                : Failure(raw, "SNR-SCH-004: A required value is missing.");
         }
 
         var unit = IsNumeric(field.ClrType) ? ExtractTrailingUnit(ref text, field.Unit) : null;
         if (field.Unit is { Length: > 0 } && unit is null && IsNumeric(field.ClrType))
         {
-            return Failure(raw, field, $"SNR-SCH-005: Expected unit '{field.Unit}' for '{field.ClrType.Name}'.");
+            return Failure(raw, $"SNR-SCH-005: Expected unit '{field.Unit}' for '{field.ClrType.Name}'.");
         }
 
         if (field.Unit is { Length: > 0 } && unit is not null &&
             !string.Equals(unit, field.Unit, StringComparison.OrdinalIgnoreCase) &&
             !UnitConverter.TryConvert(0m, unit, field.Unit, out _))
         {
-            return Failure(raw, field, $"SNR-SCH-005: Expected unit '{field.Unit}' for '{field.ClrType.Name}'.");
+            return Failure(raw, $"SNR-SCH-005: Expected unit '{field.Unit}' for '{field.ClrType.Name}'.");
         }
 
         if (field.ClrType == typeof(string))
@@ -59,14 +59,14 @@ public sealed class TypeCoercer : ITypeCoercer
 
         if (!TryConvertScalar(text, field.ClrType, culture, context, field.EnumSynonyms, out var converted))
         {
-            return Failure(raw, field, $"SNR-SCH-005: Cannot coerce value to '{field.ClrType.Name}'.");
+            return Failure(raw, $"SNR-SCH-005: Cannot coerce value to '{field.ClrType.Name}'.");
         }
 
         if (converted is decimal numeric && unit is not null && field.Unit is not null)
         {
             if (!UnitConverter.TryConvert(numeric, unit, field.Unit, out var convertedNumeric))
             {
-                return Failure(raw, field, $"SNR-SCH-005: Cannot convert unit '{unit}' to '{field.Unit}'.");
+                return Failure(raw, $"SNR-SCH-005: Cannot convert unit '{unit}' to '{field.Unit}'.");
             }
 
             converted = convertedNumeric;
@@ -102,7 +102,7 @@ public sealed class TypeCoercer : ITypeCoercer
         {
             if (!TryConvertScalar(item, elementType, context.ResolveCulture(field), context, field.EnumSynonyms, out var value))
             {
-                outcome = Failure(text, field, $"SNR-SCH-005: Cannot coerce collection element to '{elementType.Name}'.");
+                outcome = Failure(text, $"SNR-SCH-005: Cannot coerce collection element to '{elementType.Name}'.");
                 return true;
             }
 
@@ -130,7 +130,7 @@ public sealed class TypeCoercer : ITypeCoercer
             var separator = pair.IndexOf(':');
             if (separator <= 0)
             {
-                outcome = Failure(text, field, "SNR-SCH-005: Dictionary entries must contain a label and value separated by ':'.");
+                outcome = Failure(text, "SNR-SCH-005: Dictionary entries must contain a label and value separated by ':'.");
                 return true;
             }
 
@@ -292,7 +292,7 @@ public sealed class TypeCoercer : ITypeCoercer
     private static CoercionOutcome Success(object? value, string raw, string? unit) =>
         new(true, ToJsonNode(value), raw, unit, null);
 
-    private static CoercionOutcome Failure(string? raw, FieldDescriptor field, string reason) =>
+    private static CoercionOutcome Failure(string? raw, string reason) =>
         new(false, null, raw, null, reason);
 
     private static JsonNode? ToJsonNode(object? value) => value switch
