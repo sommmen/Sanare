@@ -71,8 +71,9 @@ public sealed class SpanHierarchyTests
     }
 
     [Fact]
-    public void StartChild_Records_the_canonicalised_url_path_without_the_query_string_by_default()
+    public void StartChild_Does_not_tag_urls_to_prevent_cardinality_explosion()
     {
+        // Per spec: URLs and dynamic values never become tags because they create unbounded cardinality.
         using var listener = CreateListener();
         var activitySource = new ScraperActivitySource();
         var uri = new Uri("https://example.test/products/1?session=abc123&token=secret");
@@ -80,15 +81,13 @@ public sealed class SpanHierarchyTests
         using var activity = activitySource.StartChild(SpanNames.BrowserNavigate, "source-a", "commit-1", uri: uri);
 
         Assert.NotNull(activity);
-        var recordedPath = Assert.IsType<string>(activity!.GetTagItem(TagNames.UrlPath));
-        Assert.Equal("https://example.test/products/1", recordedPath);
-        Assert.DoesNotContain("session", recordedPath, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret", recordedPath, StringComparison.Ordinal);
+        Assert.Null(activity!.GetTagItem(TagNames.UrlPath));
     }
 
     [Fact]
-    public void StartChild_Records_the_full_url_only_when_sensitive_data_is_explicitly_enabled()
+    public void StartChild_Does_not_tag_urls_even_when_sensitive_data_is_enabled()
     {
+        // Per spec: URLs should never become tags regardless of sensitive data flag, as they create unbounded cardinality.
         using var listener = CreateListener();
         var activitySource = new ScraperActivitySource();
         var uri = new Uri("https://example.test/products/1?session=abc123");
@@ -96,7 +95,55 @@ public sealed class SpanHierarchyTests
         using var activity = activitySource.StartChild(SpanNames.BrowserNavigate, "source-a", "commit-1", uri: uri, enableSensitiveData: true);
 
         Assert.NotNull(activity);
-        Assert.Equal(uri.AbsoluteUri, activity!.GetTagItem(TagNames.UrlPath));
+        Assert.Null(activity!.GetTagItem(TagNames.UrlPath));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StartRun_Rejects_empty_or_whitespace_sourceId(string sourceId)
+    {
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+
+        var exception = Assert.Throws<ArgumentException>(() => activitySource.StartRun(sourceId, "commit-1"));
+        Assert.Equal("sourceId", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StartRun_Rejects_empty_or_whitespace_planCommit(string planCommit)
+    {
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+
+        var exception = Assert.Throws<ArgumentException>(() => activitySource.StartRun("source-a", planCommit));
+        Assert.Equal("planCommit", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StartChild_Rejects_empty_or_whitespace_sourceId(string sourceId)
+    {
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+
+        var exception = Assert.Throws<ArgumentException>(() => activitySource.StartChild("span-name", sourceId, "commit-1"));
+        Assert.Equal("sourceId", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void StartChild_Rejects_empty_or_whitespace_planCommit(string planCommit)
+    {
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+
+        var exception = Assert.Throws<ArgumentException>(() => activitySource.StartChild("span-name", "source-a", planCommit));
+        Assert.Equal("planCommit", exception.ParamName);
     }
 
     [Fact]

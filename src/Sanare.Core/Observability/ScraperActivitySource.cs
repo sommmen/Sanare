@@ -12,6 +12,8 @@ public sealed class ScraperActivitySource
 
     public Activity? StartRun(string sourceId, string planCommit, string? runId = null, string? tier = null, string? origin = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(planCommit);
         if (!Source.HasListeners())
         {
             return null;
@@ -31,6 +33,8 @@ public sealed class ScraperActivitySource
     public Activity? StartChild(string name, string sourceId, string planCommit, int? pageIndex = null, Uri? uri = null, bool enableSensitiveData = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(planCommit);
         if (!Source.HasListeners())
         {
             return null;
@@ -44,11 +48,6 @@ public sealed class ScraperActivitySource
         if (pageIndex.HasValue)
         {
             tags.Add(TagNames.PageIndex, pageIndex.Value);
-        }
-
-        if (uri is not null)
-        {
-            tags.Add(TagNames.UrlPath, enableSensitiveData ? uri.AbsoluteUri : uri.GetLeftPart(UriPartial.Path));
         }
 
         return Source.StartActivity(name, ActivityKind.Internal, default(ActivityContext), tags);
