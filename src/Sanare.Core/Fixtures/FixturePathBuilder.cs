@@ -19,5 +19,16 @@ public sealed class FixturePathBuilder
     };
 
     private static string HashPrefix(string hash) => hash.StartsWith("sha256:", StringComparison.Ordinal) ? hash[7..15] : hash[..Math.Min(8, hash.Length)];
-    private static string Slug(string value) => value.Replace('/', '-').Replace('\\', '-').Replace(' ', '-').ToLowerInvariant();
+
+    /// <summary>Sanitises a fixture path segment so it is safe as a Windows and POSIX filename component:
+    /// replaces path separators, whitespace, and reserved filename characters (`:*?"&lt;&gt;|`) with `-`.</summary>
+    private static string Slug(string value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            builder.Append(ch is '/' or '\\' or ' ' or ':' or '*' or '?' or '"' or '<' or '>' or '|' ? '-' : ch);
+        }
+        return builder.ToString().ToLowerInvariant();
+    }
 }

@@ -12,9 +12,14 @@ public sealed class Redactor : IRedactor
         {
             foreach (var header in headers)
             {
-                if (header.Key.Equals("Set-Cookie", StringComparison.OrdinalIgnoreCase) || header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase) || header.Key.Equals("Proxy-Authorization", StringComparison.OrdinalIgnoreCase))
+                if (header.Key.Equals("Set-Cookie", StringComparison.OrdinalIgnoreCase))
                 {
                     AddRule(rules, "cookie");
+                    continue;
+                }
+                if (header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase) || header.Key.Equals("Proxy-Authorization", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddRule(rules, "credential");
                     continue;
                 }
                 safeHeaders.Add(header.Key, header.Value);

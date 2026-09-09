@@ -31,7 +31,7 @@ public sealed class RedactorTests
         var result = _redactor.Redact("<html></html>"u8, headers);
 
         Assert.Empty(result.Headers);
-        Assert.Contains("cookie", result.Rules);
+        Assert.Contains("credential", result.Rules);
     }
 
     [Fact]

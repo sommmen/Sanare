@@ -46,7 +46,7 @@ public sealed class FixtureCorpus : IFixtureCorpus
         try
         {
             var records = await _records.Value.ConfigureAwait(false);
-            var match = records.FirstOrDefault(record => record.SourceId == request.SourceId && record.PageRole == request.PageRole && record.NormalisedHash == normalisedHash);
+            var match = records.FirstOrDefault(record => record.SourceId == request.SourceId && record.PageRole == request.PageRole && record.Url == request.Url && record.NormalisedHash == normalisedHash);
             if (match is not null)
             {
                 var updated = match with { LastSeenAt = _clock.GetUtcNow() };
@@ -75,7 +75,8 @@ public sealed class FixtureCorpus : IFixtureCorpus
     public async ValueTask<FixtureContent?> GetContentAsync(string fixtureId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fixtureId);
-        var record = (await _records.Value.ConfigureAwait(false)).FirstOrDefault(item => item.Id == fixtureId);
+        var snapshot = await SnapshotRecordsAsync(ct).ConfigureAwait(false);
+        var record = snapshot.FirstOrDefault(item => item.Id == fixtureId);
         if (record is null) { return null; }
         var path = Path.Combine(_options.StateRoot, "fixtures", record.File);
         if (!File.Exists(path)) { throw new FixtureCorpusException("SNR-FIX-002", $"Fixture file '{path}' is missing."); }
@@ -88,13 +89,26 @@ public sealed class FixtureCorpus : IFixtureCorpus
     {
         ArgumentNullException.ThrowIfNull(query);
         ct.ThrowIfCancellationRequested();
-        IEnumerable<FixtureRecord> result = await _records.Value.ConfigureAwait(false);
+        IEnumerable<FixtureRecord> result = await SnapshotRecordsAsync(ct).ConfigureAwait(false);
         if (query.FixtureId is not null) { result = result.Where(record => record.Id == query.FixtureId); }
         if (query.SourceId is not null) { result = result.Where(record => record.SourceId == query.SourceId); }
         if (query.Url is not null) { result = result.Where(record => record.Url == query.Url); }
         if (query.PageRole is not null) { result = result.Where(record => record.PageRole == query.PageRole); }
         result = result.OrderByDescending(record => record.CapturedAt);
         return query.Latest ? result.Take(1).ToArray() : result.ToArray();
+    }
+
+    /// <summary>Takes a point-in-time copy of the in-memory records under <see cref="_writeLock"/> so
+    /// concurrent reads never enumerate the same <see cref="List{T}"/> instance a capture/prune is mutating.</summary>
+    private async ValueTask<FixtureRecord[]> SnapshotRecordsAsync(CancellationToken ct)
+    {
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var records = await _records.Value.ConfigureAwait(false);
+            return [.. records];
+        }
+        finally { _writeLock.Release(); }
     }
 
     public async ValueTask<FixtureSlice> SliceAsync(string fixtureId, FixtureSliceRequest request, CancellationToken ct = default)
