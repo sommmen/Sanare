@@ -17,7 +17,9 @@ and scope of the v0.1 foundation.
 ## Todo
 
 - [x] Implement the v0.1 project skeleton, core domain/engine contracts, and a minimal deterministic offline engine path (`Sanare.Abstractions` + `Sanare.Core`), proving the intended architecture end-to-end via fixture-backed execution.
-- [ ] Implement persistent/Git-backed extraction-plan storage and resolution (`plan-resolver`/`script-repository`), replacing `InMemoryExtractionPlanProvider`.
+- [x] Implement the on-disk fixture corpus with mandatory redaction, normalized deduplication, atomic concurrent capture, DR-011 pyramid retention, bounded slicing, and zero-socket offline replay.
+- [x] Implement the local Git-backed approved-plan storage and resolution slice (`script-repository`/`plan-resolver`) while preserving the in-memory provider for the minimal runner example.
+- [ ] Complete advanced extraction-plan repository operations: git CLI backend, heal branches, fast-forward promotion, rollback, garbage collection, and remote synchronization.
 - [ ] Implement `IPlanValidator` and the full `extraction-plan-model` feature (JSON plan serializer, canonical writer, content hash, version upgrades) once plans can originate from outside the process.
 - [ ] Implement live HTTP acquisition, then browser-tier (Playwright) acquisition, per `docs/sanare/tech-design.md`.
 - [ ] Implement the pagination engine and remove the `NotSupportedException` from `IScrapeRunner.StreamAsync`.

@@ -1,0 +1,9 @@
+{
+  "_comment": "SYNTHETIC TEST FIXTURE — not a real network capture. Stand-in for a bol.com JSON lister API payload.",
+  "requestId": "req-0000000001",
+  "timestamp": "2026-09-06T10:30:00Z",
+  "products": [
+    { "sku": "9200000123456", "title": "Wireless Mouse", "price": 19.99, "currency": "EUR" },
+    { "sku": "9200000123457", "title": "Mechanical Keyboard", "price": 89.99, "currency": "EUR" }
+  ]
+}
