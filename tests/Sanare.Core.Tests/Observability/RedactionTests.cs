@@ -142,6 +142,29 @@ public sealed class RedactionTests
     }
 
     [Fact]
+    public void RedactValue_Redacts_nested_dictionary_values_using_their_field_names()
+    {
+        var policy = new RedactionPolicy();
+        var value = new Dictionary<string, object?>
+        {
+            ["Authorization"] = "Bearer secret-token",
+            ["details"] = new Dictionary<string, object?>
+            {
+                ["email"] = "person@example.com",
+            },
+        };
+
+        var result = Assert.IsType<KeyValuePair<string, object?>[]>(policy.RedactValue("metadata", value));
+        var authorization = Assert.Single(result, pair => pair.Key == "Authorization");
+        Assert.Equal(RedactionPolicy.Redacted, authorization.Value);
+
+        var details = Assert.Single(result, pair => pair.Key == "details");
+        var nested = Assert.IsType<KeyValuePair<string, object?>[]>(details.Value);
+        var email = Assert.Single(nested, pair => pair.Key == "email");
+        Assert.Equal(RedactionPolicy.Redacted, email.Value);
+    }
+
+    [Fact]
     public void RedactingLogEnricher_Redacts_state_pairs_before_the_inner_logger_receives_them()
     {
         var captured = new List<KeyValuePair<string, object?>[]>();
@@ -228,6 +251,41 @@ public sealed class RedactionTests
         Assert.Single(captured);
         var forwarded = captured[0];
         Assert.Same(safeException, forwarded);
+    }
+
+    [Fact]
+    public void RedactingLogEnricher_Does_not_forward_a_nested_exception_chain()
+    {
+        var captured = new List<Exception?>();
+        var inner = new ExceptionCapturingLogger(captured);
+        var enricher = new RedactingLogEnricher(inner);
+        var nested = new InvalidOperationException("Nested failure for nested@example.com");
+        var sensitiveException = new Exception("Failed for user@example.com", nested);
+
+        enricher.Log(LogLevel.Error, new EventId(1), "state", sensitiveException, (_, _) => "log message");
+
+        var forwarded = Assert.Single(captured);
+        Assert.NotNull(forwarded);
+        Assert.Null(forwarded!.InnerException);
+        Assert.DoesNotContain("user@example.com", forwarded.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("nested@example.com", forwarded.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RedactingLogEnricher_Does_not_forward_a_nested_exception_chain_when_outer_message_is_safe()
+    {
+        var captured = new List<Exception?>();
+        var inner = new ExceptionCapturingLogger(captured);
+        var enricher = new RedactingLogEnricher(inner);
+        var nested = new InvalidOperationException("Nested failure for nested@example.com");
+        var safeException = new Exception("Safe outer message", nested);
+
+        enricher.Log(LogLevel.Error, new EventId(1), "state", safeException, (_, _) => "log message");
+
+        var forwarded = Assert.Single(captured);
+        Assert.NotNull(forwarded);
+        Assert.Null(forwarded!.InnerException);
+        Assert.DoesNotContain("nested@example.com", forwarded.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>Minimal <see cref="ILogger"/> that records the redacted state it was given.</summary>

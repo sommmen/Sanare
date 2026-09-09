@@ -36,9 +36,9 @@ public sealed class RedactingLogEnricher : ILogger
         {
             var originalMessage = exception.Message;
             var redactedExceptionMessage = _policy.Redact(originalMessage);
-            if (redactedExceptionMessage != originalMessage)
+            if (redactedExceptionMessage != originalMessage || exception.InnerException is not null)
             {
-                redactedException = new Exception(redactedExceptionMessage, exception.InnerException);
+                redactedException = new Exception(redactedExceptionMessage);
             }
         }
 

@@ -44,6 +44,22 @@ public sealed class RedactionPolicy
         {
             return Redact(text, sourceId, field);
         }
+        if (value is IEnumerable<KeyValuePair<string, object?>> pairs)
+        {
+            return pairs.Select(pair => new KeyValuePair<string, object?>(
+                pair.Key,
+                RedactValue(pair.Key, pair.Value, sourceId, field))).ToArray();
+        }
+        if (value is IDictionary dictionary)
+        {
+            return dictionary.Cast<DictionaryEntry>().Select(entry =>
+            {
+                var entryName = entry.Key?.ToString() ?? string.Empty;
+                return new KeyValuePair<string, object?>(
+                    entryName,
+                    RedactValue(entryName, entry.Value, sourceId, field));
+            }).ToArray();
+        }
         if (value is IEnumerable enumerable and not string)
         {
             return enumerable.Cast<object?>().Select(item => RedactValue(name, item, sourceId, field)).ToArray();
