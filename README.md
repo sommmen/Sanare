@@ -14,7 +14,7 @@ The initial reference scenarios cover Lenovo tablet-list pagination and product/
 
 ## Current status: v0.1 foundation
 
-This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, a minimal deterministic offline execution path, a local Git-backed approved-plan storage slice, and the on-disk fixture corpus. Live acquisition, plan authoring/healing, browser automation, and pagination remain unimplemented — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
+This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, a minimal deterministic offline execution path, a local Git-backed approved-plan storage slice, the on-disk fixture corpus, and a partial controlled HTTP acquisition boundary. The existing `FixtureScrapeRunner` remains fixture-backed; the independent acquirer is not yet wired into that execution path. Plan authoring/healing, browser automation, pagination, and the remainder of the designed acquisition pipeline remain unimplemented — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
 
 ### Project structure
 
@@ -38,7 +38,7 @@ ScrapeRequest
   → ScrapeResult<TSchema>        (status, payload, diagnostics, provenance)
 ```
 
-The minimal runner example remains usable with hand-authored plans through `InMemoryExtractionPlanProvider` and deterministic content through `InMemoryFixtureContentProvider`. The repository also includes a partial local Git-backed approved-plan repository/resolver and an independent on-disk fixture corpus. The corpus captures redacted, size-capped responses, deduplicates normalized content, rewrites its manifest atomically, applies DR-011 pyramid retention, and supports bounded slicing and offline replay without network access.
+The minimal runner example remains usable with hand-authored plans through `InMemoryExtractionPlanProvider` and deterministic content through `InMemoryFixtureContentProvider`. The repository also includes a partial local Git-backed approved-plan repository/resolver, an independent on-disk fixture corpus, and a partial `HttpContentAcquirer` foundation. The acquirer supports GET-only HTTPS requests by default, streamed 16 MiB response limits, response-header normalization, content-type validation, charset detection, fixture capture, and zero-socket fixture replay. The corpus captures redacted, size-capped responses, deduplicates normalized content, rewrites its manifest atomically, applies DR-011 pyramid retention, and supports bounded slicing and offline replay without network access.
 
 ### Requirements
 
@@ -66,9 +66,11 @@ All three commands are expected to run clean (0 warnings/errors) against the cur
 
 ### What's intentionally unimplemented
 
-The following are explicitly out of scope for v0.1 and are left as extension points for future feature work, not partially-built infrastructure:
+The following are explicitly out of scope for v0.1 or remain incomplete after the controlled HTTP acquisition foundation:
 
-- Live HTTP/browser acquisition (only deterministic fixture content is served).
+- Integration of `HttpContentAcquirer` into `FixtureScrapeRunner` or the planned runtime path.
+- HTTP acquisition policy and resilience: robots.txt/llms.txt, host pacing and concurrency, retries, circuit breaking and challenge hand-off, cache/conditional requests, redirect-hop limits, cookie handling, browsing identity, and acquisition diagnostics/telemetry.
+- Browser acquisition (Playwright) and structured-data acquisition.
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows.
 - The unimplemented remainder of Git-backed plan storage/resolution and `IPlanValidator` structural validation — advanced history/diff, heal branches, rollback, CLI-backed Git operation, and authoring integration remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md), [docs/features/plan-resolver.md](docs/features/plan-resolver.md), and [docs/features/extraction-plan-model.md](docs/features/extraction-plan-model.md)).
 - Pagination (`StreamAsync` throws `NotSupportedException` by design).
