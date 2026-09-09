@@ -3,6 +3,9 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: partial — the `ActivitySource`/`Meter` pair, full metric catalog, span hierarchy,
+> redaction pipeline, cardinality guard, and audit log are implemented; agent/LLM instrumentation attachment
+> is deferred pending `Microsoft.Agents.AI` (see Deferred target-state scope).
 
 | Field | Value |
 |-------|-------|
@@ -26,21 +29,30 @@ underlying `IChatClient` silently duplicates every GenAI attribute and makes tok
 
 ## Scope
 
-**Included:**
+### Implemented slice
 
 - The `Sanare` `ActivitySource` and `Meter`.
 - The full metric catalog (§13.2) and its tag conventions.
 - The span hierarchy rooted at `sanare.run.execute`.
-- Agent/LLM instrumentation attachment via `agent.AsBuilder().UseOpenTelemetry(...)`, at one layer only.
 - The redacting `ILogger` enricher and log-scope conventions.
+- The cardinality guard rejecting unbounded tag values (URLs, dynamic proxy/model-route values).
 - Audit log writing for plan authored / approved / rolled back / heal dispatched / heal completed, including
   model-profile routing and budget lifecycle events (DR-010, DR-012).
 - Alert rule definitions and the `IAlertSink` abstraction, including spend and manual-challenge escalation.
-- Aspire-friendly visibility of the library's, Agent Framework's, and `IChatClient`'s three OTel sources;
-  no bundled administration UI (DR-015).
+- Aspire-friendly visibility of the library's OTel source; no bundled administration UI (DR-015).
 - `EnableSensitiveData` gating.
 
-**Excluded:**
+### Deferred target-state scope
+
+- Agent/LLM instrumentation attachment via `agent.AsBuilder().UseOpenTelemetry(...)`, at one layer only —
+  deferred until `Microsoft.Agents.AI` is added to this repository (`Sanare.Agents` does not exist yet). The
+  start-up assertion this spec requires (§ Agent instrumentation — exactly one layer) is not yet wired
+  because there is no agent-hosting component to assert against; consumers integrating the Agent Framework
+  are responsible for this check until an owning component exists.
+- Aspire-friendly visibility of the Agent Framework's and `IChatClient`'s OTel sources, which depends on the
+  same deferred agent-layer instrumentation above.
+
+**Excluded (not this component's responsibility, regardless of implementation status):**
 
 - Exporter configuration (OTLP endpoint, sampling) — the **consuming application's** job; this component
   only exposes the source/meter names to register.
@@ -155,7 +167,7 @@ configured profile name (such as `Authoring` or `Healing`), never a dynamic prox
 `sanare.healing.*` for agent workflows.
 
 Every span carries `source.id` and `plan.commit`. Additional attributes: `run.id`, `tier`, `origin`,
-`page.index`, `http.response.status_code`, `cache.hit`. A span records the **canonicalised URL path**, not
+`page.index`, `http.response.status_code`, `cache.hit`, `url.path`. A span records the **canonicalised URL path** (from `Uri.AbsolutePath`, never including query string or full URI), not
 the full URL with query, unless `EnableSensitiveData` is on.
 
 Failed spans set `ActivityStatusCode.Error` with the `SNR-*` error code as `error.type` — the code, not the
