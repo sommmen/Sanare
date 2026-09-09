@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Sanare.Abstractions.Telemetry;
@@ -22,11 +23,11 @@ public sealed class ScraperMetrics
     private static readonly Counter<long> AuthoringTokensInstrument = Meter.CreateCounter<long>("sanare.authoring.tokens");
     private static readonly Counter<long> HealingCountInstrument = Meter.CreateCounter<long>("sanare.healing.count");
     private static readonly Histogram<double> TimeToRepairInstrument = Meter.CreateHistogram<double>("sanare.healing.time_to_repair", "s");
-    private static readonly Dictionary<string, double> FieldNullRates = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, double> RateLimits = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, double> CacheHitRatios = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, double> PlanAges = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, double> BudgetRatios = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> FieldNullRates = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> RateLimits = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> CacheHitRatios = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> PlanAges = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> BudgetRatios = new(StringComparer.Ordinal);
 
     private readonly CardinalityGuard _guard;
 
@@ -153,8 +154,8 @@ public sealed class ScraperMetrics
     private static IEnumerable<Measurement<double>> ObserveCacheHitRatios() => ObserveSingle(CacheHitRatios, TagNames.Layer);
     private static IEnumerable<Measurement<double>> ObservePlanAges() => ObserveSingle(PlanAges, TagNames.Source);
     private static IEnumerable<Measurement<double>> ObserveBudgetRatios() => ObserveSingle(BudgetRatios, TagNames.Source);
-    private static IEnumerable<Measurement<double>> ObserveSingle(Dictionary<string, double> values, string tag) => values.Select(pair => new Measurement<double>(pair.Value, new KeyValuePair<string, object?>(tag, pair.Key)));
-    private static IEnumerable<Measurement<double>> ObserveComposite(Dictionary<string, double> values, string firstTag, string secondTag) => values.Select(pair =>
+    private static IEnumerable<Measurement<double>> ObserveSingle(IEnumerable<KeyValuePair<string, double>> values, string tag) => values.Select(pair => new Measurement<double>(pair.Value, new KeyValuePair<string, object?>(tag, pair.Key)));
+    private static IEnumerable<Measurement<double>> ObserveComposite(IEnumerable<KeyValuePair<string, double>> values, string firstTag, string secondTag) => values.Select(pair =>
     {
         var parts = pair.Key.Split('|', 2);
         var tags = new TagList { { firstTag, parts[0] }, { secondTag, parts[1] } };

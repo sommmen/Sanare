@@ -23,8 +23,9 @@ public sealed class RedactingLogEnricher : ILogger
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         ArgumentNullException.ThrowIfNull(formatter);
-        var redacted = RedactState(state);
-        _inner.Log(logLevel, eventId, redacted, exception, static (value, _) => value.ToString() ?? string.Empty);
+        var redactedMessage = _policy.Redact(formatter(state, exception) ?? string.Empty);
+        var redactedState = RedactState(state);
+        _inner.Log(logLevel, eventId, redactedState, exception, (_, _) => redactedMessage);
     }
 
     private object RedactState<TState>(TState state)

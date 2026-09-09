@@ -156,6 +156,19 @@ public sealed class RedactionTests
     }
 
     [Fact]
+    public void RedactingLogEnricher_Uses_the_caller_formatter_before_redacting_the_message()
+    {
+        string? capturedMessage = null;
+        var inner = new CapturingLogger([], onMessage: message => capturedMessage = message);
+        var enricher = new RedactingLogEnricher(inner);
+        var state = new[] { new KeyValuePair<string, object?>("user", "person@example.com") };
+
+        enricher.Log(LogLevel.Information, new EventId(1), state, null, (value, _) => $"User {value[0].Value} signed in");
+
+        Assert.Equal("User [redacted] signed in", capturedMessage);
+    }
+
+    [Fact]
     public void RedactingLogEnricher_Redacts_a_scope_state_string()
     {
         object? capturedScopeState = null;
@@ -169,7 +182,10 @@ public sealed class RedactionTests
     }
 
     /// <summary>Minimal <see cref="ILogger"/> that records the redacted state it was given.</summary>
-    private sealed class CapturingLogger(List<KeyValuePair<string, object?>[]> captured, Action<object?>? onScope = null) : ILogger
+    private sealed class CapturingLogger(
+        List<KeyValuePair<string, object?>[]> captured,
+        Action<object?>? onScope = null,
+        Action<string>? onMessage = null) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
@@ -185,6 +201,8 @@ public sealed class RedactionTests
             {
                 captured.Add(pairs.ToArray());
             }
+
+            onMessage?.Invoke(formatter(state, exception));
         }
     }
 }
