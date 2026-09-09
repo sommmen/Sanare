@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Sanare.Abstractions.Telemetry;
+using Sanare.Core.Observability.Redaction;
 
 namespace Sanare.Core.Observability.Alerting;
 
@@ -9,14 +10,16 @@ public sealed class AlertEvaluator
     private readonly IAlertSink _sink;
     private readonly AlertDeduplicator _deduplicator;
     private readonly TimeProvider _timeProvider;
+    private readonly RedactionPolicy _redactionPolicy;
     private readonly ILogger<AlertEvaluator>? _logger;
 
-    public AlertEvaluator(IAlertSink sink, AlertDeduplicator? deduplicator = null, TimeProvider? timeProvider = null, ILogger<AlertEvaluator>? logger = null)
+    public AlertEvaluator(IAlertSink sink, AlertDeduplicator? deduplicator = null, TimeProvider? timeProvider = null, ILogger<AlertEvaluator>? logger = null, RedactionPolicy? redactionPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(sink);
         _sink = sink;
         _deduplicator = deduplicator ?? new AlertDeduplicator();
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _redactionPolicy = redactionPolicy ?? new RedactionPolicy();
         _logger = logger;
     }
 
@@ -29,7 +32,8 @@ public sealed class AlertEvaluator
 
         try
         {
-            await _sink.RaiseAsync(new AlertRaised(rule.Name, rule.Severity, sourceId, _timeProvider.GetUtcNow(), detail), cancellationToken).ConfigureAwait(false);
+            var redactedDetail = detail is null ? null : _redactionPolicy.Redact(detail, sourceId, rule.Name);
+            await _sink.RaiseAsync(new AlertRaised(rule.Name, rule.Severity, sourceId, _timeProvider.GetUtcNow(), redactedDetail), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

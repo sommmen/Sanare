@@ -1,5 +1,6 @@
 using Sanare.Abstractions.Telemetry;
 using Sanare.Core.Observability.Alerting;
+using Sanare.Core.Observability.Redaction;
 
 namespace Sanare.Core.Tests.Observability;
 
@@ -30,6 +31,28 @@ public sealed class AlertRuleTests
         await evaluator.EvaluateAsync(AlertRuleSet.SourceBlocked, "source-a", qualifying: true);
 
         Assert.Equal(2, sink.Raised.Count);
+    }
+
+    [Theory]
+    [InlineData("Authorization: Bearer authorization-secret")]
+    [InlineData("Cookie: session=session-secret")]
+    [InlineData("Set-Cookie: refresh=refresh-secret")]
+    [InlineData("Contact person@example.com; request https://example.test/items?token=query-secret")]
+    public async Task EvaluateAsync_Redacts_sensitive_alert_detail_before_dispatch(string detail)
+    {
+        var sink = new SpyAlertSink();
+        var evaluator = new AlertEvaluator(sink, timeProvider: new FakeTimeProvider(DateTimeOffset.UnixEpoch));
+
+        await evaluator.EvaluateAsync(AlertRuleSet.SourceBlocked, "source-a", qualifying: true, detail);
+
+        var dispatchedDetail = Assert.Single(sink.Raised).Detail;
+        Assert.NotNull(dispatchedDetail);
+        Assert.DoesNotContain("authorization-secret", dispatchedDetail, StringComparison.Ordinal);
+        Assert.DoesNotContain("session-secret", dispatchedDetail, StringComparison.Ordinal);
+        Assert.DoesNotContain("refresh-secret", dispatchedDetail, StringComparison.Ordinal);
+        Assert.DoesNotContain("person@example.com", dispatchedDetail, StringComparison.Ordinal);
+        Assert.DoesNotContain("query-secret", dispatchedDetail, StringComparison.Ordinal);
+        Assert.Contains(RedactionPolicy.Redacted, dispatchedDetail, StringComparison.Ordinal);
     }
 
     [Fact]

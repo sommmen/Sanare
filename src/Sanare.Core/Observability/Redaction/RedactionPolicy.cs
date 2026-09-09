@@ -19,6 +19,7 @@ public sealed class RedactionPolicy
     {
         ArgumentNullException.ThrowIfNull(value);
         var redacted = RedactionPatterns.SecretQueryValue().Replace(value, "$1" + Redacted);
+        redacted = RedactionPatterns.SensitiveHeaderValue().Replace(redacted, "$1" + Redacted);
         if (!string.IsNullOrWhiteSpace(sourceId) && !string.IsNullOrWhiteSpace(field) && _allowList.Allows(sourceId, field))
         {
             return redacted;

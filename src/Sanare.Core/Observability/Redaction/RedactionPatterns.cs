@@ -8,6 +8,9 @@ public static partial class RedactionPatterns
     [GeneratedRegex(@"(?i)([?&](?:token|api[_-]?key|secret|password|access[_-]?token)\s*=\s*)[^&#\s]+")]
     public static partial Regex SecretQueryValue();
 
+    [GeneratedRegex("(?im)(\\b(?:Authorization|Cookie|Set-Cookie)\\s*[\\\"']?\\s*[:=]\\s*)[^\\r\\n]+")]
+    public static partial Regex SensitiveHeaderValue();
+
     [GeneratedRegex(@"(?<![\w.@+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")]
     public static partial Regex Email();
 
