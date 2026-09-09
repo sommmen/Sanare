@@ -882,6 +882,7 @@ Analogue of DB-constraint translation, for this system's persistent stores:
 | SNR-FIX-001 | FixtureNotFound | "Requested fixture does not exist." | Missing offline evidence | Capture it during an allowed online run | AC-012 |
 | SNR-FIX-002 | FixtureCorrupt | "Fixture corpus entry is corrupt or orphaned." | Manifest/file/hash inconsistency | Repair the corpus or recapture | AC-012 |
 | SNR-FIX-003 | CaptureForbiddenOffline | "Fixture capture is forbidden in offline mode." | Network-producing operation requested offline | Switch explicitly to an online capture mode | AC-012 |
+| SNR-FIX-004 | FixtureSliceClamped | "Fixture slice context was clamped to 32000 characters." | Requested context exceeded the hard cap | Return the bounded slice with a warning | — |
 | SNR-OBS-001 | AuditWriteFailed | "Audit event could not be persisted." | Append-only audit failure | Fail the originating administrative operation | AC-025 |
 | SNR-OBS-002 | DuplicateInstrumentation | "Both agent and chat-client GenAI instrumentation are enabled." | Double telemetry registration | Configure exactly one GenAI layer | AC-025 |
 | SNR-OBS-003 | SensitiveDataRequiresEncryption | "Sensitive telemetry cannot be enabled on this state root." | State root is not verified as encrypted | Keep sensitive data off or use encrypted storage | AC-025 |
