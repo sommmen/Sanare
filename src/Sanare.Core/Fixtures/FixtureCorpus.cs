@@ -122,19 +122,17 @@ public sealed class FixtureCorpus : IFixtureCorpus
             ? new[] { new ScrapeDiagnostic("SNR-FIX-004", DiagnosticSeverity.Warning, "Fixture slice context was clamped to 32000 characters.") }
             : Array.Empty<ScrapeDiagnostic>();
         var target = request.Offset is { } offset ? (int)Math.Clamp(offset, 0, text.Length) : 0;
-        string? selected = null;
         if (!string.IsNullOrWhiteSpace(request.Selector) && content.ContentType.Contains("html", StringComparison.OrdinalIgnoreCase))
         {
-            selected = TryQuerySelector(text, request.Selector);
+            var selected = TryQuerySelector(text, request.Selector);
             if (selected is not null) { target = Math.Max(0, text.IndexOf(selected, StringComparison.Ordinal)); }
         }
-        selected ??= string.Empty;
+        // A single cap-sized window centred on the target keeps any selector match in frame while
+        // guaranteeing `output.Length <= cap`, so the elided count is exactly the untaken remainder.
         var start = Math.Max(0, target - cap / 2);
-        var end = Math.Min(text.Length, target + cap / 2);
-        var context = text[start..end];
-        var output = selected.Length == 0 || context.Contains(selected, StringComparison.Ordinal) ? context : selected + Environment.NewLine + context;
-        if (output.Length > cap) { output = output[..cap]; }
-        var elidedCharacterCount = Math.Max(0, text.Length - (end - start));
+        var end = Math.Min(text.Length, start + cap);
+        var output = text[start..end];
+        var elidedCharacterCount = text.Length - output.Length;
         return new FixtureSlice(fixtureId, output, elidedCharacterCount, diagnostics);
     }
 
