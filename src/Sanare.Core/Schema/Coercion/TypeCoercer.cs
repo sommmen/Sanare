@@ -239,9 +239,32 @@ public sealed class TypeCoercer : ITypeCoercer
         return null;
     }
 
-    private static bool TryParseDateTime(string text, CultureInfo culture, out DateTime value) =>
-        DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value) ||
-        DateTime.TryParse(text, culture, DateTimeStyles.AllowWhiteSpaces, out value) && (value = value.ToUniversalTime()) != default;
+    private static bool TryParseDateTime(string text, CultureInfo culture, out DateTime value)
+    {
+        // Try invariant culture first with RoundtripKind to preserve explicit timezone info (Z, +hh:mm, etc.)
+        if (DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value))
+        {
+            return true;
+        }
+
+        // Fall back to culture-specific parsing; if no explicit offset/zone in input,
+        // treat as UTC rather than reinterpreting through machine's local timezone
+        if (DateTime.TryParse(text, culture, DateTimeStyles.AllowWhiteSpaces, out var parsed))
+        {
+            // If parsed DateTime has no explicit timezone info (Kind is Unspecified or Local),
+            // treat it as already representing UTC instead of converting via ToUniversalTime()
+            value = parsed.Kind switch
+            {
+                DateTimeKind.Unspecified => DateTime.SpecifyKind(parsed, DateTimeKind.Utc),
+                DateTimeKind.Local => parsed.ToUniversalTime(),
+                DateTimeKind.Utc => parsed,
+                _ => parsed
+            };
+            return true;
+        }
+
+        return false;
+    }
 
     private static bool TryParseDateOnly(string text, CultureInfo culture, out DateOnly value) =>
         DateOnly.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out value) ||
@@ -314,5 +337,10 @@ public sealed class TypeCoercer : ITypeCoercer
         return node.Deserialize(type);
     }
 
-    private static bool IsNumeric(Type type) => type == typeof(int) || type == typeof(long) || type == typeof(decimal);
+    private static bool IsNumeric(Type type)
+    {
+        // Unwrap Nullable<T> to check the underlying type
+        var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
+        return underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(decimal);
+    }
 }

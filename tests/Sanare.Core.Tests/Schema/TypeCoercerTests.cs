@@ -57,6 +57,17 @@ public sealed class TypeCoercerTests
     }
 
     [Fact]
+    public void TryCoerce_Strips_unit_from_nullable_numeric_field()
+    {
+        var field = new FieldDescriptor("/OptionalCapacity", "OptionalCapacity", typeof(int?), false, null, "mAh", null, null);
+
+        var success = new TypeCoercer().TryCoerce("2500 mAh", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(2500, result);
+    }
+
+    [Fact]
     public void Coerce_creates_suffixes_for_duplicate_dictionary_labels()
     {
         var field = new FieldDescriptor("/Details", "Details", typeof(IReadOnlyDictionary<string, string>), false, null, null, null, null);

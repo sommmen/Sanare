@@ -44,6 +44,13 @@ public sealed class SchemaValidator : ISchemaValidator
             return;
         }
 
+        // Check for any null nodes when field is required
+        if (field.Required && nodes.Any(static node => node is null))
+        {
+            violations.Add(new SchemaViolation(field.JsonPointer, "required", "A required field is missing."));
+            return;
+        }
+
         foreach (var node in nodes.Where(static node => node is not null))
         {
             ValidateNode(node!, field, violations);
@@ -115,7 +122,8 @@ public sealed class SchemaValidator : ISchemaValidator
         {
             nodes = nodes.SelectMany(current => current switch
             {
-                JsonObject obj when obj.TryGetPropertyValue(segment, out var child) => [child],
+                JsonObject obj => obj.TryGetPropertyValue(segment, out var child) ? [child] : [null],
+                JsonArray array when segment == "*" => array,
                 JsonArray array when int.TryParse(segment, out var index) && index >= 0 && index < array.Count => [array[index]],
                 JsonArray array => array.Select(item => item?[segment]),
                 _ => Array.Empty<JsonNode?>(),

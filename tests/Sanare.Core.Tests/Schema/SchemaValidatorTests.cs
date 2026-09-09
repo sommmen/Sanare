@@ -20,4 +20,36 @@ public sealed class SchemaValidatorTests
         Assert.Contains(result.Violations, violation => violation.JsonPointer == "/Name" && violation.Code == "SNR-SCH-004");
         Assert.Contains(result.Violations, violation => violation.JsonPointer == "/Count" && violation.Code == "SNR-SCH-002");
     }
+
+    [Fact]
+    public void Validate_resolves_wildcard_pointers_for_array_items()
+    {
+        var fields = new[]
+        {
+            new FieldDescriptor("/Items/*/Price", "Price", typeof(decimal), true, null, null, null, null),
+        };
+        var schema = new SchemaDescriptor(typeof(object), "Example", 1, "{}", "sha256:test", fields);
+
+        // Create a JSON document with an array where one item is missing a required Price field
+        var items = new JsonArray();
+        var item0 = new JsonObject();
+        item0["Price"] = JsonValue.Create(10m);
+        items.Add(item0);
+
+        var item1 = new JsonObject();
+        // Item1 intentionally does NOT have Price
+        items.Add(item1);
+
+        var item2 = new JsonObject();
+        item2["Price"] = JsonValue.Create(20m);
+        items.Add(item2);
+
+        var document = new JsonObject();
+        document["Items"] = items;
+
+        var result = new SchemaValidator().Validate(document, schema);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Violations, v => v.JsonPointer == "/Items/*/Price" && v.Code == "SNR-SCH-004");
+    }
 }
