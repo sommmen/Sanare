@@ -22,7 +22,7 @@ public sealed class Redactor : IRedactor
                     AddRule(rules, "credential");
                     continue;
                 }
-                safeHeaders.Add(header.Key, header.Value);
+                safeHeaders[header.Key] = header.Value;
             }
         }
 

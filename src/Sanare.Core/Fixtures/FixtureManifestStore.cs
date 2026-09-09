@@ -32,11 +32,29 @@ public sealed class FixtureManifestStore
                 throw new FixtureCorpusException("SNR-FIX-002", $"Fixture manifest '{_path}' is missing its fixtures list.");
             }
 
+            foreach (var fixture in manifest.Fixtures)
+            {
+                ValidateFixture(fixture);
+            }
+
             return manifest;
         }
         catch (JsonException exception)
         {
             throw new FixtureCorpusException("SNR-FIX-002", $"Fixture manifest '{_path}' is invalid: {exception.Message}");
+        }
+    }
+
+    /// <summary>Fails loudly with <c>SNR-FIX-002</c> when a syntactically-valid manifest entry is
+    /// semantically incomplete (null required string/list members), rather than letting it crash later
+    /// with an unrelated <see cref="NullReferenceException"/> the first time that member is used.</summary>
+    private void ValidateFixture(FixtureRecord fixture)
+    {
+        if (fixture.Id is null || fixture.SourceId is null || fixture.Url is null || fixture.ContentType is null ||
+            fixture.File is null || fixture.ContentHash is null || fixture.NormalisedHash is null ||
+            fixture.Redactions is null || fixture.ReferencedByTags is null)
+        {
+            throw new FixtureCorpusException("SNR-FIX-002", $"Fixture manifest '{_path}' contains an entry with missing required fields.");
         }
     }
 

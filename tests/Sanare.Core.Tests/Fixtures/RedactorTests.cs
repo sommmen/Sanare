@@ -109,8 +109,10 @@ public sealed class RedactorTests
         Assert.DoesNotContain("support@example.com", text);
         Assert.DoesNotContain("NL91ABNA0417164300", text);
         Assert.DoesNotContain("hunter2secretvalue", text);
+        Assert.DoesNotContain("1234 AB 12", text);
         Assert.Contains("email", result.Rules);
         Assert.Contains("iban", result.Rules);
         Assert.Contains("credential", result.Rules);
+        Assert.Contains("pii", result.Rules);
     }
 }

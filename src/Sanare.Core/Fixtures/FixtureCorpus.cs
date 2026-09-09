@@ -134,7 +134,9 @@ public sealed class FixtureCorpus : IFixtureCorpus
         var end = Math.Min(text.Length, target + cap / 2);
         var context = text[start..end];
         var output = selected.Length == 0 || context.Contains(selected, StringComparison.Ordinal) ? context : selected + Environment.NewLine + context;
-        return new FixtureSlice(fixtureId, output, Math.Max(0, text.Length - output.Length), diagnostics);
+        if (output.Length > cap) { output = output[..cap]; }
+        var elidedCharacterCount = Math.Max(0, text.Length - (end - start));
+        return new FixtureSlice(fixtureId, output, elidedCharacterCount, diagnostics);
     }
 
     public async ValueTask<PruneReport> PruneAsync(IReadOnlyCollection<string> protectedFixtureIds, CancellationToken ct = default)

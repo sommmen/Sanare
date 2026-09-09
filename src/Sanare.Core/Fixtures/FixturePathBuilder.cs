@@ -18,10 +18,16 @@ public sealed class FixturePathBuilder
         _ => "txt",
     };
 
-    private static string HashPrefix(string hash) => hash.StartsWith("sha256:", StringComparison.Ordinal) ? hash[7..15] : hash[..Math.Min(8, hash.Length)];
+    private static string HashPrefix(string hash)
+    {
+        var withoutPrefix = hash.StartsWith("sha256:", StringComparison.Ordinal) ? hash[7..] : hash;
+        return withoutPrefix[..Math.Min(8, withoutPrefix.Length)];
+    }
 
     /// <summary>Sanitises a fixture path segment so it is safe as a Windows and POSIX filename component:
-    /// replaces path separators, whitespace, and reserved filename characters (`:*?"&lt;&gt;|`) with `-`.</summary>
+    /// replaces path separators, whitespace, and reserved filename characters (`:*?"&lt;&gt;|`) with `-`,
+    /// and rewrites a resulting `.`/`..` segment so it can never be interpreted as a directory-traversal
+    /// component by <see cref="Path.Combine(string, string)"/>.</summary>
     private static string Slug(string value)
     {
         var builder = new System.Text.StringBuilder(value.Length);
@@ -29,6 +35,7 @@ public sealed class FixturePathBuilder
         {
             builder.Append(ch is '/' or '\\' or ' ' or ':' or '*' or '?' or '"' or '<' or '>' or '|' ? '-' : ch);
         }
-        return builder.ToString().ToLowerInvariant();
+        var slug = builder.ToString().ToLowerInvariant();
+        return slug is "." or ".." ? "capture-" + slug.Length : slug;
     }
 }
