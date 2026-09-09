@@ -24,18 +24,28 @@ public sealed class FixturePathBuilder
         return withoutPrefix[..Math.Min(8, withoutPrefix.Length)];
     }
 
+    private static readonly HashSet<string> ReservedWindowsNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "con", "prn", "aux", "nul",
+        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    };
+
     /// <summary>Sanitises a fixture path segment so it is safe as a Windows and POSIX filename component:
-    /// replaces path separators, whitespace, and reserved filename characters (`:*?"&lt;&gt;|`) with `-`,
-    /// and rewrites a resulting `.`/`..` segment so it can never be interpreted as a directory-traversal
-    /// component by <see cref="Path.Combine(string, string)"/>.</summary>
+    /// replaces path separators, whitespace, reserved filename characters (`:*?"&lt;&gt;|`), and ASCII
+    /// control characters with `-`; rewrites a resulting `.`/`..` segment so it can never be interpreted
+    /// as a directory-traversal component by <see cref="Path.Combine(string, string)"/>; and rewrites a
+    /// reserved Windows device name (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`) so it can
+    /// never fail file/directory creation on Windows.</summary>
     private static string Slug(string value)
     {
         var builder = new System.Text.StringBuilder(value.Length);
         foreach (var ch in value)
         {
-            builder.Append(ch is '/' or '\\' or ' ' or ':' or '*' or '?' or '"' or '<' or '>' or '|' ? '-' : ch);
+            builder.Append(ch is '/' or '\\' or ' ' or ':' or '*' or '?' or '"' or '<' or '>' or '|' || char.IsControl(ch) ? '-' : ch);
         }
         var slug = builder.ToString().ToLowerInvariant();
-        return slug is "." or ".." ? "capture-" + slug.Length : slug;
+        if (slug is "." or "..") { return "capture-" + slug.Length; }
+        return ReservedWindowsNames.Contains(slug) ? slug + "-fixture" : slug;
     }
 }

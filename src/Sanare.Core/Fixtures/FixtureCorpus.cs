@@ -125,8 +125,7 @@ public sealed class FixtureCorpus : IFixtureCorpus
         string? selected = null;
         if (!string.IsNullOrWhiteSpace(request.Selector) && content.ContentType.Contains("html", StringComparison.OrdinalIgnoreCase))
         {
-            var element = new HtmlParser().ParseDocument(text).QuerySelector(request.Selector);
-            selected = element?.OuterHtml;
+            selected = TryQuerySelector(text, request.Selector);
             if (selected is not null) { target = Math.Max(0, text.IndexOf(selected, StringComparison.Ordinal)); }
         }
         selected ??= string.Empty;
@@ -160,6 +159,21 @@ public sealed class FixtureCorpus : IFixtureCorpus
     }
 
     private async Task<List<FixtureRecord>> LoadRecordsAsync() => (await _store.LoadAsync().ConfigureAwait(false)).Fixtures.ToList();
+
+    /// <summary>Runs an untrusted, request-supplied CSS selector defensively: an invalid selector is
+    /// user-controlled input, so it must yield no match rather than let an AngleSharp parsing/query
+    /// exception leak out of the fixture-corpus API surface.</summary>
+    private static string? TryQuerySelector(string html, string selector)
+    {
+        try
+        {
+            return new HtmlParser().ParseDocument(html).QuerySelector(selector)?.OuterHtml;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
     private ValueTask SaveAsync(List<FixtureRecord> records, CancellationToken ct) => _store.SaveAsync(new FixtureManifest(1, records), ct);
 
     private static async Task<(byte[] Bytes, bool IsTruncated)> ReadBoundedAsync(Stream stream, CancellationToken ct)
