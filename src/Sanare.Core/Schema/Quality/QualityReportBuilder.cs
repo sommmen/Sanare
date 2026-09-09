@@ -22,7 +22,7 @@ public sealed class QualityReportBuilder
         var fields = schema.Fields.Select(field => BuildFieldHealth(field, values, itemCount)).ToArray();
         var complete = fields.Sum(field => itemCount - (int)Math.Round(field.NullRate * itemCount, MidpointRounding.AwayFromZero));
         var total = fields.Length * itemCount;
-        var completeness = total == 0 ? 1d : (double)complete / total;
+        var completeness = total == 0 ? 0d : (double)complete / total;
         return new QualityReport
         {
             Completeness = completeness,

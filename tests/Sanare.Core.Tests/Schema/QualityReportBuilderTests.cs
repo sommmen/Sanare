@@ -25,4 +25,19 @@ public sealed class QualityReportBuilderTests
         Assert.True(report.MeetsThreshold);
         Assert.Equal(["/Other"], report.UnmappedFields);
     }
+
+    [Fact]
+    public void Build_reports_empty_collection_as_incomplete()
+    {
+        var field = new FieldDescriptor("/Items/*/Price", "Price", typeof(decimal), true, null, null, null, null);
+        var schema = new SchemaDescriptor(typeof(object), "Items", 1, "{}", "sha256:test", [field], "/Items");
+
+        var report = new QualityReportBuilder().Build(schema, new Dictionary<string, object?>(), threshold: 0.01d);
+
+        var health = Assert.Single(report.Fields);
+        Assert.Equal(0, report.ItemCount);
+        Assert.Equal(0d, report.Completeness);
+        Assert.Equal(1d, health.NullRate);
+        Assert.False(report.MeetsThreshold);
+    }
 }

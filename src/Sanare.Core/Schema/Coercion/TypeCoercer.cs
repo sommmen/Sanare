@@ -29,8 +29,9 @@ public sealed class TypeCoercer : ITypeCoercer
                 : Failure(raw, "SNR-SCH-004: A required value is missing.");
         }
 
-        var unit = IsNumeric(field.ClrType) ? ExtractTrailingUnit(ref text, field.Unit) : null;
-        if (field.Unit is { Length: > 0 } && unit is null && IsNumeric(field.ClrType))
+        var isNumeric = IsNumeric(field.ClrType);
+        var unit = isNumeric ? ExtractTrailingUnit(ref text, field.Unit) : null;
+        if (field.Unit is { Length: > 0 } && unit is null && isNumeric)
         {
             return Failure(raw, $"SNR-SCH-005: Expected unit '{field.Unit}' for '{field.ClrType.Name}'.");
         }
@@ -62,14 +63,13 @@ public sealed class TypeCoercer : ITypeCoercer
             return Failure(raw, $"SNR-SCH-005: Cannot coerce value to '{field.ClrType.Name}'.");
         }
 
-        if (converted is decimal numeric && unit is not null && field.Unit is not null)
+        if (isNumeric && unit is not null && field.Unit is not null &&
+            !string.Equals(unit, field.Unit, StringComparison.OrdinalIgnoreCase))
         {
-            if (!UnitConverter.TryConvert(numeric, unit, field.Unit, out var convertedNumeric))
+            if (!TryConvertNumericUnit(converted, field.ClrType, unit, field.Unit, out converted))
             {
                 return Failure(raw, $"SNR-SCH-005: Cannot convert unit '{unit}' to '{field.Unit}'.");
             }
-
-            converted = convertedNumeric;
         }
 
         return Success(converted, raw, field.Unit ?? unit);
@@ -83,6 +83,108 @@ public sealed class TypeCoercer : ITypeCoercer
         value = outcome.Success && outcome.Value is not null ? ToClrValue(outcome.Value, field.ClrType) : null;
         error = outcome.FailureReason;
         return outcome.Success;
+    }
+
+    private static bool TryGetDecimal(object? value, out decimal numeric)
+    {
+        switch (value)
+        {
+            case int intValue:
+                numeric = intValue;
+                return true;
+            case long longValue:
+                numeric = longValue;
+                return true;
+            case decimal decimalValue:
+                numeric = decimalValue;
+                return true;
+            case double doubleValue when double.IsFinite(doubleValue):
+                try
+                {
+                    numeric = (decimal)doubleValue;
+                    return true;
+                }
+                catch (OverflowException)
+                {
+                    break;
+                }
+            case float floatValue when float.IsFinite(floatValue):
+                try
+                {
+                    numeric = (decimal)floatValue;
+                    return true;
+                }
+                catch (OverflowException)
+                {
+                    break;
+                }
+        }
+
+        numeric = default;
+        return false;
+    }
+
+    private static bool TryConvertNumericUnit(object? value, Type targetType, string sourceUnit, string targetUnit, out object? converted)
+    {
+        if (!TryGetDecimal(value, out var numeric))
+        {
+            converted = null;
+            return false;
+        }
+
+        if (!UnitConverter.TryConvert(numeric, sourceUnit, targetUnit, out var convertedNumeric))
+        {
+            converted = null;
+            return false;
+        }
+
+        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (underlyingType == typeof(int))
+        {
+            if (decimal.Truncate(convertedNumeric) != convertedNumeric || convertedNumeric < int.MinValue || convertedNumeric > int.MaxValue)
+            {
+                converted = null;
+                return false;
+            }
+
+            converted = (int)convertedNumeric;
+            return true;
+        }
+
+        if (underlyingType == typeof(long))
+        {
+            if (decimal.Truncate(convertedNumeric) != convertedNumeric || convertedNumeric < long.MinValue || convertedNumeric > long.MaxValue)
+            {
+                converted = null;
+                return false;
+            }
+
+            converted = (long)convertedNumeric;
+            return true;
+        }
+
+        if (underlyingType == typeof(decimal))
+        {
+            converted = convertedNumeric;
+            return true;
+        }
+
+        if (underlyingType == typeof(double))
+        {
+            var doubleValue = (double)convertedNumeric;
+            converted = double.IsFinite(doubleValue) ? doubleValue : null;
+            return converted is not null;
+        }
+
+        if (underlyingType == typeof(float))
+        {
+            var floatValue = (float)convertedNumeric;
+            converted = float.IsFinite(floatValue) ? floatValue : null;
+            return converted is not null;
+        }
+
+        converted = null;
+        return false;
     }
 
     private static bool TryConvertCollection(string text, FieldDescriptor field, CoercionContext context, out CoercionOutcome outcome)
@@ -173,6 +275,18 @@ public sealed class TypeCoercer : ITypeCoercer
         if (type == typeof(decimal) && decimal.TryParse(text, NumberStyles.Number | NumberStyles.AllowCurrencySymbol, culture, out var decimalValue))
         {
             value = decimalValue;
+            return true;
+        }
+
+        if (type == typeof(double) && double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var doubleValue))
+        {
+            value = doubleValue;
+            return true;
+        }
+
+        if (type == typeof(float) && float.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var floatValue))
+        {
+            value = floatValue;
             return true;
         }
 
@@ -341,6 +455,7 @@ public sealed class TypeCoercer : ITypeCoercer
     {
         // Unwrap Nullable<T> to check the underlying type
         var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
-        return underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(decimal);
+        return underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(decimal) ||
+            underlyingType == typeof(double) || underlyingType == typeof(float);
     }
 }

@@ -106,11 +106,15 @@ public sealed class SchemaValidator : ISchemaValidator
                         ? value.TryGetValue<long>(out _)
                         : type == typeof(decimal)
                             ? value.TryGetValue<decimal>(out _)
-                            : type == typeof(DateTime)
-                                ? value.TryGetValue<DateTime>(out _) || value.TryGetValue<string>(out _)
-                                : type == typeof(DateOnly)
-                                    ? value.TryGetValue<DateOnly>(out _) || value.TryGetValue<string>(out _)
-                                    : false;
+                            : type == typeof(double)
+                                ? value.TryGetValue<double>(out _)
+                                : type == typeof(float)
+                                    ? value.TryGetValue<float>(out _)
+                                    : type == typeof(DateTime)
+                                        ? value.TryGetValue<DateTime>(out _) || value.TryGetValue<string>(out _)
+                                        : type == typeof(DateOnly)
+                                            ? value.TryGetValue<DateOnly>(out _) || value.TryGetValue<string>(out _)
+                                            : false;
     }
 
     private static IEnumerable<JsonNode?> ResolveNodes(JsonNode node, string pointer)

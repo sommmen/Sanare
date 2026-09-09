@@ -28,6 +28,87 @@ public sealed class TypeCoercerTests
         Assert.Contains("Expected unit", error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TryCoerce_Converts_declared_units_for_int_target()
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", typeof(int), true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("1000 g", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(1, result);
+    }
+
+    [Fact]
+    public void TryCoerce_Converts_declared_units_for_long_target()
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", typeof(long), true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("1000 g", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(1L, result);
+    }
+
+    [Fact]
+    public void TryCoerce_Converts_declared_units_for_decimal_target()
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", typeof(decimal), true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("1000 g", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(1m, result);
+    }
+
+    [Fact]
+    public void TryCoerce_Converts_declared_units_for_double_target()
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", typeof(double), true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("1000 g", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public void TryCoerce_Converts_declared_units_for_float_target()
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", typeof(float), true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("1000 g", field, out var result, out var error);
+
+        Assert.True(success, error);
+        Assert.Equal(1f, result);
+    }
+
+    [Theory]
+    [InlineData(typeof(int))]
+    [InlineData(typeof(long))]
+    public void TryCoerce_Rejects_fractional_converted_integer(Type targetType)
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", targetType, true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("500 g", field, out _, out var error);
+
+        Assert.False(success);
+        Assert.Contains("Cannot convert unit", error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(typeof(int))]
+    [InlineData(typeof(long))]
+    public void TryCoerce_Rejects_incompatible_unit_for_integer_target(Type targetType)
+    {
+        var field = new FieldDescriptor("/Mass", "Mass", targetType, true, null, "kg", null, null);
+
+        var success = new TypeCoercer().TryCoerce("5 m", field, out _, out var error);
+
+        Assert.False(success);
+        Assert.Contains("Expected unit", error, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("1.299,00 €", "nl-NL", 1299d)]
     [InlineData("1,299.00 $", "en-US", 1299d)]
