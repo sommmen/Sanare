@@ -1,4 +1,24 @@
-# Documentation Audit Report — Persistent Extraction-Plan Storage Slice
+# Documentation Audit Report — Sanare
+
+**Latest full-repository pass**: 2026-09-06 (documentation/code alignment)
+
+## Latest Full-Repository Audit Pass
+
+**Scope**: All project documentation under `docs/`, root project guidance, and
+active implementation-status material under `ideas/sanare/`, cross-referenced
+against the current source and test trees. The earlier persistent extraction-plan
+storage-slice audit is retained below as resolved historical evidence.
+**Method**: Code-grounded cross-reference. Code alignment was included using the
+recommended default when the user was unavailable for the workflow's optional
+confirmation. Historical idea/research/session notes were treated as provenance,
+not as current implementation commitments.
+
+**Open findings from this pass**: 1 Major and 5 Minor. MAJ-003 and MIN-002 through
+MIN-004 belong to other component scopes and are report-only for their owners.
+MIN-001 concerns this session's script-repository documentation inventory, while
+MIN-005 is a stale root TODO. No fixes were made in this pass.
+
+## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
 **Date**: 2025-06 (session audit, post-implementation of the Git-backed plan
 storage/resolution slice)
@@ -112,3 +132,127 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 - `dotnet test` — 52/52 passed at the time of the original documentation/code cross-check (`Sanare.Abstractions.Tests`: 11, `Sanare.Core.Tests`: 41); no test changes were made in that pass. After the follow-up MAJ-001/MAJ-002 test-coverage pass: 66/66 passed (`Sanare.Abstractions.Tests`: 11, `Sanare.Core.Tests`: 55 — the original 41 plus 7 new `GitBackedExtractionPlanProviderTests` and 1 new `SNR-GIT-006` test in `GitScriptRepositoryTests.cs`; no existing test was weakened, skipped, or removed). The `SNR-GIT-006` test was confirmed non-vacuous by temporarily neutering the throw condition and observing the test fail with a different exception type, then reverting.
 - `dotnet format --verify-no-changes` — clean, no formatting drift (verified again after the test-coverage pass).
 - `git diff --check` — no whitespace errors (only expected CRLF→LF line-ending notices on doc files).
+
+## Full-Repository Findings — 2026-09-06
+
+### Findings Summary
+
+| Severity | Open | Resolved historical | Category |
+|----------|-----:|-------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 1 | 2 | Implemented-scope mismatch |
+| Minor | 5 | 0 | Status and test-inventory staleness |
+| Info | 0 | 5 | — |
+
+### Major Findings
+
+#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented
+
+- **Location**: `docs/features/extraction-plan-model.md` — Purpose, Scope,
+  `IPlanValidator` interface, proposed layout, and test-module inventory.
+- **Issue**: The specification describes structural validation as included and
+  presents `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs` as
+  implementation artifacts. No such production types or test module exist.
+  `src/Sanare.Core/Plans/PlanSerializer.cs` explicitly identifies full
+  structural validation as deferred to the `extraction-plan-model` scope.
+- **Impact**: Readers can reasonably conclude that the safety boundary and its
+  acceptance coverage are available when the current implementation supplies
+  serialization only.
+- **Recommended fix**: The `extraction-plan-model` owner should either implement
+  the validator and its tests or revise the spec's implemented-slice language to
+  distinguish the current serializer-only foundation from the target state.
+- **Ownership**: `src/Sanare.Core/Plans/**` and `src/Sanare.Abstractions/Plans/**`
+  are owned by the extraction-plan-model component; this is report-only.
+
+### Minor Findings
+
+#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite
+
+- **Location**: `docs/features/script-repository.md` — test-module inventory.
+- **Issue**: The specification names `FileLockRepositoryCoordinatorTests.cs`,
+  but that file is absent. Coordination behavior is presently exercised through
+  `GitScriptRepositoryTests.cs` rather than a standalone suite.
+- **Impact**: The documentation overstates the structure of focused coverage.
+- **Recommended fix**: Correct the inventory to name the actual test coverage,
+  or add the stated standalone test suite if that granularity is intended.
+
+#### MIN-002: Scrape API contracts test inventory lists test modules that are absent
+
+- **Location**: `docs/features/scrape-api-contracts.md` — test-module inventory.
+- **Issue**: `PublicApiApprovalTests.cs`, `ScrapeStatusCodesTests.cs`, and
+  `DiagnosticSanitizerTests.cs` are listed but absent; only
+  `RequestValidatorTests.cs` exists in the corresponding test area.
+- **Impact**: The spec misrepresents the available contract coverage.
+- **Recommended fix**: The scrape-api-contracts owner should implement the
+  listed modules or update the inventory to reflect actual coverage.
+- **Ownership**: `src/Sanare.Abstractions/**` is frozen/out of scope for this
+  session; this is report-only for the scrape-api-contracts owner.
+
+#### MIN-003: Schema-engine test inventory lists test modules that are absent
+
+- **Location**: `docs/features/schema-engine.md` — test-module inventory.
+- **Issue**: `SchemaHasherTests.cs`, `SchemaValidatorTests.cs`, and
+  `QualityReportBuilderTests.cs` are listed but absent. The existing suite
+  includes `TypeCoercerTests.cs` and `SchemaDeriverTests.cs` instead.
+- **Impact**: The stated test topology and implied feature coverage are stale.
+- **Recommended fix**: The schema-engine owner should implement the named tests
+  or correct the inventory to the actual suite.
+- **Ownership**: `src/Sanare.Core/Schema/**` is owned by the schema-engine
+  component; this is report-only.
+
+#### MIN-004: Plan-runtime implementation status is stale
+
+- **Location**: `docs/features/overview.md` — Plan Runtime row.
+- **Issue**: The implementation order marks `plan-runtime` as `draft`, while
+  `src/Sanare.Core/Runtime/` contains production `IPlanExecutor`,
+  `PlanExecutor`, `ExtractionOutcome`, and document-adapter code.
+- **Impact**: Consumers planning dependencies cannot tell that a partial runtime
+  foundation already exists.
+- **Recommended fix**: Mark the feature `partial`, or retain `draft` only with a
+  clear note that the existing runtime is an intentionally incomplete foundation.
+- **Ownership**: `src/Sanare.Core/Runtime/**` is outside this session's edit
+  scope; this is report-only for the plan-runtime owner.
+
+#### MIN-005: Root development TODO still says Git-backed storage is unimplemented
+
+- **Location**: `DEVELOPMENT.md` — TODO item 2.
+- **Issue**: The item says to implement persistent/Git-backed extraction-plan
+  storage and resolution while replacing `InMemoryExtractionPlanProvider`, but
+  the repository now has the documented partial script-repository and
+  plan-resolver implementation plus direct coverage recorded in the historical
+  audit above.
+- **Impact**: The root development checklist gives an obsolete starting point
+  and obscures remaining work.
+- **Recommended fix**: Replace the item with the specific remaining work, or
+  mark the completed storage/resolution slice done and create follow-up items
+  for the intended next capabilities.
+
+### Confirmed Current Alignment
+
+- `docs/features/plan-resolver.md` accurately describes the current partial
+  implementation and its `SNR-GIT-*` behavior.
+- The other draft feature specifications are consistent with their stated
+  unimplemented scope; no broken feature-spec links or placeholder-only sections
+  were found.
+- `README.md`, `AGENTS.md`, and the historical/provenance material under
+  `ideas/sanare/` do not contradict the active code or feature-spec status.
+
+### Recommended Priority Actions
+
+1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
+   tests, or reduce the spec to the serializer-only implemented slice.
+2. **Synchronize status and test inventories** — address MIN-001 through
+   MIN-005 when their owning component scopes are next active.
+3. **Re-run this audit after the owners update their specs or implementations**
+   to verify that the status table, test inventory, and implementation scope
+   remain aligned.
+
+### Full-Repository Audit Validation
+
+- Ran a docs-only inventory across the repository and checked the active
+  feature-spec set for link and status consistency.
+- Cross-referenced the findings above against the current source and test tree,
+  including direct confirmation that no `IPlanValidator` implementation exists
+  and that `src/Sanare.Core/Runtime/` contains production runtime types.
+- This pass was documentation-only. No build, test, or formatter run was needed
+  because no code was changed.
