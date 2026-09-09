@@ -5,6 +5,8 @@ using LibGit2Sharp;
 using Sanare.Core.Plans;
 using GitRepository = LibGit2Sharp.Repository;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Sanare.Core.Tests")]
+
 namespace Sanare.Core.Repository;
 
 /// <summary>
@@ -21,6 +23,20 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
 
     private static readonly Regex SourceIdPattern = new("^[a-z0-9-]+(/[a-z0-9-]+)*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SchemaNamePattern = new("^[A-Za-z_][A-Za-z0-9_]*(?:[.-][A-Za-z0-9_]+)*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly AsyncLocal<Action<GitRepository, string>?> ApprovalConflictSimulationHook = new();
+
+    /// <summary>
+    /// Test-only seam letting a test deterministically simulate the concurrent/external tag creation
+    /// described for <c>SNR-GIT-006</c> (docs/features/script-repository.md), by inserting the
+    /// computed next approval tag between its computation and this method's conflict check. Scoped via
+    /// <see cref="AsyncLocal{T}"/> so setting it only affects the call flow that set it; it is a no-op,
+    /// and therefore behavior-neutral, for every other caller.
+    /// </summary>
+    internal static Action<GitRepository, string>? ApprovalConflictSimulation
+    {
+        get => ApprovalConflictSimulationHook.Value;
+        set => ApprovalConflictSimulationHook.Value = value;
+    }
 
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
@@ -320,6 +336,8 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
 
         var nextNumber = (highest.Number ?? 0) + 1;
         var tagName = prefix + nextNumber.ToString(CultureInfo.InvariantCulture);
+
+        ApprovalConflictSimulation?.Invoke(repo, tagName);
 
         if (repo.Tags[tagName] is not null)
         {

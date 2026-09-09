@@ -1,4 +1,24 @@
-# Documentation Audit Report — Persistent Extraction-Plan Storage Slice
+# Documentation Audit Report — Sanare
+
+**Latest full-repository pass**: 2026-09-06 (documentation/code alignment)
+
+## Latest Full-Repository Audit Pass
+
+**Scope**: All project documentation under `docs/`, root project guidance, and
+active implementation-status material under `ideas/sanare/`, cross-referenced
+against the current source and test trees. The earlier persistent extraction-plan
+storage-slice audit is retained below as resolved historical evidence.
+**Method**: Code-grounded cross-reference. Code alignment was included using the
+recommended default when the user was unavailable for the workflow's optional
+confirmation. Historical idea/research/session notes were treated as provenance,
+not as current implementation commitments.
+
+**Open findings from this pass**: 1 Major and 5 Minor. MAJ-003 and MIN-002 through
+MIN-004 belong to other component scopes and are report-only for their owners.
+MIN-001 concerns this session's script-repository documentation inventory, while
+MIN-005 is a stale root TODO. No fixes were made in this pass.
+
+## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
 **Date**: 2025-06 (session audit, post-implementation of the Git-backed plan
 storage/resolution slice)
@@ -27,36 +47,38 @@ carries an accurate "Implementation note" scoping caveat, and
 Five stale/incorrect cross-reference issues were found in source XML doc
 comments (heading links that no longer matched the current spec headings, and
 one factually wrong claim about jitter in the retry coordinator) — all five
-were corrected during this audit. Two genuine test-coverage gaps remain open
-and are **not** silently fixed here, per audit scope (documentation vs. code
-alignment, not new test authoring): `GitBackedExtractionPlanProvider` has zero
-direct unit tests, and the `SNR-GIT-006` error path has zero test coverage.
-Both are flagged as Major findings with concrete remediation recommendations.
+were corrected during this audit. Two genuine test-coverage gaps were found —
+`GitBackedExtractionPlanProvider` had zero direct unit tests, and the
+`SNR-GIT-006` error path had zero test coverage — and both are now **resolved**:
+direct unit tests were added for `GitBackedExtractionPlanProvider`'s full public
+surface, and a deterministic `SNR-GIT-006` conflict-path test was added to
+`GitScriptRepositoryTests.cs`. See MAJ-001 and MAJ-002 below for the applied fix
+and verification evidence.
 
 ## Findings Summary
 
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | — |
-| Major    | 2 | Test coverage gaps (adapter, error path) |
+| Major    | 2 | Test coverage gaps (adapter, error path) — both resolved |
 | Minor    | 0 | — |
 | Info     | 5 | Stale cross-references (fixed during audit) |
 
 ## Major Findings
 
-### MAJ-001: `GitBackedExtractionPlanProvider` has no direct unit tests
+### MAJ-001: `GitBackedExtractionPlanProvider` has no direct unit tests — **RESOLVED**
 - **Location**: [GitBackedExtractionPlanProvider.cs](../../src/Sanare.Core/GitBackedExtractionPlanProvider.cs); documented as the runner-facing adapter in [plan-resolver.md](../features/plan-resolver.md) (Core Responsibilities, Interfaces/Dependencies, and Test Module sections).
 - **Issue**: The adapter that bridges `IPlanResolver.ResolveAsync` to the runner-facing synchronous `IExtractionPlanProvider.TryGet` — including its blocking `.AsTask().GetAwaiter().GetResult()` call and its translation of `PlanResolution.IsResolved`/failure into the `bool TryGet(...)` contract — has no test file exercising it directly. `tests/Sanare.Core.Tests/` contains `Resolution/PlanResolverTests.cs` and `Repository/GitScriptRepositoryTests.cs`, but no `GitBackedExtractionPlanProviderTests.cs` (or equivalent).
 - **Evidence**: `Glob`/directory search of `tests/Sanare.Core.Tests/` confirms no test file references `GitBackedExtractionPlanProvider`. The class itself is small but contains real logic (sync-over-async bridging, out-parameter population, and mapping `PlanResolutionFailure`/exceptions to a `false` return) that is exactly the kind of adapter logic unit tests exist to protect.
 - **Impact**: A regression in the sync/async bridging (e.g., a hang under a synchronization context, or a mismapped failure case returning `true` with a default plan) would not be caught by the existing resolver/repository test suites, since those test the components the adapter wraps, not the adapter's own translation logic.
-- **Fix**: Add `tests/Sanare.Core.Tests/GitBackedExtractionPlanProviderTests.cs` covering: (1) `TryGet` returns `true` and populates `plan` on a resolved plan; (2) `TryGet` returns `false` on `NoPlanAvailable`/`SchemaDrift`/`PlanInvalid`; (3) the call does not deadlock under a single-threaded `SynchronizationContext` (regression guard for the blocking `GetAwaiter().GetResult()` pattern). Left unimplemented in this audit pass — this is a recommendation, not applied.
+- **Fix applied**: Added [GitBackedExtractionPlanProviderTests.cs](../../tests/Sanare.Core.Tests/GitBackedExtractionPlanProviderTests.cs), covering the adapter's full public surface end to end against a real temporary Git repository plus `PlanResolver` (`TryGet_returns_resolved_plan_from_the_latest_approval_tag`), the documented resolution-failure translations for `NoPlanAvailable`/`SchemaDrift`/`PlanInvalid` (`TryGet_returns_false_when_resolution_fails`, a `[Theory]` over all three `PlanResolutionFailure` values), the request built from derived schema metadata (`TryGet_passes_derived_schema_metadata_to_the_resolver`), null-argument validation (`TryGet_throws_for_null_arguments`), and resolver-exception propagation (`TryGet_propagates_resolver_exceptions`). All 7 tests pass; see Validation Performed below.
 
-### MAJ-002: `SNR-GIT-006` (`VersionAlreadyApproved`) has no test coverage
+### MAJ-002: `SNR-GIT-006` (`VersionAlreadyApproved`) has no test coverage — **RESOLVED**
 - **Location**: [GitScriptRepository.cs](../../src/Sanare.Core/Repository/GitScriptRepository.cs) `ApproveInternalAsync` (the `SNR-GIT-006` throw site); documented in [script-repository.md](../features/script-repository.md) Error Handling table and `AC-GIT-008`.
 - **Issue**: The path where the computed next monotonic approval tag name (`prefix + nextNumber`) already exists in the repository but does **not** point at the commit being approved (i.e., a real conflict, as opposed to the idempotent same-commit short-circuit a few lines above) throws `ScriptRepositoryException("SNR-GIT-006", ...)`. No test in `tests/Sanare.Core.Tests/Repository/GitScriptRepositoryTests.cs` exercises this branch.
 - **Evidence**: Search of `GitScriptRepositoryTests.cs` for `SNR-GIT-006` and `VersionAlreadyApproved` returns no matches. The only approval-related tests found exercise the idempotent-same-commit path (`AC-GIT-008`) and the happy-path monotonic tag creation, not the conflicting-tag case.
 - **Impact**: This is a narrow race/pathological condition (an external process or a concurrent `ApproveAsync` call creating a same-named tag pointing at a different commit between the read and the write), so its likelihood is low, but it is also the only code path that currently has zero coverage of any kind for a documented, user-visible error code (`SNR-GIT-006` is in the Error Handling table and referenced in `tech-design.md`). The doc table implies a tested contract even though nothing currently verifies the throw actually fires with the right code/message.
-- **Fix**: Testing this branch deterministically would require simulating a concurrent tag creation (e.g., injecting a tag between the read in `ApproveInternalAsync` and the `repo.Tags[tagName] is not null` check at the collision-detection point) or refactoring the collision check to be injectable for test purposes. This level of test instrumentation is not currently implemented. A true race condition (external process or concurrent `ApproveAsync` call creating the same-named tag pointing to a different commit) would exercise this path in production, but cannot be reliably triggered in unit tests without such injection mechanisms.
+- **Fix applied**: Testing this branch deterministically requires simulating a concurrent tag creation between the tag-name computation and the `repo.Tags[tagName] is not null` collision check in `ApproveInternalAsync`, since pre-seeding tags before calling `ApproveAsync` is simply absorbed into the monotonic-numbering scan and never reaches the conflict branch. A minimal, behavior-neutral test seam was added to [GitScriptRepository.cs](../../src/Sanare.Core/Repository/GitScriptRepository.cs): an `internal static` `AsyncLocal`-backed hook, `ApprovalConflictSimulation`, invoked immediately after `tagName` is computed and immediately before the collision check, plus `[assembly: InternalsVisibleTo("Sanare.Core.Tests")]` so only the test assembly can observe it. The hook is `null` (a no-op) for every non-test caller, so production behavior is unchanged. The new test `ApproveAsync_throws_SNR_GIT_006_when_the_computed_next_tag_is_created_concurrently` in [GitScriptRepositoryTests.cs](../../tests/Sanare.Core.Tests/Repository/GitScriptRepositoryTests.cs) uses the hook to insert the exact computed conflicting tag at the TOCTOU boundary, then asserts `ApproveAsync` throws `ScriptRepositoryException` with `Code == "SNR-GIT-006"`, `Retryable == false`, and the exact contract message, and that the externally-inserted tag is left untouched (the approval was refused, not silently overwritten). The test was proven meaningful by temporarily neutering the `SNR-GIT-006` throw condition (`if (repo.Tags[tagName] is not null)` → `if (false && ...)`) and confirming the test then fails with `LibGit2Sharp.NameConflictException` instead of the expected exception, before reverting the neutering.
 
 ## Observations & Suggestions (fixed during this audit)
 
@@ -99,14 +121,138 @@ factual/reference errors rather than open design questions:
 
 ## Recommended Priority Actions
 
-1. **Add `GitBackedExtractionPlanProviderTests.cs`** — fixes MAJ-001 — effort: small (adapter is a thin translation layer; 3–4 focused unit tests suffice).
-2. **Add an `SNR-GIT-006` conflict-path unit test to `GitScriptRepositoryTests.cs`** — fixes MAJ-002 — effort: small (requires pre-seeding a conflicting tag in the test fixture's temp repository).
+1. ~~**Add `GitBackedExtractionPlanProviderTests.cs`** — fixes MAJ-001 — effort: small (adapter is a thin translation layer; 3–4 focused unit tests suffice).~~ **Done** — see MAJ-001.
+2. ~~**Add an `SNR-GIT-006` conflict-path unit test to `GitScriptRepositoryTests.cs`** — fixes MAJ-002 — effort: small (requires pre-seeding a conflicting tag in the test fixture's temp repository).~~ **Done** — see MAJ-002 (required a minimal test seam rather than pre-seeding, since pre-seeded tags are absorbed by the monotonic-numbering scan; see MAJ-002 Fix applied for detail).
 
-Both recommendations are deliberately left unimplemented in this audit pass — the task scope was a documentation/code cross-check, not new test authoring. Implement on request.
+Both recommendations were implemented in a follow-up test-coverage pass (see MAJ-001 and MAJ-002 "Fix applied" above); the original audit pass above them was scoped to documentation/code cross-checking only.
 
 ## Validation Performed
 
-- `dotnet build` — succeeded, 0 warnings, 0 errors (after the XML-doc-only source edits listed above).
-- `dotnet test` — 52/52 passed (`Sanare.Abstractions.Tests`: 11, `Sanare.Core.Tests`: 41). No test changes were made; existing coverage is unaffected by this audit's edits.
-- `dotnet format --verify-no-changes` — clean, no formatting drift.
+- `dotnet build` — succeeded, 0 warnings, 0 errors (after the XML-doc-only source edits listed above, and again after the MAJ-001/MAJ-002 test-coverage fixes below).
+- `dotnet test` — 52/52 passed at the time of the original documentation/code cross-check (`Sanare.Abstractions.Tests`: 11, `Sanare.Core.Tests`: 41); no test changes were made in that pass. After the follow-up MAJ-001/MAJ-002 test-coverage pass: 66/66 passed (`Sanare.Abstractions.Tests`: 11, `Sanare.Core.Tests`: 55 — the original 41 plus 7 new `GitBackedExtractionPlanProviderTests` and 1 new `SNR-GIT-006` test in `GitScriptRepositoryTests.cs`; no existing test was weakened, skipped, or removed). The `SNR-GIT-006` test was confirmed non-vacuous by temporarily neutering the throw condition and observing the test fail with a different exception type, then reverting.
+- `dotnet format --verify-no-changes` — clean, no formatting drift (verified again after the test-coverage pass).
 - `git diff --check` — no whitespace errors (only expected CRLF→LF line-ending notices on doc files).
+
+## Full-Repository Findings — 2026-09-06
+
+### Findings Summary
+
+| Severity | Open | Resolved historical | Category |
+|----------|-----:|-------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 1 | 2 | Implemented-scope mismatch |
+| Minor | 5 | 0 | Status and test-inventory staleness |
+| Info | 0 | 5 | — |
+
+### Major Findings
+
+#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented
+
+- **Location**: `docs/features/extraction-plan-model.md` — Purpose, Scope,
+  `IPlanValidator` interface, proposed layout, and test-module inventory.
+- **Issue**: The specification describes structural validation as included and
+  presents `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs` as
+  implementation artifacts. No such production types or test module exist.
+  `src/Sanare.Core/Plans/PlanSerializer.cs` explicitly identifies full
+  structural validation as deferred to the `extraction-plan-model` scope.
+- **Impact**: Readers can reasonably conclude that the safety boundary and its
+  acceptance coverage are available when the current implementation supplies
+  serialization only.
+- **Recommended fix**: The `extraction-plan-model` owner should either implement
+  the validator and its tests or revise the spec's implemented-slice language to
+  distinguish the current serializer-only foundation from the target state.
+- **Ownership**: `src/Sanare.Core/Plans/**` and `src/Sanare.Abstractions/Plans/**`
+  are owned by the extraction-plan-model component; this is report-only.
+
+### Minor Findings
+
+#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite
+
+- **Location**: `docs/features/script-repository.md` — test-module inventory.
+- **Issue**: The specification names `FileLockRepositoryCoordinatorTests.cs`,
+  but that file is absent. Coordination behavior is presently exercised through
+  `GitScriptRepositoryTests.cs` rather than a standalone suite.
+- **Impact**: The documentation overstates the structure of focused coverage.
+- **Recommended fix**: Correct the inventory to name the actual test coverage,
+  or add the stated standalone test suite if that granularity is intended.
+
+#### MIN-002: Scrape API contracts test inventory lists test modules that are absent
+
+- **Location**: `docs/features/scrape-api-contracts.md` — test-module inventory.
+- **Issue**: `PublicApiApprovalTests.cs`, `ScrapeStatusCodesTests.cs`, and
+  `DiagnosticSanitizerTests.cs` are listed but absent; only
+  `RequestValidatorTests.cs` exists in the corresponding test area.
+- **Impact**: The spec misrepresents the available contract coverage.
+- **Recommended fix**: The scrape-api-contracts owner should implement the
+  listed modules or update the inventory to reflect actual coverage.
+- **Ownership**: `src/Sanare.Abstractions/**` is frozen/out of scope for this
+  session; this is report-only for the scrape-api-contracts owner.
+
+#### MIN-003: Schema-engine test inventory lists test modules that are absent
+
+- **Location**: `docs/features/schema-engine.md` — test-module inventory.
+- **Issue**: `SchemaHasherTests.cs`, `SchemaValidatorTests.cs`, and
+  `QualityReportBuilderTests.cs` are listed but absent. The existing suite
+  includes `TypeCoercerTests.cs` and `SchemaDeriverTests.cs` instead.
+- **Impact**: The stated test topology and implied feature coverage are stale.
+- **Recommended fix**: The schema-engine owner should implement the named tests
+  or correct the inventory to the actual suite.
+- **Ownership**: `src/Sanare.Core/Schema/**` is owned by the schema-engine
+  component; this is report-only.
+
+#### MIN-004: Plan-runtime implementation status is stale
+
+- **Location**: `docs/features/overview.md` — Plan Runtime row.
+- **Issue**: The implementation order marks `plan-runtime` as `draft`, while
+  `src/Sanare.Core/Runtime/` contains production `IPlanExecutor`,
+  `PlanExecutor`, `ExtractionOutcome`, and document-adapter code.
+- **Impact**: Consumers planning dependencies cannot tell that a partial runtime
+  foundation already exists.
+- **Recommended fix**: Mark the feature `partial`, or retain `draft` only with a
+  clear note that the existing runtime is an intentionally incomplete foundation.
+- **Ownership**: `src/Sanare.Core/Runtime/**` is outside this session's edit
+  scope; this is report-only for the plan-runtime owner.
+
+#### MIN-005: Root development TODO still says Git-backed storage is unimplemented
+
+- **Location**: `DEVELOPMENT.md` — TODO item 2.
+- **Issue**: The item says to implement persistent/Git-backed extraction-plan
+  storage and resolution while replacing `InMemoryExtractionPlanProvider`, but
+  the repository now has the documented partial script-repository and
+  plan-resolver implementation plus direct coverage recorded in the historical
+  audit above.
+- **Impact**: The root development checklist gives an obsolete starting point
+  and obscures remaining work.
+- **Recommended fix**: Replace the item with the specific remaining work, or
+  mark the completed storage/resolution slice done and create follow-up items
+  for the intended next capabilities.
+
+### Confirmed Current Alignment
+
+- `docs/features/plan-resolver.md` accurately describes the current partial
+  implementation and its `SNR-GIT-*` behavior.
+- The other draft feature specifications are consistent with their stated
+  unimplemented scope; no broken feature-spec links or placeholder-only sections
+  were found.
+- `README.md`, `AGENTS.md`, and the historical/provenance material under
+  `ideas/sanare/` do not contradict the active code or feature-spec status.
+
+### Recommended Priority Actions
+
+1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
+   tests, or reduce the spec to the serializer-only implemented slice.
+2. **Synchronize status and test inventories** — address MIN-001 through
+   MIN-005 when their owning component scopes are next active.
+3. **Re-run this audit after the owners update their specs or implementations**
+   to verify that the status table, test inventory, and implementation scope
+   remain aligned.
+
+### Full-Repository Audit Validation
+
+- Ran a docs-only inventory across the repository and checked the active
+  feature-spec set for link and status consistency.
+- Cross-referenced the findings above against the current source and test tree,
+  including direct confirmation that no `IPlanValidator` implementation exists
+  and that `src/Sanare.Core/Runtime/` contains production runtime types.
+- This pass was documentation-only. No build, test, or formatter run was needed
+  because no code was changed.

@@ -1,3 +1,4 @@
+using LibGit2Sharp;
 using Sanare.Abstractions;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Plans;
@@ -85,6 +86,41 @@ public sealed class GitScriptRepositoryTests : IDisposable
         var thirdApproval = await repository.ApproveAsync(plan.SourceId, plan.SchemaName, plan.SchemaVersion, secondCommit.CommitId);
 
         Assert.EndsWith("/2", thirdApproval.ApprovalTag!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApproveAsync_throws_SNR_GIT_006_when_the_computed_next_tag_is_created_concurrently()
+    {
+        var repository = CreateRepository();
+        await repository.InitializeAsync();
+        var plan = SamplePlan();
+        var commit = await repository.CommitPlanAsync(new PlanCommitRequest(plan, "author", "initial plan", "authoring"));
+        var updatedPlan = plan with { Provenance = plan.Provenance with { Score = 0.5d } };
+        var conflictingCommit = await repository.CommitPlanAsync(new PlanCommitRequest(updatedPlan, "heal", "healed plan", "heal:test"));
+
+        // SNR-GIT-006 is a TOCTOU race: an external process creates the exact tag this call is about to
+        // add, in the window between this call computing the next monotonic tag name and it checking
+        // whether that name is already taken. GitScriptRepository.ApprovalConflictSimulation is an
+        // AsyncLocal test-only seam that runs right at that boundary, letting the test insert the
+        // conflicting tag deterministically instead of relying on a real race between threads/processes.
+        GitScriptRepository.ApprovalConflictSimulation = (repo, tagName) => repo.Tags.Add(tagName, repo.Lookup<Commit>(conflictingCommit.CommitId)!);
+        try
+        {
+            var exception = await Assert.ThrowsAsync<ScriptRepositoryException>(
+                () => repository.ApproveAsync(plan.SourceId, plan.SchemaName, plan.SchemaVersion, commit.CommitId).AsTask());
+
+            Assert.Equal("SNR-GIT-006", exception.Code);
+            Assert.False(exception.Retryable);
+            Assert.Equal("Approval tag 'approved/lenovo/tablets/Product@1/1' already points at a different commit.", exception.Message);
+        }
+        finally
+        {
+            GitScriptRepository.ApprovalConflictSimulation = null;
+        }
+
+        var tags = await repository.GetApprovalTagsAsync(plan.SourceId, plan.SchemaName, plan.SchemaVersion);
+        Assert.Single(tags);
+        Assert.Equal(conflictingCommit.CommitId, tags[0].CommitId);
     }
 
     [Fact]
