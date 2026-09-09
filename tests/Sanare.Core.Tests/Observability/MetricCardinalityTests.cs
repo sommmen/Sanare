@@ -171,4 +171,32 @@ public sealed class MetricCardinalityTests
         Assert.Contains(measurement.Tags, tag => tag.Key == TagNames.Source && Equals(tag.Value, "source-b"));
         Assert.Contains(measurement.Tags, tag => tag.Key == TagNames.Field && Equals(tag.Value, "/Price"));
     }
+
+    [Fact]
+    public void Guard_Collapses_unbounded_value_to_other_when_no_allow_list_configured()
+    {
+        // Regression: with a default CardinalityGuard (no allow-lists configured),
+        // an unbounded/high-cardinality value (e.g. random GUID-like string or unsafe chars)
+        // must be collapsed to "other" rather than passed through verbatim, ensuring
+        // bounded cardinality even without explicit configuration.
+        var guard = new CardinalityGuard();
+        var guidLikeString = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+
+        var result = guard.Guard(TagNames.Source, guidLikeString);
+
+        Assert.Equal(CardinalityGuard.Other, result);
+    }
+
+    [Fact]
+    public void Guard_Allows_safe_short_values_for_bounded_tags_when_no_allow_list_configured()
+    {
+        // When no explicit allow-list is configured, safe short values (length<=64, only
+        // alphanumeric/-/_/.) should pass through for Source/Host/Schema/Field, maintaining
+        // backward-compatible behavior for normal use while rejecting high-cardinality values.
+        var guard = new CardinalityGuard();
+
+        var result = guard.Guard(TagNames.Source, "safe-source-name");
+
+        Assert.Equal("safe-source-name", result);
+    }
 }

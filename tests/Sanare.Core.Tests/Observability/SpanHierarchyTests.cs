@@ -71,9 +71,10 @@ public sealed class SpanHierarchyTests
     }
 
     [Fact]
-    public void StartChild_Does_not_tag_urls_to_prevent_cardinality_explosion()
+    public void StartChild_Tags_canonical_url_path_without_query_string_to_bound_cardinality()
     {
-        // Per spec: URLs and dynamic values never become tags because they create unbounded cardinality.
+        // Per spec: url.path tags only the AbsolutePath (no query, no full URI), which bounds cardinality
+        // to the application's legitimate path space (not unbounded query parameters or absolute URIs).
         using var listener = CreateListener();
         var activitySource = new ScraperActivitySource();
         var uri = new Uri("https://example.test/products/1?session=abc123&token=secret");
@@ -81,13 +82,16 @@ public sealed class SpanHierarchyTests
         using var activity = activitySource.StartChild(SpanNames.BrowserNavigate, "source-a", "commit-1", uri: uri);
 
         Assert.NotNull(activity);
-        Assert.Null(activity!.GetTagItem(TagNames.UrlPath));
+        Assert.Equal("/products/1", activity!.GetTagItem(TagNames.UrlPath));
+        Assert.DoesNotContain("?", activity!.GetTagItem(TagNames.UrlPath)?.ToString() ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain("session=", activity!.GetTagItem(TagNames.UrlPath)?.ToString() ?? "", StringComparison.Ordinal);
     }
 
     [Fact]
-    public void StartChild_Does_not_tag_urls_even_when_sensitive_data_is_enabled()
+    public void StartChild_Tags_url_path_regardless_of_sensitive_data_flag()
     {
-        // Per spec: URLs should never become tags regardless of sensitive data flag, as they create unbounded cardinality.
+        // Per spec: url.path always tags the bounded AbsolutePath regardless of enableSensitiveData
+        // (enableSensitiveData is reserved for future full query string exposure, not yet wired).
         using var listener = CreateListener();
         var activitySource = new ScraperActivitySource();
         var uri = new Uri("https://example.test/products/1?session=abc123");
@@ -95,7 +99,7 @@ public sealed class SpanHierarchyTests
         using var activity = activitySource.StartChild(SpanNames.BrowserNavigate, "source-a", "commit-1", uri: uri, enableSensitiveData: true);
 
         Assert.NotNull(activity);
-        Assert.Null(activity!.GetTagItem(TagNames.UrlPath));
+        Assert.Equal("/products/1", activity!.GetTagItem(TagNames.UrlPath));
     }
 
     [Theory]
@@ -179,6 +183,37 @@ public sealed class SpanHierarchyTests
         {
             Assert.True(activitySource.HasListeners);
         }
+    }
+
+    [Fact]
+    public void StartChild_Tags_canonical_url_path_without_query_string_when_uri_provided()
+    {
+        // Per spec: url.path records the canonicalised URL path, not the full URL with query,
+        // never including the query string or absolute URI, only the AbsolutePath component.
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+        var uriWithQuery = new Uri("https://api.example.com/v1/users/123?page=1&sort=name");
+
+        using var activity = activitySource.StartChild("fetch", "source-a", "commit-1", uri: uriWithQuery);
+
+        Assert.NotNull(activity);
+        var urlPathTag = activity!.GetTagItem(TagNames.UrlPath);
+        Assert.Equal("/v1/users/123", urlPathTag);
+        Assert.DoesNotContain("?", urlPathTag?.ToString() ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain("page=1", urlPathTag?.ToString() ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain("https://", urlPathTag?.ToString() ?? "", StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StartChild_Omits_url_path_tag_when_no_uri_provided()
+    {
+        using var listener = CreateListener();
+        var activitySource = new ScraperActivitySource();
+
+        using var activity = activitySource.StartChild("fetch", "source-a", "commit-1");
+
+        Assert.NotNull(activity);
+        Assert.Null(activity!.GetTagItem(TagNames.UrlPath));
     }
 
     private static ActivityListener CreateListener()

@@ -167,7 +167,7 @@ configured profile name (such as `Authoring` or `Healing`), never a dynamic prox
 `sanare.healing.*` for agent workflows.
 
 Every span carries `source.id` and `plan.commit`. Additional attributes: `run.id`, `tier`, `origin`,
-`page.index`, `http.response.status_code`, `cache.hit`. A span records the **canonicalised URL path**, not
+`page.index`, `http.response.status_code`, `cache.hit`, `url.path`. A span records the **canonicalised URL path** (from `Uri.AbsolutePath`, never including query string or full URI), not
 the full URL with query, unless `EnableSensitiveData` is on.
 
 Failed spans set `ActivityStatusCode.Error` with the `SNR-*` error code as `error.type` — the code, not the

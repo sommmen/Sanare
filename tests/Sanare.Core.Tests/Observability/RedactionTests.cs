@@ -181,6 +181,55 @@ public sealed class RedactionTests
         Assert.DoesNotContain("person@example.com", text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RedactingLogEnricher_Does_not_format_when_inner_logger_is_not_enabled()
+    {
+        var formatterInvoked = false;
+        var inner = new DisabledLogger();
+        var enricher = new RedactingLogEnricher(inner);
+
+        enricher.Log(LogLevel.Debug, new EventId(1), "state", null, (_, _) =>
+        {
+            formatterInvoked = true;
+            return "formatted";
+        });
+
+        Assert.False(formatterInvoked, "Formatter was invoked even though inner logger is disabled");
+    }
+
+    [Fact]
+    public void RedactingLogEnricher_Redacts_exception_message_before_forwarding()
+    {
+        var captured = new List<Exception?>();
+        var inner = new ExceptionCapturingLogger(captured);
+        var enricher = new RedactingLogEnricher(inner);
+        // Use an email address which will be redacted by the Email pattern
+        var sensitiveException = new InvalidOperationException("Failed for user user@example.com");
+
+        enricher.Log(LogLevel.Error, new EventId(1), "state", sensitiveException, (_, _) => "log message");
+
+        Assert.Single(captured);
+        var forwarded = captured[0];
+        Assert.NotNull(forwarded);
+        Assert.DoesNotContain("user@example.com", forwarded!.Message, StringComparison.Ordinal);
+        Assert.Contains("[redacted]", forwarded!.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RedactingLogEnricher_Passes_unredacted_exception_when_message_needs_no_redaction()
+    {
+        var captured = new List<Exception?>();
+        var inner = new ExceptionCapturingLogger(captured);
+        var enricher = new RedactingLogEnricher(inner);
+        var safeException = new InvalidOperationException("Safe error message");
+
+        enricher.Log(LogLevel.Error, new EventId(1), "state", safeException, (_, _) => "log message");
+
+        Assert.Single(captured);
+        var forwarded = captured[0];
+        Assert.Same(safeException, forwarded);
+    }
+
     /// <summary>Minimal <see cref="ILogger"/> that records the redacted state it was given.</summary>
     private sealed class CapturingLogger(
         List<KeyValuePair<string, object?>[]> captured,
@@ -203,6 +252,32 @@ public sealed class RedactionTests
             }
 
             onMessage?.Invoke(formatter(state, exception));
+        }
+    }
+
+    /// <summary>Minimal <see cref="ILogger"/> that is never enabled.</summary>
+    private sealed class DisabledLogger : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => false;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            throw new InvalidOperationException("Should not be called when disabled");
+        }
+    }
+
+    /// <summary>Minimal <see cref="ILogger"/> that captures exceptions passed to Log.</summary>
+    private sealed class ExceptionCapturingLogger(List<Exception?> captured) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            captured.Add(exception);
         }
     }
 }

@@ -50,6 +50,12 @@ public sealed class ScraperActivitySource
             tags.Add(TagNames.PageIndex, pageIndex.Value);
         }
 
+        if (uri is not null)
+        {
+            tags.Add(TagNames.UrlPath, uri.AbsolutePath);
+        }
+
+        // Note: enableSensitiveData is reserved for future full query string exposure and is not yet wired to any attribute.
         return Source.StartActivity(name, ActivityKind.Internal, default(ActivityContext), tags);
     }
 

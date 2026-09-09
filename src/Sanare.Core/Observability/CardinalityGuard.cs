@@ -51,10 +51,10 @@ public sealed class CardinalityGuard
 
     private bool IsAllowed(string tagName, string value) => tagName switch
     {
-        TagNames.Source => _sources.Count == 0 || _sources.Contains(value),
-        TagNames.Host => _hosts.Count == 0 || _hosts.Contains(value),
-        TagNames.Schema => _schemas.Count == 0 || _schemas.Contains(value),
-        TagNames.Field => _fields.Count == 0 || _fields.Contains(value),
+        TagNames.Source => _sources.Count > 0 && _sources.Contains(value) || _sources.Count == 0 && IsClosedValue(value),
+        TagNames.Host => _hosts.Count > 0 && _hosts.Contains(value) || _hosts.Count == 0 && IsClosedValue(value),
+        TagNames.Schema => _schemas.Count > 0 && _schemas.Contains(value) || _schemas.Count == 0 && IsClosedValue(value),
+        TagNames.Field => _fields.Count > 0 && _fields.Contains(value) || _fields.Count == 0 && IsClosedValue(value),
         _ when ClosedTagNames.Contains(tagName) => IsClosedValue(value),
         _ => false,
     };
@@ -63,8 +63,23 @@ public sealed class CardinalityGuard
         value.Contains("://", StringComparison.Ordinal) || value.Contains('?', StringComparison.Ordinal) ||
         value.Contains('&', StringComparison.Ordinal) || value.Contains('=');
 
-    private static bool IsClosedValue(string value) => value.Length <= 64 &&
-        value.All(character => char.IsLetterOrDigit(character) || character is '-' or '_' or '.');
+    private static bool IsClosedValue(string value)
+    {
+        if (value.Length > 64)
+            return false;
+
+        // Check that value contains only safe characters: alphanumeric, dash, underscore, dot, or slash.
+        // Slash is allowed for field paths like "/Price".
+        if (!value.All(character => char.IsLetterOrDigit(character) || character is '-' or '_' or '.' or '/'))
+            return false;
+
+        // Reject values that look like random IDs (e.g., GUIDs or UUIDs).
+        // A value that is mostly or entirely hex digits (0-9a-f) is likely a GUID/UUID
+        // and has unbounded cardinality, so reject it even if syntactically valid.
+        var hexCharCount = value.Count(c => char.IsDigit(c) || c is >= 'a' and <= 'f' or >= 'A' and <= 'F');
+        var hexRatio = (double)hexCharCount / value.Length;
+        return hexRatio < 0.75; // Allow if < 75% hex chars; reject if >= 75%
+    }
 
     private void Report(string tagName)
     {
