@@ -1,0 +1,20 @@
+<!--
+  SYNTHETIC TEST FIXTURE — not a real network capture.
+  Purpose-built to exercise Redactor rule coverage: cookies (via header, not body), an email address,
+  an IBAN, a Dutch postcode + house-number pair, and a password form field.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Account</title></head>
+<body>
+  <main>
+    <p>Contact us at support@example.com for help.</p>
+    <p>IBAN: NL91ABNA0417164300</p>
+    <p>Shipping to 1234 AB 12</p>
+    <form>
+      <input type="hidden" name="password" value="hunter2secretvalue" />
+      <input type="text" name="username" value="jdoe" />
+    </form>
+  </main>
+</body>
+</html>
