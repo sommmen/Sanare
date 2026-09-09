@@ -3,7 +3,7 @@
 > Implementation index for the Sanare technical design.
 > Canonical architecture: [Sanare Technical Design](../sanare/tech-design.md)
 > Status: active — implementation tracking
-> Updated: 2026-09-06
+> Updated: 2026-09-09
 
 ## Status
 
@@ -20,7 +20,7 @@ must not be used to renumber or reorder work.
 | 3 | Extraction Plan Model | `extraction-plan-model` | L1 | 1, 2 | P0 | draft | [extraction-plan-model.md](extraction-plan-model.md) |
 | 4 | Script Repository | `script-repository` | L1 | 3 | P0 | partial | [script-repository.md](script-repository.md) |
 | 5 | Fixture Corpus | `fixture-corpus` | L1 | 1 | P0 | implemented | [fixture-corpus.md](fixture-corpus.md) |
-| 6 | Acquisition Pipeline | `acquisition-pipeline` | L2 | 1, 5 | P0 | draft | [acquisition-pipeline.md](acquisition-pipeline.md) |
+| 6 | Acquisition Pipeline | `acquisition-pipeline` | L2 | 1, 5 | P0 | partial | [acquisition-pipeline.md](acquisition-pipeline.md) |
 | 7 | Browsing Identity | `browsing-identity` | L2 | 6 | P0 | draft | [browsing-identity.md](browsing-identity.md) |
 | 8 | Browser Tier | `browser-tier` | L2 | 6, 7 | P0 | draft | [browser-tier.md](browser-tier.md) |
 | 9 | Plan Runtime | `plan-runtime` | L3 | 2, 3, 6 | P0 | draft | [plan-runtime.md](plan-runtime.md) |

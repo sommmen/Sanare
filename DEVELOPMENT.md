@@ -21,7 +21,8 @@ and scope of the v0.1 foundation.
 - [x] Implement the local Git-backed approved-plan storage and resolution slice (`script-repository`/`plan-resolver`) while preserving the in-memory provider for the minimal runner example.
 - [ ] Complete advanced extraction-plan repository operations: git CLI backend, heal branches, fast-forward promotion, rollback, garbage collection, and remote synchronization.
 - [ ] Implement `IPlanValidator` and the full `extraction-plan-model` feature (JSON plan serializer, canonical writer, content hash, version upgrades) once plans can originate from outside the process.
-- [ ] Implement live HTTP acquisition, then browser-tier (Playwright) acquisition, per `docs/sanare/tech-design.md`.
+- [x] Implement a controlled HTTP acquisition foundation: GET-only HTTPS-by-default transport, bounded streamed reads, header/content-type/charset handling, fixture capture, and zero-socket offline replay. This boundary is not yet wired into `FixtureScrapeRunner`.
+- [ ] Complete the governed acquisition pipeline and browser-tier (Playwright) acquisition per `docs/sanare/tech-design.md`: runner integration, robots/discovery, per-host pacing, retries/circuit breaking/challenge hand-off, cache and redirect policy, browsing identity, telemetry, and browser escalation.
 - [ ] Implement the pagination engine and remove the `NotSupportedException` from `IScrapeRunner.StreamAsync`.
 - [ ] Add formal test cases for the M2–M7 milestones, including fixture regressions and self-healing negative paths.
 - [ ] Define the exact Microsoft Agent Framework and OmniRoute integration packages, configuration, and failure behavior before implementing plan authoring/healing.
