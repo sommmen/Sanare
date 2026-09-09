@@ -25,8 +25,14 @@ public sealed class FixtureManifestStore
         try
         {
             await using var stream = File.OpenRead(_path);
-            return await JsonSerializer.DeserializeAsync<FixtureManifest>(stream, SerializerOptions, ct).ConfigureAwait(false)
+            var manifest = await JsonSerializer.DeserializeAsync<FixtureManifest>(stream, SerializerOptions, ct).ConfigureAwait(false)
                 ?? throw new FixtureCorpusException("SNR-FIX-002", $"Fixture manifest '{_path}' is empty.");
+            if (manifest.Fixtures is null)
+            {
+                throw new FixtureCorpusException("SNR-FIX-002", $"Fixture manifest '{_path}' is missing its fixtures list.");
+            }
+
+            return manifest;
         }
         catch (JsonException exception)
         {
