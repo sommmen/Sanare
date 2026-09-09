@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 
 namespace Sanare.Core.Schema.Coercion;
@@ -8,13 +9,17 @@ public static class TextNormalizer
     public static string Normalize(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var cleaned = value.Replace("\u00AD", string.Empty, StringComparison.Ordinal)
-            .Replace("\u200B", string.Empty, StringComparison.Ordinal);
-        var builder = new StringBuilder(cleaned.Length);
+        var decoded = WebUtility.HtmlDecode(value);
+        var builder = new StringBuilder(decoded.Length);
         var previousWhitespace = false;
-        foreach (var character in cleaned)
+        foreach (var character in decoded)
         {
-            if (char.IsWhiteSpace(character))
+            if (character is '\u00AD' or '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
+            {
+                continue;
+            }
+
+            if (char.IsWhiteSpace(character) || character == '\u00A0')
             {
                 if (!previousWhitespace)
                 {
@@ -22,12 +27,11 @@ public static class TextNormalizer
                 }
 
                 previousWhitespace = true;
+                continue;
             }
-            else
-            {
-                builder.Append(character);
-                previousWhitespace = false;
-            }
+
+            builder.Append(character);
+            previousWhitespace = false;
         }
 
         return builder.ToString().Trim();

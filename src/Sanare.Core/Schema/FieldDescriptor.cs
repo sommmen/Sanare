@@ -8,5 +8,6 @@ public sealed record FieldDescriptor(
     bool Required,
     string? Description,
     string? Unit,
-    string Culture,
-    string? Hint);
+    string? Culture,
+    string? Hint,
+    IReadOnlyList<string>? EnumSynonyms = null);
