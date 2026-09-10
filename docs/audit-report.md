@@ -13,13 +13,17 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 4 Minor. MAJ-003, MIN-001, MIN-002, NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
-through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
-section below); two new Minor findings (NEW-006, NEW-007) were opened for a
-schema-engine materialization-method deviation and a plan-runtime documented
-scope overstatement. No code fixes were made in this pass — the 2026-09-10
-update is documentation-only, correcting status markers and flagging
-implementation discrepancies for a later turn.
+**Open findings from this pass**: 4 Minor. MIN-001, MIN-002, NEW-006, and
+NEW-007 remain open. MAJ-003 was resolved on 2026-09-10 by implementing the
+extraction-plan structural-validator slice and its focused tests; its
+feature-spec and status documentation were updated in the same follow-up.
+MIN-001 concerns this session's script-repository documentation inventory.
+MIN-003 through MIN-005 from the 2026-09-06 pass are now resolved (see the
+2026-09-10 section below); two new Minor findings (NEW-006, NEW-007) were
+opened for a schema-engine materialization-method deviation and a plan-runtime
+documented scope overstatement. No code fixes were made in the original audit
+pass — its 2026-09-10 update corrected status markers and flagged
+implementation discrepancies for later work.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -143,7 +147,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Severity | Open | Resolved historical | Category |
 |----------|-----:|-------------------:|----------|
 | Critical | 0 | 0 | — |
-| Major | 1 | 2 | Implemented-scope mismatch |
+| Major | 0 | 3 | Implemented-scope mismatch |
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
@@ -153,23 +157,21 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Major Findings
 
-#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented
+#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented — ✅ RESOLVED (2026-09-10)
 
 - **Location**: `docs/features/extraction-plan-model.md` — Purpose, Scope,
   `IPlanValidator` interface, proposed layout, and test-module inventory.
-- **Issue**: The specification describes structural validation as included and
-  presents `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs` as
-  implementation artifacts. No such production types or test module exist.
-  `src/Sanare.Core/Plans/PlanSerializer.cs` explicitly identifies full
-  structural validation as deferred to the `extraction-plan-model` scope.
-- **Impact**: Readers can reasonably conclude that the safety boundary and its
-  acceptance coverage are available when the current implementation supplies
-  serialization only.
-- **Recommended fix**: The `extraction-plan-model` owner should either implement
-  the validator and its tests or revise the spec's implemented-slice language to
-  distinguish the current serializer-only foundation from the target state.
-- **Ownership**: `src/Sanare.Core/Plans/**` and `src/Sanare.Abstractions/Plans/**`
-  are owned by the extraction-plan-model component; this is report-only.
+- **Original issue**: The specification described structural validation as included
+  and presented `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs`
+  as implementation artifacts before those production types and focused tests
+  existed.
+- **Resolution**: Added `IPlanValidator`, `PlanValidator`, `PlanValidationResult`,
+  `PlanDefect`, and 26 focused `PlanValidatorTests`. The feature specification
+  now marks the component `partial` and distinguishes the implemented validator
+  slice from deferred version upgrades, request-aware placeholder binding,
+  `MaxItems` validation, and regex-backtracking policy work.
+- **Validation**: `Sanare.Core.Tests` passed 281/281 tests, including the 26
+  focused validator tests; `Sanare.Abstractions.Tests` passed 11/11 tests.
 
 ### Minor Findings
 
@@ -258,10 +260,10 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Recommended Priority Actions
 
-1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
-   tests, or reduce the spec to the serializer-only implemented slice.
-2. **Synchronize status and test inventories** — address MIN-001 through
-   MIN-005 when their owning component scopes are next active.
+1. **Synchronize status and test inventories** — address MIN-001 and MIN-002
+   when their owning component scopes are next active.
+2. **Maintain the extraction-plan-model boundary** — keep the validator slice
+   separate from deferred version-upgrade and runtime-aware validation work.
 3. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
@@ -291,15 +293,16 @@ direct file inspection. No production code was changed in this pass.
 | Severity | Open | Resolved this pass | Category |
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
-| Major | 1 | 0 | Implemented-scope mismatch |
+| Major | 0 | 1 | Implemented-scope mismatch |
 | Minor | 4 | 3 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
-pass (see above) — they are report-only for their respective component
-owners and were not in this pass's docs-update scope. MIN-003, MIN-004, and
-MIN-005 are now resolved (see updated entries above). Two new Minor findings
-were opened below.
+MIN-001 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
+above) — they are report-only for their respective component owners and were
+not in this pass's docs-update scope. MAJ-003 is now resolved by the
+extraction-plan validator implementation documented above. MIN-003, MIN-004,
+and MIN-005 are now resolved (see updated entries above). Two new Minor
+findings were opened below.
 
 ### Doc Status Corrections Made This Pass
 
@@ -324,7 +327,9 @@ were opened below.
   the source/test trees and found to already be accurate: `#1` Scrape API
   Contracts (`draft` — `IScraperAdministration`/`IFixtureAdministration` and a
   frozen public-API CI baseline are still fully absent), `#3` Extraction Plan
-  Model (`draft` — no validator, per open MAJ-003), `#4` Script Repository /
+  Model (`partial` — typed plan model, canonical serializer, and structural
+  validator are implemented; version upgrades and runtime-aware checks remain
+  deferred), `#4` Script Repository /
   `#11` Plan Resolver (`partial`, unchanged), `#5` Fixture Corpus
   (`implemented`, unchanged), `#6` Acquisition Pipeline (`partial`,
   unchanged), `#7` Browsing Identity, `#8` Browser Tier, `#12` Authoring
@@ -399,18 +404,15 @@ were opened below.
 
 ### Recommended Priority Actions (2026-09-10 update)
 
-1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
-   tests, or reduce the spec to the serializer-only implemented slice
-   (unchanged from the 2026-09-06 pass).
-2. **Decide schema-engine's materialization strategy (NEW-006)** — either
+1. **Decide schema-engine's materialization strategy (NEW-006)** — either
    implement the documented source-generation/trim-guard path or correct the
    spec to describe the actual reflection-based implementation.
-3. **Split plan-runtime.md into implemented vs. target-state sections
+2. **Split plan-runtime.md into implemented vs. target-state sections
    (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
    structure and test suite is built today versus planned.
-4. **Synchronize remaining status and test inventories** — address MIN-001 and
+3. **Synchronize remaining status and test inventories** — address MIN-001 and
    MIN-002 when their owning components (script-repository,
    scrape-api-contracts) are next active.
-5. **Re-run this audit after the owners update their specs or implementations**
+4. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
