@@ -13,7 +13,21 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Minor remains open (MIN-002). MAJ-003 was resolved on 2026-09-10 by implementing the extraction-plan structural-validator slice and its focused tests. MIN-001 (script-repository documentation inventory) was also resolved on 2026-09-10 with a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior. NEW-006 (schema-engine materialization strategy) and NEW-007 (plan-runtime scope split) were resolved on 2026-09-10 via documentation and scope-split updates. MIN-003, MIN-004, and MIN-005 from the 2026-09-06 pass remain resolved. All fixes in this pass are documentation-only except MIN-001's added unit test.
+**Open findings from this pass**: none. MAJ-003, MIN-001 (script-repository),
+MIN-002 (scrape-api-contracts), MIN-003, MIN-004, MIN-005, NEW-006, and
+NEW-007 from the 2026-09-06 pass are all now resolved (see the 2026-09-10
+section below). MAJ-003 was resolved on 2026-09-10 by implementing the
+extraction-plan structural-validator slice and its focused tests. MIN-001's
+resolution added a real unit test for the previously untested `SNR-GIT-004`
+lease-timeout behavior and corrected the script-repository test-module
+inventory. NEW-006's resolution documented the reflection-only
+`IDocumentMaterializer` and its trim/AOT limitation. NEW-007's resolution
+split `plan-runtime.md` into implemented vs. target-state sections to
+clarify the v0.1 scope. MIN-002's resolution added the two missing
+scrape-api-contracts unit test files and corrected the corresponding spec
+inventory. Most fixes in this pass are documentation-only; MAJ-003's
+resolution added production `src/` code (the extraction-plan validator) and
+MIN-001 and MIN-002 additionally added test code.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -141,7 +155,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
-> **Update (2026-09-10)**: MIN-001, MIN-003, MIN-004, and MIN-005 are now resolved — see
+> **Update (2026-09-10)**: MIN-001, MIN-002, MIN-003, MIN-004, and MIN-005 are now resolved — see
 > [Full-Repository Findings — 2026-09-10](#full-repository-findings--2026-09-10)
 > below for evidence and the updated summary table.
 
@@ -188,17 +202,31 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
   `GitScriptRepositoryTests.cs` and no longer claims a standalone
   `FileLockRepositoryCoordinatorTests.cs` file exists.
 
-#### MIN-002: Scrape API contracts test inventory lists test modules that are absent
+#### MIN-002: Scrape API contracts test inventory lists test modules that are absent — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/scrape-api-contracts.md` — test-module inventory.
 - **Issue**: `PublicApiApprovalTests.cs`, `ScrapeStatusCodesTests.cs`, and
-  `DiagnosticSanitizerTests.cs` are listed but absent; only
-  `RequestValidatorTests.cs` exists in the corresponding test area.
-- **Impact**: The spec misrepresents the available contract coverage.
+  `DiagnosticSanitizerTests.cs` were listed but absent; only
+  `RequestValidatorTests.cs` existed in the corresponding test area.
+- **Impact**: The spec misrepresented the available contract coverage.
 - **Recommended fix**: The scrape-api-contracts owner should implement the
   listed modules or update the inventory to reflect actual coverage.
-- **Ownership**: `src/Sanare.Abstractions/**` is frozen/out of scope for this
-  session; this is report-only for the scrape-api-contracts owner.
+- **Ownership**: `src/Sanare.Abstractions/**` is owned by the
+  scrape-api-contracts component.
+- **Resolution**: `tests/Sanare.Abstractions.Tests/ScrapeStatusCodesTests.cs`
+  and `tests/Sanare.Abstractions.Tests/Diagnostics/DiagnosticSanitizerTests.cs`
+  now exist and exercise `ScrapeStatusCodes.For` and `DiagnosticSanitizer`
+  respectively. `PublicApiApprovalTests.cs` was not added — it requires new
+  tooling (`Microsoft.CodeAnalysis.PublicApiAnalyzers`, `PublicApiGenerator`,
+  `Verify`, and a checked-in `PublicApi.approved.txt`/`PublicAPI.Shipped.txt`
+  baseline) that does not exist anywhere in the repository yet, which is a
+  feature addition beyond reconciling the inventory. `scrape-api-contracts.md`
+  now names the actual test files, explicitly marks AC-014 (public-API
+  approval test) and AC-015 (`.csproj` dependency assertion) as **not yet
+  implemented**, and flags the corresponding "Binary compatibility" and "No
+  third-party dependencies" constraints as review-enforced only. Implementing
+  the public-API freeze/approval-test tooling remains open follow-up work for
+  the scrape-api-contracts owner.
 
 #### MIN-003: Schema-engine test inventory lists test modules that are absent — ✅ RESOLVED 2026-09-10
 
@@ -233,7 +261,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
   `partial`, and `docs/features/plan-runtime.md` carries an explicit
   "Implementation status: partial" callout describing the minimal v0.1 HTML
   interpreter foundation. See NEW-007 below for the accompanying documented-
-  scope-overstatement finding that remains open.
+  scope-overstatement finding, which is also resolved.
 
 #### MIN-005: Root development TODO still says Git-backed storage is unimplemented — ✅ RESOLVED (confirmed 2026-09-10)
 
@@ -289,7 +317,9 @@ re-checked all six open findings from the 2026-09-06 pass. Updated status
 markers and added per-feature "Implementation status" callouts where stale;
 flagged newly discovered code/doc mismatches for a later, code-focused turn.
 **Method**: Code-grounded cross-reference using symbolic search (Serena) and
-direct file inspection. No production code was changed in this pass.
+direct file inspection. Production code (`src/`) was changed in this pass
+for MAJ-003's extraction-plan validator implementation; MIN-001 and MIN-002's
+resolutions each added new test files only.
 
 ### Findings Summary (current)
 
@@ -297,10 +327,20 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 0 | 1 | Implemented-scope mismatch |
-| Minor | 1 | 6 | Status and test-inventory staleness |
+| Minor | 0 | 7 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-Only MIN-002 remains open and unchanged from the 2026-09-06 pass (see above) — it is report-only for its component owner and was not in this pass's scope. MAJ-003 is now resolved by the extraction-plan validator implementation. MIN-001, MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 are now resolved (see updated entries above); MIN-001's resolution added a unit test closing the underlying `SNR-GIT-004` coverage gap, NEW-006's resolution documented the reflection-only `IDocumentMaterializer`, and NEW-007's resolution clarified the v0.1 vs. target-state scope split in `plan-runtime.md`.
+No findings remain open from this pass. MAJ-003 is now resolved by the
+extraction-plan validator implementation. MIN-001, MIN-002, MIN-003, MIN-004,
+MIN-005, NEW-006, and NEW-007 are all now resolved (see updated entries
+above). MIN-001's resolution added a unit test closing its underlying
+`SNR-GIT-004` coverage gap and corrected the script-repository test-module
+inventory. MIN-002's resolution added the two missing scrape-api-contracts
+unit test files and corrected the corresponding spec inventory. NEW-006's
+resolution documented the reflection-only `IDocumentMaterializer`, and
+NEW-007's resolution clarified the v0.1 vs. target-state scope split in
+`plan-runtime.md`. NEW-006 and NEW-007 were opened and resolved within this
+same pass.
 
 ### Doc Status Corrections Made This Pass
 
@@ -321,6 +361,14 @@ Only MIN-002 remains open and unchanged from the 2026-09-06 pass (see above) —
   — added "Implementation status" callout lines (matching the pattern already
   used by `script-repository.md` and `observability.md`) so each spec states
   its current implementation state inline, not only in this report.
+- **`docs/features/scrape-api-contracts.md`** — Test Module section corrected
+  to name the actual test files (`Internal/RequestValidatorTests.cs`, plus the
+  newly added `ScrapeStatusCodesTests.cs` and
+  `Diagnostics/DiagnosticSanitizerTests.cs`), removed the false claim of a
+  `PublicApi.approved.txt`/`RequestCases.cs` fixture, and AC-014/AC-015/the
+  "No third-party dependencies"/"Binary compatibility" constraints now say
+  **Not yet implemented** where they describe the still-missing public-API
+  freeze and `.csproj` dependency-check tooling (confirms MIN-002 resolution).
 - All other 16 rows of `docs/features/overview.md` were re-verified against
   the source/test trees and found to already be accurate: `#1` Scrape API
   Contracts (`draft` — `IScraperAdministration`/`IFixtureAdministration` and a
@@ -417,10 +465,24 @@ Only MIN-002 remains open and unchanged from the 2026-09-06 pass (see above) —
 
 ### Recommended Priority Actions (2026-09-10 update)
 
-1. ✅ **MAJ-003 resolved** — extraction-plan validator implemented with comprehensive tests and documentation updates.
-2. ✅ **MIN-001 resolved** — script-repository documentation inventory corrected and real unit test added for previously untested `SNR-GIT-004` lease-timeout behavior.
-3. ✅ **NEW-006 resolved** — schema-engine.md now describes the actual reflection-based implementation instead of the previously documented source-generation/trim-guard path.
-4. ✅ **NEW-007 resolved** — plan-runtime.md File Structure and Test Module sections now split into "Implemented (v0.1)" and "Planned / target-state" subsections.
-5. **Synchronize remaining status for MIN-002** — address MIN-002 (scrape-api-contracts scope) when its owning component is next active.
-6. **Implement a trim/AOT-safe schema-engine materialization path (NEW-006 follow-up)** — schema-engine.md now accurately documents the reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding a source-generated alternative remains future work and would require its own design pass since it changes public API surface.
-7. **Re-run this audit after the owners update their specs or implementations** to verify that the status table, test inventory, and implementation scope remain aligned.
+1. ✅ **MAJ-003 resolved** — extraction-plan validator implemented with
+   comprehensive tests and documentation updates.
+2. ✅ **MIN-001 resolved** — script-repository documentation inventory
+   corrected and a real unit test added for the previously untested
+   `SNR-GIT-004` lease-timeout behavior.
+3. ✅ **MIN-002 resolved** — scrape-api-contracts test inventory corrected;
+   test files and counts now match actual test suite state.
+4. ✅ **NEW-006 resolved** — schema-engine.md now describes the actual
+   reflection-based implementation instead of the previously documented
+   source-generation/trim-guard path.
+5. ✅ **NEW-007 resolved** — plan-runtime.md File Structure and Test Module
+   sections now split into "Implemented (v0.1)" and "Planned /
+   target-state" subsections.
+6. **Implement a trim/AOT-safe schema-engine materialization path
+   (NEW-006 follow-up)** — schema-engine.md now accurately documents the
+   reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding
+   a source-generated alternative remains future work and would require its
+   own design pass since it changes public API surface.
+7. **Re-run this audit after the owners update their specs or implementations**
+   to verify that the status table, test inventory, and implementation scope
+   remain aligned.
