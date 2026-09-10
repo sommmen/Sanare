@@ -185,7 +185,7 @@ coordinator) via constructor injection — there is no hosting-configuration fac
 **Test scope**:
 
 - **Integration**: an isolated real LibGit2Sharp repository verifies bootstrap idempotence, canonical plan commit/read round-trips, reads at an explicit commit, monotonic approval tagging, tag enumeration, and repository status.
-- **Unit**: `GitScriptRepositoryTests.cs` also covers `FileLockRepositoryCoordinator`'s retryable timeout behavior by pre-holding the `.sanare-lock` file exclusively and asserting the resulting `SNR-GIT-004`; there is no standalone `FileLockRepositoryCoordinatorTests.cs`.
+- **Unit**: `GitScriptRepositoryTests.cs` covers `FileLockRepositoryCoordinator`'s retryable timeout behavior (`SNR-GIT-004`) by acquiring an exclusive lock on `.sanare-lock`.
 - **Fixtures / Mocks**: temporary repository roots and canonical plan fixtures; no CLI backend is exercised because it is deferred.
 
 The target-state suite will add CLI-parity, healing, promotion/rollback, history/diff/blame, and divergence scenarios when those APIs are implemented.
