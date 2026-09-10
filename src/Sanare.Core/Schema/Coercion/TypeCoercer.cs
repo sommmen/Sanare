@@ -13,14 +13,24 @@ public sealed class TypeCoercer : ITypeCoercer
     {
         ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(context);
-        if (raw is null || TextNormalizer.Normalize(raw).Length == 0)
+        var text = raw is null ? string.Empty : TextNormalizer.Normalize(raw);
+        if (raw is null || text.Length == 0)
         {
+            if (IsStringDictionary(field.ClrType))
+            {
+                return Success(new JsonObject(), raw, null);
+            }
+
+            if (GetCollectionElementType(field.ClrType) is not null)
+            {
+                return Success(new JsonArray(), raw, null);
+            }
+
             return field.Required
                 ? Failure(raw, "SNR-SCH-004: A required value is missing.")
                 : new CoercionOutcome(true, null, raw, null, null);
         }
 
-        var text = TextNormalizer.Normalize(raw);
         var culture = context.ResolveCulture(field);
         if (field.Hint is not null && string.Equals(field.Hint, "presence", StringComparison.OrdinalIgnoreCase))
         {
@@ -73,6 +83,25 @@ public sealed class TypeCoercer : ITypeCoercer
         }
 
         return Success(converted, raw, field.Unit ?? unit);
+    }
+
+    public CoercionOutcome Coerce(IReadOnlyList<string> rawValues, FieldDescriptor field, CoercionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(rawValues);
+        ArgumentNullException.ThrowIfNull(field);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (TryConvertCollection(rawValues, field, context, out var collection))
+        {
+            return collection;
+        }
+
+        if (rawValues.Count == 0)
+        {
+            return Coerce((string?)null, field, context);
+        }
+
+        return Coerce(string.Join(", ", rawValues), field, context);
     }
 
     public bool TryCoerce(string raw, FieldDescriptor field, out object? value, out string? error)
@@ -189,38 +218,43 @@ public sealed class TypeCoercer : ITypeCoercer
 
     private static bool TryConvertCollection(string text, FieldDescriptor field, CoercionContext context, out CoercionOutcome outcome)
     {
-        var type = field.ClrType;
-        var elementType = type.IsArray ? type.GetElementType() :
-            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>) ? type.GetGenericArguments()[0] : null;
-        if (elementType is null)
+        var items = text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return TryConvertCollection(items, field, context, out outcome);
+    }
+
+    private static bool TryConvertCollection(IEnumerable<string> rawValues, FieldDescriptor field, CoercionContext context, out CoercionOutcome outcome)
+    {
+        if (GetCollectionElementType(field.ClrType) is not { } elementType)
         {
             outcome = default;
             return false;
         }
 
-        var items = text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var array = new JsonArray();
-        foreach (var item in items)
+        foreach (var rawValue in rawValues)
         {
+            var item = TextNormalizer.Normalize(rawValue);
+            if (item.Length == 0)
+            {
+                continue;
+            }
+
             if (!TryConvertScalar(item, elementType, context.ResolveCulture(field), context, field.EnumSynonyms, out var value))
             {
-                outcome = Failure(text, $"SNR-SCH-005: Cannot coerce collection element to '{elementType.Name}'.");
+                outcome = Failure(rawValue, $"SNR-SCH-005: Cannot coerce collection element to '{elementType.Name}'.");
                 return true;
             }
 
             array.Add(ToJsonNode(value));
         }
 
-        outcome = new CoercionOutcome(true, array, text, null, null);
+        outcome = new CoercionOutcome(true, array, string.Join(", ", rawValues), null, null);
         return true;
     }
 
     private static bool TryConvertDictionary(string text, FieldDescriptor field, out CoercionOutcome outcome)
     {
-        if (!field.ClrType.IsGenericType ||
-            field.ClrType.GetGenericTypeDefinition() != typeof(IReadOnlyDictionary<,>) ||
-            field.ClrType.GetGenericArguments() is not [var keyType, var valueType] ||
-            keyType != typeof(string) || valueType != typeof(string))
+        if (!IsStringDictionary(field.ClrType))
         {
             outcome = default;
             return false;
@@ -355,28 +389,15 @@ public sealed class TypeCoercer : ITypeCoercer
 
     private static bool TryParseDateTime(string text, CultureInfo culture, out DateTime value)
     {
-        // Try invariant culture first with RoundtripKind to preserve explicit timezone info (Z, +hh:mm, etc.)
-        if (DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value))
+        const DateTimeStyles styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+        if (DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, styles, out var invariantValue) ||
+            DateTimeOffset.TryParse(text, culture, styles, out invariantValue))
         {
+            value = invariantValue.UtcDateTime;
             return true;
         }
 
-        // Fall back to culture-specific parsing; if no explicit offset/zone in input,
-        // treat as UTC rather than reinterpreting through machine's local timezone
-        if (DateTime.TryParse(text, culture, DateTimeStyles.AllowWhiteSpaces, out var parsed))
-        {
-            // If parsed DateTime has no explicit timezone info (Kind is Unspecified or Local),
-            // treat it as already representing UTC instead of converting via ToUniversalTime()
-            value = parsed.Kind switch
-            {
-                DateTimeKind.Unspecified => DateTime.SpecifyKind(parsed, DateTimeKind.Utc),
-                DateTimeKind.Local => parsed.ToUniversalTime(),
-                DateTimeKind.Utc => parsed,
-                _ => parsed
-            };
-            return true;
-        }
-
+        value = default;
         return false;
     }
 
@@ -426,7 +447,7 @@ public sealed class TypeCoercer : ITypeCoercer
         return false;
     }
 
-    private static CoercionOutcome Success(object? value, string raw, string? unit) =>
+    private static CoercionOutcome Success(object? value, string? raw, string? unit) =>
         new(true, ToJsonNode(value), raw, unit, null);
 
     private static CoercionOutcome Failure(string? raw, string reason) =>
@@ -435,9 +456,11 @@ public sealed class TypeCoercer : ITypeCoercer
     private static JsonNode? ToJsonNode(object? value) => value switch
     {
         null => null,
+        JsonNode node => node.DeepClone(),
         Uri uri => JsonValue.Create(uri.ToString()),
         DateOnly date => JsonValue.Create(date.ToString("O", CultureInfo.InvariantCulture)),
         DateTime dateTime => JsonValue.Create(dateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)),
+        Enum enumValue => JsonValue.Create(enumValue.ToString()),
         _ => JsonSerializer.SerializeToNode(value),
     };
 
@@ -458,4 +481,26 @@ public sealed class TypeCoercer : ITypeCoercer
         return underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(decimal) ||
             underlyingType == typeof(double) || underlyingType == typeof(float);
     }
+
+    private static Type? GetCollectionElementType(Type type)
+    {
+        if (type == typeof(string) || type == typeof(byte[]) || IsStringDictionary(type))
+        {
+            return null;
+        }
+
+        if (type.IsArray)
+        {
+            return type.GetElementType();
+        }
+
+        var enumerable = type.GetInterfaces().Append(type)
+            .FirstOrDefault(static candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+        return enumerable?.GetGenericArguments()[0];
+    }
+
+    private static bool IsStringDictionary(Type type) => type.GetInterfaces().Append(type).Any(static candidate =>
+        candidate.IsGenericType && candidate.GetGenericTypeDefinition() is var definition &&
+        (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>)) &&
+        candidate.GetGenericArguments() is [var key, var value] && key == typeof(string) && value == typeof(string));
 }

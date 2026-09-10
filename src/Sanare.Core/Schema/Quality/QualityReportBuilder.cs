@@ -59,14 +59,18 @@ public sealed class QualityReportBuilder
 
     private static bool MatchesField(string valuePointer, string fieldPointer)
     {
-        if (string.Equals(valuePointer, fieldPointer, StringComparison.Ordinal))
+        var valueSegments = GetPointerSegments(valuePointer);
+        var fieldSegments = GetPointerSegments(fieldPointer);
+        if (valueSegments.Length != fieldSegments.Length)
         {
-            return true;
+            return false;
         }
 
-        const string marker = "/*";
-        var markerIndex = fieldPointer.IndexOf(marker, StringComparison.Ordinal);
-        return markerIndex >= 0 && valuePointer.StartsWith(fieldPointer[..markerIndex] + "/", StringComparison.Ordinal) &&
-            valuePointer.EndsWith(fieldPointer[(markerIndex + marker.Length)..], StringComparison.Ordinal);
+        return fieldSegments.Zip(valueSegments).All(static pair =>
+            pair.First == "*" || string.Equals(pair.First, pair.Second, StringComparison.Ordinal));
     }
+
+    private static string[] GetPointerSegments(string pointer) => pointer.Split('/', StringSplitOptions.RemoveEmptyEntries)
+        .Select(static segment => segment.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal))
+        .ToArray();
 }

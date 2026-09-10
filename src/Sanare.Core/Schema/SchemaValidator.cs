@@ -48,7 +48,6 @@ public sealed class SchemaValidator : ISchemaValidator
         if (field.Required && nodes.Any(static node => node is null))
         {
             violations.Add(new SchemaViolation(field.JsonPointer, "required", "A required field is missing."));
-            return;
         }
 
         foreach (var node in nodes.Where(static node => node is not null))
@@ -85,12 +84,12 @@ public sealed class SchemaValidator : ISchemaValidator
         type = Nullable.GetUnderlyingType(type) ?? type;
         if (node is JsonArray)
         {
-            return type.IsArray || (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>));
+            return GetCollectionElementType(type) is not null;
         }
 
         if (node is JsonObject)
         {
-            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>);
+            return IsStringDictionary(type);
         }
 
         if (node is not JsonValue value)
@@ -116,6 +115,28 @@ public sealed class SchemaValidator : ISchemaValidator
                                             ? value.TryGetValue<DateOnly>(out _) || value.TryGetValue<string>(out _)
                                             : false;
     }
+
+    private static Type? GetCollectionElementType(Type type)
+    {
+        if (type == typeof(string) || type == typeof(byte[]) || IsStringDictionary(type))
+        {
+            return null;
+        }
+
+        if (type.IsArray)
+        {
+            return type.GetElementType();
+        }
+
+        var enumerable = type.GetInterfaces().Append(type)
+            .FirstOrDefault(static candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+        return enumerable?.GetGenericArguments()[0];
+    }
+
+    private static bool IsStringDictionary(Type type) => type.GetInterfaces().Append(type).Any(static candidate =>
+        candidate.IsGenericType && candidate.GetGenericTypeDefinition() is var definition &&
+        (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>)) &&
+        candidate.GetGenericArguments() is [var key, var value] && key == typeof(string) && value == typeof(string));
 
     private static IEnumerable<JsonNode?> ResolveNodes(JsonNode node, string pointer)
     {

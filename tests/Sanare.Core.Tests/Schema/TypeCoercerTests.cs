@@ -161,9 +161,93 @@ public sealed class TypeCoercerTests
         Assert.Equal("Small", values["Size#2"]!.GetValue<string>());
     }
 
+    [Fact]
+    public void Coerce_returns_empty_array_for_blank_collection_values()
+    {
+        var field = new FieldDescriptor("/Values", "Values", typeof(int[]), true, null, null, null, null);
+
+        var outcome = new TypeCoercer().Coerce("   ", field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.Empty(outcome.Value!.AsArray());
+    }
+
+    [Fact]
+    public void Coerce_returns_empty_object_for_blank_dictionary_values()
+    {
+        var field = new FieldDescriptor("/Details", "Details", typeof(Dictionary<string, string>), true, null, null, null, null);
+
+        var outcome = new TypeCoercer().Coerce("   ", field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.Empty(outcome.Value!.AsObject());
+    }
+
+    [Fact]
+    public void Coerce_uses_raw_node_values_for_collection_overload()
+    {
+        var field = new FieldDescriptor("/Prices", "Prices", typeof(IReadOnlyList<decimal>), false, null, null, "nl-NL", null);
+
+        var outcome = new TypeCoercer().Coerce(["1,50", "2,75"], field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        var values = outcome.Value!.AsArray();
+        Assert.Equal(1.50m, values[0]!.GetValue<decimal>());
+        Assert.Equal(2.75m, values[1]!.GetValue<decimal>());
+    }
+
+    [Theory]
+    [InlineData(typeof(Dictionary<string, string>))]
+    [InlineData(typeof(IDictionary<string, string>))]
+    [InlineData(typeof(IReadOnlyDictionary<string, string>))]
+    [InlineData(typeof(CustomDictionary))]
+    public void Coerce_accepts_supported_string_dictionary_shapes(Type dictionaryType)
+    {
+        var field = new FieldDescriptor("/Details", "Details", dictionaryType, false, null, null, null, null);
+
+        var outcome = new TypeCoercer().Coerce("Color: Blue", field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.Equal("Blue", outcome.Value!.AsObject()["Color"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Coerce_serializes_enum_values_as_names()
+    {
+        var field = new FieldDescriptor("/Status", "Status", typeof(Availability), true, null, null, null, null);
+
+        var outcome = new TypeCoercer().Coerce("InStock", field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.Equal("InStock", outcome.Value!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData("2024-01-02T03:04:05", "2024-01-02T03:04:05.0000000Z")]
+    [InlineData("2024-01-02T04:04:05+01:00", "2024-01-02T03:04:05.0000000Z")]
+    public void Coerce_parses_date_time_values_as_utc(string raw, string expected)
+    {
+        var field = new FieldDescriptor("/ObservedAt", "ObservedAt", typeof(DateTime), true, null, null, null, null);
+
+        var outcome = new TypeCoercer().Coerce(raw, field, new CoercionContext());
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.Equal(expected, outcome.Value!.GetValue<string>());
+    }
+
     private sealed class Capacity
     {
         [ScrapeUnit("mAh")]
         public int Value { get; set; }
+    }
+
+    private sealed class CustomDictionary : Dictionary<string, string>
+    {
+    }
+
+    private enum Availability
+    {
+        InStock,
+        SoldOut,
     }
 }
