@@ -13,13 +13,13 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 4 Minor. MAJ-003, MIN-001, MIN-002, NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
-through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
+**Open findings from this pass**: 1 Major and 3 Minor. MAJ-003, MIN-001, NEW-006, NEW-007 are the open findings from this pass. MAJ-003 belongs to another component scope and is report-only for its owner. MIN-001 concerns this session's script-repository documentation inventory. MIN-002 through
+MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
 section below); two new Minor findings (NEW-006, NEW-007) were opened for a
 schema-engine materialization-method deviation and a plan-runtime documented
-scope overstatement. No code fixes were made in this pass — the 2026-09-10
-update is documentation-only, correcting status markers and flagging
-implementation discrepancies for a later turn.
+scope overstatement. The 2026-09-10 update also includes a small
+scrape-api-contracts test-inventory reconciliation (MIN-002) alongside the
+documentation-only status corrections and flagged discrepancies.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -183,17 +183,31 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 - **Recommended fix**: Correct the inventory to name the actual test coverage,
   or add the stated standalone test suite if that granularity is intended.
 
-#### MIN-002: Scrape API contracts test inventory lists test modules that are absent
+#### MIN-002: Scrape API contracts test inventory lists test modules that are absent — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/scrape-api-contracts.md` — test-module inventory.
 - **Issue**: `PublicApiApprovalTests.cs`, `ScrapeStatusCodesTests.cs`, and
-  `DiagnosticSanitizerTests.cs` are listed but absent; only
-  `RequestValidatorTests.cs` exists in the corresponding test area.
-- **Impact**: The spec misrepresents the available contract coverage.
+  `DiagnosticSanitizerTests.cs` were listed but absent; only
+  `RequestValidatorTests.cs` existed in the corresponding test area.
+- **Impact**: The spec misrepresented the available contract coverage.
 - **Recommended fix**: The scrape-api-contracts owner should implement the
   listed modules or update the inventory to reflect actual coverage.
-- **Ownership**: `src/Sanare.Abstractions/**` is frozen/out of scope for this
-  session; this is report-only for the scrape-api-contracts owner.
+- **Ownership**: `src/Sanare.Abstractions/**` is owned by the
+  scrape-api-contracts component.
+- **Resolution**: `tests/Sanare.Abstractions.Tests/ScrapeStatusCodesTests.cs`
+  and `tests/Sanare.Abstractions.Tests/Diagnostics/DiagnosticSanitizerTests.cs`
+  now exist and exercise `ScrapeStatusCodes.For` and `DiagnosticSanitizer`
+  respectively. `PublicApiApprovalTests.cs` was not added — it requires new
+  tooling (`Microsoft.CodeAnalysis.PublicApiAnalyzers`, `PublicApiGenerator`,
+  `Verify`, and a checked-in `PublicApi.approved.txt`/`PublicAPI.Shipped.txt`
+  baseline) that does not exist anywhere in the repository yet, which is a
+  feature addition beyond reconciling the inventory. `scrape-api-contracts.md`
+  now names the actual test files, explicitly marks AC-014 (public-API
+  approval test) and AC-015 (`.csproj` dependency assertion) as **not yet
+  implemented**, and flags the corresponding "Binary compatibility" and "No
+  third-party dependencies" constraints as review-enforced only. Implementing
+  the public-API freeze/approval-test tooling remains open follow-up work for
+  the scrape-api-contracts owner.
 
 #### MIN-003: Schema-engine test inventory lists test modules that are absent — ✅ RESOLVED 2026-09-10
 
@@ -292,13 +306,13 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 4 | 3 | Status and test-inventory staleness |
+| Minor | 3 | 4 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
+MAJ-003 and MIN-001 remain open and unchanged from the 2026-09-06
 pass (see above) — they are report-only for their respective component
-owners and were not in this pass's docs-update scope. MIN-003, MIN-004, and
-MIN-005 are now resolved (see updated entries above). Two new Minor findings
+owners and were not in this pass's docs-update scope. MIN-002, MIN-003,
+MIN-004, and MIN-005 are now resolved (see updated entries above). Two new Minor findings
 were opened below.
 
 ### Doc Status Corrections Made This Pass
@@ -320,6 +334,14 @@ were opened below.
   — added "Implementation status" callout lines (matching the pattern already
   used by `script-repository.md` and `observability.md`) so each spec states
   its current implementation state inline, not only in this report.
+- **`docs/features/scrape-api-contracts.md`** — Test Module section corrected
+  to name the actual test files (`Internal/RequestValidatorTests.cs`, plus the
+  newly added `ScrapeStatusCodesTests.cs` and
+  `Diagnostics/DiagnosticSanitizerTests.cs`), removed the false claim of a
+  `PublicApi.approved.txt`/`RequestCases.cs` fixture, and AC-014/AC-015/the
+  "No third-party dependencies"/"Binary compatibility" constraints now say
+  **Not yet implemented** where they describe the still-missing public-API
+  freeze and `.csproj` dependency-check tooling (confirms MIN-002 resolution).
 - All other 16 rows of `docs/features/overview.md` were re-verified against
   the source/test trees and found to already be accurate: `#1` Scrape API
   Contracts (`draft` — `IScraperAdministration`/`IFixtureAdministration` and a
@@ -408,9 +430,8 @@ were opened below.
 3. **Split plan-runtime.md into implemented vs. target-state sections
    (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
    structure and test suite is built today versus planned.
-4. **Synchronize remaining status and test inventories** — address MIN-001 and
-   MIN-002 when their owning components (script-repository,
-   scrape-api-contracts) are next active.
+4. **Synchronize remaining status and test inventories** — address MIN-001
+   when the script-repository owner is next active.
 5. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.

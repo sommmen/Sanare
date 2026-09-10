@@ -241,9 +241,11 @@ from the documented table.
 ## Constraints
 
 - **No third-party dependencies**: `Sanare.Abstractions` references only the BCL. A PR adding
-  a package reference to this project fails the build.
+  a package reference to this project fails the build. *(Currently enforced by review only — see
+  AC-015 under Test Module for the automated check this still needs.)*
 - **Binary compatibility**: the package ships a `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` pair;
-  removals or signature changes require a major version.
+  removals or signature changes require a major version. *(Not yet implemented — see AC-014 under
+  Test Module.)*
 - **No exceptions for anticipated conditions**: every condition enumerated in §7.7 surfaces as a status
   plus diagnostic. Exceptions are reserved for programming errors (`ArgumentNullException`) and for
   `StreamAsync`, which has no envelope.
@@ -269,9 +271,9 @@ from the documented table.
 | AC-011 | P0 | Given a result constructed with `Status = Succeeded`, when `IsSuccess` is read | Returns `true`; for every other member of `ScrapeStatus` it returns `false` | Unit — theory over all `Enum.GetValues<ScrapeStatus>()` |
 | AC-012 | P0 | Given every member of `ScrapeStatus`, when `ScrapeStatusCodes.For` is called | Every status returns a non-empty, distinct-per-status code list, and every returned code matches `^SNR-[A-Z]{3,5}-\d{3}$` | Unit — theory over all enum values, regex-assert each code |
 | AC-013 | P0 | Given a `ScrapeResult<T>` is constructed without `Quality` or `Provenance` | Compilation fails because both are `required` members | Unit — a compile-fail assertion via `Microsoft.CodeAnalysis.CSharp` source test, or documented as compiler-enforced with a positive construction test |
-| AC-014 | P1 | Given the public surface of `Sanare.Abstractions`, when the approval test runs | The generated API text matches the checked-in `PublicApi.approved.txt` exactly | Unit — `PublicApiGenerator` + `Verify` approval test |
-| AC-015 | P1 | Given the `Sanare.Abstractions` project file, when its resolved package references are inspected | The set of non-framework `PackageReference` items is empty (analyzers and build-only assets excluded) | Unit — parse the `.csproj` in a test and assert; plus a CI check |
-| AC-016 | P1 | Given a diagnostic is created with a `Detail` value while detail-reporting is disabled | `Detail` is null on the diagnostic exposed to the consumer while `Message` is unchanged | Unit — `DiagnosticSanitizerTests` |
+| AC-014 | P1 | Given the public surface of `Sanare.Abstractions`, when the approval test runs | The generated API text matches the checked-in `PublicApi.approved.txt` exactly | **Not yet implemented** — no `PublicApiGenerator`/`Verify` approval test exists; the surface is frozen by review only |
+| AC-015 | P1 | Given the `Sanare.Abstractions` project file, when its resolved package references are inspected | The set of non-framework `PackageReference` items is empty (analyzers and build-only assets excluded) | **Not yet implemented** — no automated `.csproj` parsing assertion exists; enforced by review only (the project file currently has zero `PackageReference` items) |
+| AC-016 | P1 | Given a diagnostic is created with a `Detail` value while detail-reporting is disabled | `Detail` is null on the diagnostic exposed to the consumer while `Message` is unchanged | Unit — `Diagnostics/DiagnosticSanitizerTests.Sanitize_clears_detail_when_detail_reporting_is_disabled` |
 
 ## Error Handling
 
@@ -329,21 +331,23 @@ src/
 
 ## Test Module
 
-**Test file**: `tests/Sanare.Abstractions.Tests/RequestValidatorTests.cs`
+**Test file**: `tests/Sanare.Abstractions.Tests/Internal/RequestValidatorTests.cs`
 
 **Test scope**:
 
 - **Unit**: `RequestValidator.Validate(ScrapeRequest)` covering every row of the §7.4 validation matrix
-  including both clamp boundaries and both `Freshness` boundaries; `SourceIdDeriver.Derive(Uri)` for
-  determinism and slug shape; `ScrapeStatusCodes.For` over every enum member;
-  `ScrapeResult<T>.IsSuccess`/`HasPayload` invariants; `DiagnosticSanitizer` redaction of credentials,
-  cookies, and query values.
-- **Integration**: none — this package performs no I/O by design. The absence of I/O is itself asserted by
-  the dependency test below.
-- **Fixtures / Mocks**: no HTTP or filesystem mocks. A small table-driven set of `ScrapeRequest`
-  instances in `RequestCases.cs`; the approval baseline `PublicApi.approved.txt`; a `.csproj` parsing
-  helper for the zero-dependency assertion.
+  including both clamp boundaries and both `Freshness` boundaries, plus `SourceIdDeriver.Derive(Uri)`
+  determinism and slug shape (`RequestValidatorTests.cs`); `ScrapeStatusCodes.For` over every enum
+  member (`ScrapeStatusCodesTests.cs`); `DiagnosticSanitizer` redaction of `Detail` and of credentials/
+  query values in a sanitised URL (`Diagnostics/DiagnosticSanitizerTests.cs`).
+- **Integration**: none — this package performs no I/O by design.
+- **Fixtures / Mocks**: no HTTP or filesystem mocks; test data is constructed inline per test.
 
-Companion test files: `tests/Sanare.Abstractions.Tests/PublicApiApprovalTests.cs`,
-`tests/Sanare.Abstractions.Tests/ScrapeStatusCodesTests.cs`,
-`tests/Sanare.Abstractions.Tests/DiagnosticSanitizerTests.cs`.
+Companion test files: `tests/Sanare.Abstractions.Tests/ScrapeStatusCodesTests.cs`,
+`tests/Sanare.Abstractions.Tests/Diagnostics/DiagnosticSanitizerTests.cs`.
+
+**Not yet implemented**: the `PublicAPI.Shipped.txt`/`PublicAPI.Unshipped.txt` baseline, the
+`PublicApiGenerator` + `Verify` approval test (`PublicApiApprovalTests.cs`), and the `.csproj`
+zero-dependency assertion described under Constraints and AC-014/AC-015 do not exist yet. Until they
+land, the "frozen public-API baseline" and "no third-party dependencies" constraints are enforced only
+by code review, not by CI.
