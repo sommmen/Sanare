@@ -13,11 +13,11 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 3 Minor. MAJ-003, MIN-001, MIN-002, NEW-006 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
+**Open findings from this pass**: 1 Major and 2 Minor. MAJ-003, MIN-001, MIN-002 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
 through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
 section below); two new Minor findings (NEW-006, NEW-007) were opened for a
 schema-engine materialization-method deviation and a plan-runtime documented
-scope overstatement — NEW-007 is now resolved (see below). No code fixes were
+scope overstatement — both NEW-006 and NEW-007 are now resolved (see below). No code fixes were
 made in this pass — the 2026-09-10 update is documentation-only, correcting
 status markers and flagging implementation discrepancies for a later turn.
 
@@ -292,14 +292,14 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 3 | 4 | Status and test-inventory staleness |
+| Minor | 2 | 5 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
 MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
 pass (see above) — they are report-only for their respective component
-owners and were not in this pass's docs-update scope. MIN-003, MIN-004,
-MIN-005, and NEW-007 are now resolved (see updated entries above). One new
-Minor finding (NEW-006) remains open below.
+owners and were not in this pass's docs-update scope. MIN-003, MIN-004, and
+MIN-005 are now resolved (see updated entries above). Two new Minor findings
+were opened below.
 
 ### Doc Status Corrections Made This Pass
 
@@ -338,7 +338,7 @@ Minor finding (NEW-006) remains open below.
 
 ### New Minor Findings
 
-#### NEW-006: Schema-engine materialization uses reflection, not the documented source-generation path
+#### NEW-006: Schema-engine materialization uses reflection, not the documented source-generation path — **RESOLVED**
 
 - **Location**: `docs/features/schema-engine.md` — Scope (materialization
   bullet), the "Materialise" pipeline step, Dependencies, and Constraints
@@ -363,11 +363,26 @@ Minor finding (NEW-006) remains open below.
   described trim/AOT guard and warning, or update `schema-engine.md`'s Scope,
   pipeline-step, Dependencies, and Constraints sections to describe the actual
   reflection-based materializer and its trimming/AOT limitations.
+- **Fix applied**: Documentation-only correction (the source-generation path
+  was never built and adding it is a larger change than the doc/implementation
+  gap warrants for v0.1). Updated `docs/features/schema-engine.md`'s top-of-file
+  status line, Scope materialization bullet, "Materialise" pipeline step,
+  Dependencies, and Constraints sections to describe the actual reflection-based
+  `IDocumentMaterializer` (`Activator.CreateInstance<TSchema>()`,
+  `PropertyInfo.SetValue`) and to state plainly that it is **not** trim/AOT
+  safe — no `JsonSerializerContext`, no `[DynamicallyAccessedMembers]`
+  annotations, and no guard/warning under trimming.
 - **Ownership**: `src/Sanare.Core/Schema/Materialization/**` is owned by the
-  schema-engine component; this is report-only, flagged for a later
-  code-focused turn.
+  schema-engine component.
+- **Remaining gap**: The spec now accurately describes today's reflection-only
+  materializer, but the underlying trim/AOT-safety gap it documents is still
+  open — `IDocumentMaterializer` has no source-generated or trim-safe path.
+  Implementing one (e.g., a `JsonSerializerContext`-backed materializer with a
+  documented `[DynamicallyAccessedMembers]` contract on `TSchema`) remains
+  future work and would need its own design/API pass, since it changes the
+  public `IDocumentMaterializer`/`IScrapeRunner` surface.
 
-#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation — ✅ RESOLVED 2026-09-10
+#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation — **RESOLVED**
 
 - **Location**: `docs/features/plan-runtime.md` — File Structure section
   (Operations/Selectors, Transforms, Structure, Predicates, Locators, Budgets
@@ -396,24 +411,16 @@ Minor finding (NEW-006) remains open below.
   versus the eventual full-scope runtime.
 - **Ownership**: `src/Sanare.Core/Runtime/**` is owned by the plan-runtime
   component; this is report-only, flagged for a later code-focused turn.
-- **Resolution**: `docs/features/plan-runtime.md`'s File Structure and Test
-  Module sections are now each split into "Implemented (v0.1)" and "Planned /
-  target-state (not yet built)" subsections. The Implemented subsections list
-  only the four files that actually exist under `src/Sanare.Core/Runtime/`
-  and describe `FixtureScrapeRunnerTests.cs`'s actual test scope; the Planned
-  subsections retain the original target-state Operations/Locators/Budgets
-  tree and `PlanExecutorTests.cs` companion-file inventory, now explicitly
-  labeled as not yet built. No implementation was added — this is a
-  documentation-only clarification.
 
 ### Recommended Priority Actions (2026-09-10 update)
 
 1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
    tests, or reduce the spec to the serializer-only implemented slice
    (unchanged from the 2026-09-06 pass).
-2. **Decide schema-engine's materialization strategy (NEW-006)** — either
-   implement the documented source-generation/trim-guard path or correct the
-   spec to describe the actual reflection-based implementation.
+2. ~~**Decide schema-engine's materialization strategy (NEW-006)**~~ — ✅
+   resolved 2026-09-10; `schema-engine.md` now describes the actual
+   reflection-based implementation instead of the previously documented
+   source-generation/trim-guard path.
 3. ~~**Split plan-runtime.md into implemented vs. target-state sections
    (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
    sections are now split into "Implemented (v0.1)" and "Planned /
@@ -421,6 +428,11 @@ Minor finding (NEW-006) remains open below.
 4. **Synchronize remaining status and test inventories** — address MIN-001 and
    MIN-002 when their owning components (script-repository,
    scrape-api-contracts) are next active.
-5. **Re-run this audit after the owners update their specs or implementations**
+5. **Implement a trim/AOT-safe schema-engine materialization path
+   (NEW-006 follow-up)** — schema-engine.md now accurately documents the
+   reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding
+   a source-generated alternative remains future work and would require its
+   own design pass since it changes public API surface.
+6. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
