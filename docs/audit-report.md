@@ -13,16 +13,18 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 1 Minor. MAJ-003 and MIN-002
-are the open findings from this pass. MAJ-003 and MIN-002 belong to other
-component scopes and are report-only for their owners. MIN-001 (script-repository),
-MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 from the 2026-09-06 pass are now resolved
+**Open findings from this pass**: 1 Major only (MAJ-003). MAJ-003 belongs to
+another component scope and is report-only for its owner. MIN-001
+(script-repository), MIN-002 (scrape-api-contracts), MIN-003, MIN-004,
+MIN-005, NEW-006, and NEW-007 from the 2026-09-06 pass are now resolved
 (see the 2026-09-10 section below). MIN-001's resolution added a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior
 and corrected the script-repository test-module inventory. NEW-006's resolution
 documented the reflection-only `IDocumentMaterializer` and its trim/AOT limitation.
 NEW-007's resolution split `plan-runtime.md` into implemented vs. target-state sections to clarify the
-v0.1 scope. MIN-002's resolution includes a small scrape-api-contracts test-inventory reconciliation. 
-All other fixes in this pass remain documentation-only.
+v0.1 scope. MIN-002's resolution added the two missing scrape-api-contracts
+unit test files and corrected the corresponding spec inventory. Most fixes in
+this pass are documentation-only; MIN-001 and MIN-002 additionally added test
+code (no production `src/` code changed).
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -150,7 +152,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
-> **Update (2026-09-10)**: MIN-001, MIN-003, MIN-004, and MIN-005 are now resolved — see
+> **Update (2026-09-10)**: MIN-001, MIN-002, MIN-003, MIN-004, and MIN-005 are now resolved — see
 > [Full-Repository Findings — 2026-09-10](#full-repository-findings--2026-09-10)
 > below for evidence and the updated summary table.
 
@@ -322,25 +324,20 @@ direct file inspection. No production code (src/) was changed in this pass; the 
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 1 | 6 | Status and test-inventory staleness |
+| Minor | 0 | 7 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-<<<<<<< HEAD
-MAJ-003 and MIN-001 remain open and unchanged from the 2026-09-06
-pass (see above) — they are report-only for their respective component
-owners and were not in this pass's docs-update scope. MIN-002, MIN-003,
-MIN-004, MIN-005, NEW-006, and NEW-007 are now resolved (see updated entries above). Two new Minor findings
-(NEW-006, NEW-007) were opened and immediately resolved in this pass via documentation updates.
-=======
-MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
-above) — they are report-only for their respective component owners and
-were not in this pass's docs-update scope. MIN-001, MIN-003, MIN-004, MIN-005,
-NEW-006, and NEW-007 are now resolved (see updated entries above); MIN-001's resolution
-also added a unit test closing its underlying `SNR-GIT-004` coverage gap,
-NEW-006's resolution documented the reflection-only `IDocumentMaterializer`, and
-NEW-007's resolution clarified the v0.1 vs. target-state scope split in
-`plan-runtime.md`.
->>>>>>> origin/main
+MAJ-003 remains open and unchanged from the 2026-09-06 pass (see above) — it
+is report-only for its component owner and was not in this pass's
+docs-update scope. MIN-001, MIN-002, MIN-003, MIN-004, MIN-005, NEW-006, and
+NEW-007 are all now resolved (see updated entries above). MIN-001's
+resolution added a unit test closing its underlying `SNR-GIT-004` coverage
+gap and corrected the script-repository test-module inventory. MIN-002's
+resolution added the two missing scrape-api-contracts unit test files and
+corrected the corresponding spec inventory. NEW-006's resolution documented
+the reflection-only `IDocumentMaterializer`, and NEW-007's resolution
+clarified the v0.1 vs. target-state scope split in `plan-runtime.md`. NEW-006
+and NEW-007 were opened and resolved within this same pass.
 
 ### Doc Status Corrections Made This Pass
 
@@ -474,17 +471,13 @@ NEW-007's resolution clarified the v0.1 vs. target-state scope split in
    (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
    sections are now split into "Implemented (v0.1)" and "Planned /
    target-state" subsections.
-<<<<<<< HEAD
-4. ~~**Synchronize scrape-api-contracts test inventory (MIN-002)**~~ — ✅ 
+4. ~~**Synchronize scrape-api-contracts test inventory (MIN-002)**~~ — ✅
    resolved 2026-09-10; test files and counts now match actual test suite state.
-5. **Synchronize script-repository status and test inventory** — address MIN-001
-   when its owning component owner is next active.
+5. ~~**Synchronize script-repository status and test inventory (MIN-001)**~~ —
+   ✅ resolved 2026-09-10; a real unit test now covers the `SNR-GIT-004`
+   lease-timeout behavior and the script-repository test-module inventory is
+   corrected.
 6. **Implement a trim/AOT-safe schema-engine materialization path
-=======
-4. **Synchronize remaining status and test inventories** — address MIN-002
-   when its owning component (scrape-api-contracts) is next active.
-5. **Implement a trim/AOT-safe schema-engine materialization path
->>>>>>> origin/main
    (NEW-006 follow-up)** — schema-engine.md now accurately documents the
    reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding
    a source-generated alternative remains future work and would require its
