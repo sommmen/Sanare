@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: partial — the typed plan model, canonical serializer, and structural `IPlanValidator`/`PlanValidator` slice are implemented and covered by focused tests. Version upgrades, request-aware placeholder binding, `MaxItems` validation, and the regex backtracking policy remain deferred.
 
 | Field | Value |
 |-------|-------|
@@ -216,11 +217,12 @@ Checks, all reported together:
    because it guarantees a run-time `SNR-SCH-004`.
 4. `Pointer` values are unique.
 5. Every field has at least one locator.
-6. Pagination caps present and within bounds (`MaxPages` 1–10 000, `MaxItems` 1–1 000 000); `LoadMoreButton`
-   and `InfiniteScroll` require `Tier == Browser`.
+6. The implemented model's pagination cap, `MaxPages`, is present and within 1–10 000; `LoadMoreButton`
+   and `InfiniteScroll` require `Tier == Browser`. `MaxItems` is a target-state cap and cannot yet be
+   validated because `PaginationSpec` has no corresponding property.
 7. `Consent.Strategy` is one of the known strategies and carries its required arguments.
-8. `Acquisition.UrlTemplate` is an absolute `http`/`https` template whose placeholders are all bound by
-   the request parameter set.
+8. `Acquisition.UrlTemplate` is an absolute `http`/`https` template. Placeholder-to-request-parameter
+   binding is deferred to a layer that receives both the plan and `ScrapeRequest.Parameters`.
 9. `Headers` contains no `Cookie`, `Authorization`, or `Set-Cookie` key (credentials never live in a plan
    and therefore never reach git).
 10. `SchemaHash` non-empty and, when a schema is supplied, equal to the schema's hash.
@@ -298,36 +300,28 @@ src/
     └── Plans/
         ├── IPlanSerializer.cs
         ├── PlanSerializer.cs
-        ├── PlanJsonContext.cs
-        ├── PlanCanonicalWriter.cs
-        ├── PlanContentHasher.cs
+        ├── PlanSerializationException.cs
         ├── IPlanValidator.cs
         ├── PlanValidator.cs
         ├── PlanValidationResult.cs
-        ├── PlanDefect.cs
-        └── Versioning/
-            ├── PlanVersion.cs
-            └── PlanUpgrades.cs
+        └── PlanDefect.cs
 ```
+
+`PlanJsonContext.cs`, `PlanCanonicalWriter.cs`, `PlanContentHasher.cs`, and the `Versioning/` upgrade
+support are target-state structure; they are not separate production files in the current slice.
 
 ## Test Module
 
 **Test file**: `tests/Sanare.Core.Tests/Plans/PlanValidatorTests.cs`
 
-**Test scope**:
+**Implemented test scope**:
 
-- **Unit**: every validation rule with a positive and a negative case; the full operation catalogue's
-  arity/kind/tier metadata asserted against the enum so a new member cannot be added without a descriptor;
-  canonical-write golden snapshots via Verify; round-trip and idempotence property tests; version-window
-  boundaries; regex-compilation rejection.
-- **Integration**: read every plan fixture under `tests/.../Plans/Data/` and assert all validate, so the
-  corpus used by runtime tests can never drift from the model.
-- **Fixtures / Mocks**: `tests/Sanare.Core.Tests/Plans/Data/lenovo-tablet-lister.plan.json`,
-  `lenovo-tablet-product.plan.json`, `browser-loadmore.plan.json`, and negatives
-  `unknown-operation.plan.json`, `cookie-header.plan.json`, `tier-conflict.plan.json`,
-  `version-too-old.plan.json`. No mocks — the model has no external dependencies.
+- **`PlanValidatorTests.cs`**: positive and negative coverage for the implemented structural checks,
+  including operation metadata, JSON pointers and schema coverage, locators, pagination/tier compatibility,
+  consent, URLs, forbidden headers, and schema hashes.
+- **`PlanSerializerTests.cs`**: canonical serialization, round trips, and malformed-document handling.
+- No mocks or plan-fixture directory are needed for this model-only slice.
 
-Companion test files: `tests/Sanare.Core.Tests/Plans/PlanSerializerTests.cs`,
-`tests/Sanare.Core.Tests/Plans/PlanCanonicalWriterTests.cs`,
-`tests/Sanare.Core.Tests/Plans/PlanOperationCatalogTests.cs`,
-`tests/Sanare.Core.Tests/Plans/PlanVersioningTests.cs`.
+**Deferred target-state test scope**: fixture-corpus validation, canonical-writer and version-upgrade suites,
+request-aware placeholder binding, `MaxItems`, and a non-backtracking-regex policy once their supporting
+models and runtime inputs exist.

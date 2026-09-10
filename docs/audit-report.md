@@ -13,15 +13,7 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 1 Minor. MAJ-003 and MIN-002
-are the open findings from this pass. MAJ-003 and MIN-002 belong to other
-component scopes and are report-only for their owners. MIN-001 (script-repository),
-MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 from the 2026-09-06 pass are now resolved
-(see the 2026-09-10 section below). MIN-001's resolution added a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior
-and corrected the script-repository test-module inventory. NEW-006's resolution
-documented the reflection-only `IDocumentMaterializer` and its trim/AOT limitation.
-NEW-007's resolution split `plan-runtime.md` into implemented vs. target-state sections to clarify the
-v0.1 scope. All other fixes in this pass remain documentation-only.
+**Open findings from this pass**: 1 Minor remains open (MIN-002). MAJ-003 was resolved on 2026-09-10 by implementing the extraction-plan structural-validator slice and its focused tests. MIN-001 (script-repository documentation inventory) was also resolved on 2026-09-10 with a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior. NEW-006 (schema-engine materialization strategy) and NEW-007 (plan-runtime scope split) were resolved on 2026-09-10 via documentation and scope-split updates. MIN-003, MIN-004, and MIN-005 from the 2026-09-06 pass remain resolved. All fixes in this pass are documentation-only except MIN-001's added unit test.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -145,7 +137,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Severity | Open | Resolved historical | Category |
 |----------|-----:|-------------------:|----------|
 | Critical | 0 | 0 | — |
-| Major | 1 | 2 | Implemented-scope mismatch |
+| Major | 0 | 3 | Implemented-scope mismatch |
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
@@ -155,23 +147,21 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Major Findings
 
-#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented
+#### MAJ-003: Extraction-plan model spec presents deferred validation as implemented — ✅ RESOLVED (2026-09-10)
 
 - **Location**: `docs/features/extraction-plan-model.md` — Purpose, Scope,
   `IPlanValidator` interface, proposed layout, and test-module inventory.
-- **Issue**: The specification describes structural validation as included and
-  presents `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs` as
-  implementation artifacts. No such production types or test module exist.
-  `src/Sanare.Core/Plans/PlanSerializer.cs` explicitly identifies full
-  structural validation as deferred to the `extraction-plan-model` scope.
-- **Impact**: Readers can reasonably conclude that the safety boundary and its
-  acceptance coverage are available when the current implementation supplies
-  serialization only.
-- **Recommended fix**: The `extraction-plan-model` owner should either implement
-  the validator and its tests or revise the spec's implemented-slice language to
-  distinguish the current serializer-only foundation from the target state.
-- **Ownership**: `src/Sanare.Core/Plans/**` and `src/Sanare.Abstractions/Plans/**`
-  are owned by the extraction-plan-model component; this is report-only.
+- **Original issue**: The specification described structural validation as included
+  and presented `IPlanValidator`, `PlanValidator`, and `PlanValidatorTests.cs`
+  as implementation artifacts before those production types and focused tests
+  existed.
+- **Resolution**: Added `IPlanValidator`, `PlanValidator`, `PlanValidationResult`,
+  `PlanDefect`, and 26 focused `PlanValidatorTests`. The feature specification
+  now marks the component `partial` and distinguishes the implemented validator
+  slice from deferred version upgrades, request-aware placeholder binding,
+  `MaxItems` validation, and regex-backtracking policy work.
+- **Validation**: `Sanare.Core.Tests` passed 281/281 tests, including the 26
+  focused validator tests; `Sanare.Abstractions.Tests` passed 11/11 tests.
 
 ### Minor Findings
 
@@ -273,10 +263,10 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Recommended Priority Actions
 
-1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
-   tests, or reduce the spec to the serializer-only implemented slice.
-2. **Synchronize status and test inventories** — address MIN-001 through
-   MIN-005 when their owning component scopes are next active.
+1. **Synchronize status and test inventories** — address MIN-001 and MIN-002
+   when their owning component scopes are next active.
+2. **Maintain the extraction-plan-model boundary** — keep the validator slice
+   separate from deferred version-upgrade and runtime-aware validation work.
 3. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
@@ -306,18 +296,11 @@ direct file inspection. No production code was changed in this pass.
 | Severity | Open | Resolved this pass | Category |
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
-| Major | 1 | 0 | Implemented-scope mismatch |
+| Major | 0 | 1 | Implemented-scope mismatch |
 | Minor | 1 | 6 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
-above) — they are report-only for their respective component owners and
-were not in this pass's docs-update scope. MIN-001, MIN-003, MIN-004, MIN-005,
-NEW-006, and NEW-007 are now resolved (see updated entries above); MIN-001's resolution
-also added a unit test closing its underlying `SNR-GIT-004` coverage gap,
-NEW-006's resolution documented the reflection-only `IDocumentMaterializer`, and
-NEW-007's resolution clarified the v0.1 vs. target-state scope split in
-`plan-runtime.md`.
+Only MIN-002 remains open and unchanged from the 2026-09-06 pass (see above) — it is report-only for its component owner and was not in this pass's scope. MAJ-003 is now resolved by the extraction-plan validator implementation. MIN-001, MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 are now resolved (see updated entries above); MIN-001's resolution added a unit test closing the underlying `SNR-GIT-004` coverage gap, NEW-006's resolution documented the reflection-only `IDocumentMaterializer`, and NEW-007's resolution clarified the v0.1 vs. target-state scope split in `plan-runtime.md`.
 
 ### Doc Status Corrections Made This Pass
 
@@ -342,7 +325,9 @@ NEW-007's resolution clarified the v0.1 vs. target-state scope split in
   the source/test trees and found to already be accurate: `#1` Scrape API
   Contracts (`draft` — `IScraperAdministration`/`IFixtureAdministration` and a
   frozen public-API CI baseline are still fully absent), `#3` Extraction Plan
-  Model (`draft` — no validator, per open MAJ-003), `#4` Script Repository /
+  Model (`partial` — typed plan model, canonical serializer, and structural
+  validator are implemented; version upgrades and runtime-aware checks remain
+  deferred), `#4` Script Repository /
   `#11` Plan Resolver (`partial`, unchanged), `#5` Fixture Corpus
   (`implemented`, unchanged), `#6` Acquisition Pipeline (`partial`,
   unchanged), `#7` Browsing Identity, `#8` Browser Tier, `#12` Authoring
@@ -432,24 +417,10 @@ NEW-007's resolution clarified the v0.1 vs. target-state scope split in
 
 ### Recommended Priority Actions (2026-09-10 update)
 
-1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
-   tests, or reduce the spec to the serializer-only implemented slice
-   (unchanged from the 2026-09-06 pass).
-2. ~~**Decide schema-engine's materialization strategy (NEW-006)**~~ — ✅
-   resolved 2026-09-10; `schema-engine.md` now describes the actual
-   reflection-based implementation instead of the previously documented
-   source-generation/trim-guard path.
-3. ~~**Split plan-runtime.md into implemented vs. target-state sections
-   (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
-   sections are now split into "Implemented (v0.1)" and "Planned /
-   target-state" subsections.
-4. **Synchronize remaining status and test inventories** — address MIN-002
-   when its owning component (scrape-api-contracts) is next active.
-5. **Implement a trim/AOT-safe schema-engine materialization path
-   (NEW-006 follow-up)** — schema-engine.md now accurately documents the
-   reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding
-   a source-generated alternative remains future work and would require its
-   own design pass since it changes public API surface.
-6. **Re-run this audit after the owners update their specs or implementations**
-   to verify that the status table, test inventory, and implementation scope
-   remain aligned.
+1. ✅ **MAJ-003 resolved** — extraction-plan validator implemented with comprehensive tests and documentation updates.
+2. ✅ **MIN-001 resolved** — script-repository documentation inventory corrected and real unit test added for previously untested `SNR-GIT-004` lease-timeout behavior.
+3. ✅ **NEW-006 resolved** — schema-engine.md now describes the actual reflection-based implementation instead of the previously documented source-generation/trim-guard path.
+4. ✅ **NEW-007 resolved** — plan-runtime.md File Structure and Test Module sections now split into "Implemented (v0.1)" and "Planned / target-state" subsections.
+5. **Synchronize remaining status for MIN-002** — address MIN-002 (scrape-api-contracts scope) when its owning component is next active.
+6. **Implement a trim/AOT-safe schema-engine materialization path (NEW-006 follow-up)** — schema-engine.md now accurately documents the reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding a source-generated alternative remains future work and would require its own design pass since it changes public API surface.
+7. **Re-run this audit after the owners update their specs or implementations** to verify that the status table, test inventory, and implementation scope remain aligned.

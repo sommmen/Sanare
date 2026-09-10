@@ -13,8 +13,10 @@ namespace Sanare.Core.Plans;
 /// </summary>
 /// <remarks>
 /// This is the minimal slice needed to persist/read plans for <c>script-repository</c>/<c>plan-resolver</c>.
-/// Full structural validation (<c>IPlanValidator</c>) is <c>extraction-plan-model</c> scope and not
-/// implemented here; malformed documents surface as <see cref="PlanSerializationException"/>.
+/// Malformed documents surface as <see cref="PlanSerializationException"/> during read/write. Structural
+/// validation of an already-deserialized plan (field coverage, operation arity/tier gating, pagination
+/// bounds, etc.) is performed separately by <see cref="IPlanValidator"/>/<see cref="PlanValidator"/>; this
+/// serializer does not invoke it.
 /// </remarks>
 public sealed class PlanSerializer : IPlanSerializer
 {
