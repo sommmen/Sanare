@@ -296,8 +296,8 @@ to the audit log.
 src/
 └── Sanare.Abstractions/
     ├── Sanare.Abstractions.csproj
-    ├── PublicAPI.Shipped.txt
-    ├── PublicAPI.Unshipped.txt
+    ├── PublicAPI.Shipped.txt      # planned — not yet created (see AC-014)
+    ├── PublicAPI.Unshipped.txt    # planned — not yet created (see AC-014)
     ├── IScrapeRunner.cs
     ├── ScrapeRequest.cs
     ├── ScrapeResult.cs

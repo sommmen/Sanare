@@ -16,6 +16,7 @@ public sealed class DiagnosticSanitizerTests
         Assert.Null(sanitized.Detail);
         Assert.Equal(DiagnosticWithDetail.Message, sanitized.Message);
         Assert.Equal(DiagnosticWithDetail.Code, sanitized.Code);
+        Assert.Equal(DiagnosticWithDetail.Severity, sanitized.Severity);
     }
 
     [Fact]
@@ -23,6 +24,7 @@ public sealed class DiagnosticSanitizerTests
     {
         var sanitized = DiagnosticSanitizer.Sanitize(DiagnosticWithDetail, includeDetail: true);
 
+        Assert.Same(DiagnosticWithDetail, sanitized);
         Assert.Equal(DiagnosticWithDetail.Detail, sanitized.Detail);
     }
 

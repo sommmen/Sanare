@@ -24,7 +24,7 @@ public sealed partial class ScrapeStatusCodesTests
     {
         var codes = ScrapeStatusCodes.For(status);
 
-        Assert.Equal(codes.Distinct(), codes);
+        Assert.Equal(codes.Count, codes.Distinct().Count());
         Assert.All(codes, code => Assert.Matches(CodePattern(), code));
     }
 
