@@ -292,7 +292,7 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 4 | 3 | Status and test-inventory staleness |
+| Minor | 2 | 5 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
 MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
@@ -382,7 +382,7 @@ were opened below.
   future work and would need its own design/API pass, since it changes the
   public `IDocumentMaterializer`/`IScrapeRunner` surface.
 
-#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation
+#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation — **RESOLVED**
 
 - **Location**: `docs/features/plan-runtime.md` — File Structure section
   (Operations/Selectors, Transforms, Structure, Predicates, Locators, Budgets

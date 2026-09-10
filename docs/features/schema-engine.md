@@ -38,7 +38,8 @@ validates against.
 - Unit normalisation via a transform library (mAh + V → Wh, inch → mm, g → kg).
 - `QualityReport` / `FieldHealth` construction, including unmapped-field detection.
 - Materialisation of the validated `JsonNode` into `TSchema` via reflection (`IDocumentMaterializer`),
-  writing every mapped, writable public property.
+  writing every mapped, writable public property; null/missing mapped values are skipped (the instance
+  retains the CLR type's default values for those fields).
 
 **Excluded:**
 
