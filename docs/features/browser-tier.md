@@ -42,10 +42,10 @@ Playwright is the last resort for rendering or bounded interaction, not a reason
 
 - Deciding that Tier 3 is required — that is authoring-time tier selection (`authoring-workflow`).
 - Interpreting the DOM into typed values — `plan-runtime` (identical code path for HTML and rendered HTML).
-- Rate limiting and robots policy (including `RespectRobots` enforcement/bypass) — reused from
-  `acquisition-pipeline`; the browser tier is not a separate policy path.
-- Fingerprint randomisation, stealth plugins, or automation-flag patching beyond the ordinary defaults
-  (DR-006).
+- Rate limiting and robots policy — reused from `acquisition-pipeline`; the browser tier is not a separate
+  policy path and applies the source's `AcquisitionMode` decision.
+- Unconfigured or reactive fingerprint mutation, stealth tooling, or automation-flag patching. Only a
+  preconfigured, validated Stealth capability/profile selected before the run may be used (DR-006).
 
 ## Core Responsibilities
 
@@ -87,7 +87,7 @@ Playwright is the last resort for rendering or bounded interaction, not a reason
 flowchart TD
     A[BrowserAcquisitionRequest] --> B{Browser.Enabled AND AllowBrowserTier?}
     B -- no --> C[SNR-BRW-001 BrowserTierDisabled]
-    B -- yes --> D{RespectRobots enabled AND robots disallows, OR circuit open?}
+    B -- yes --> D{Compliance mode robots disallows, OR circuit open?}
     D -- yes --> E[SNR-ACQ-004 / SNR-ACQ-003]
     D -- no --> F[Acquire host rate + concurrency lease]
     F --> G[Rent context from pool]

@@ -30,9 +30,10 @@ This component makes the source's explicit acquisition mode mechanically visible
 - Referer synthesis for detail pages reached from a lister within the same run.
 - Consent-wall detection (signatures) and the standard consent-cookie response, persisted per host.
 - Per-host cookie jar with a bounded, inspectable, non-persisted-to-fixture lifetime.
-- `ComplianceReport` per source: `RespectRobots` configuration state, robots status, request volume,
-  identity profile.
-- Compile-time/API-time refusal of the excluded techniques.
+- `ComplianceReport` per source: acquisition mode, robots decision/status, request volume, identity profile,
+  and enabled capability identifiers (never credentials).
+- Compile-time/API-time refusal of excluded bypasses, CAPTCHA solvers, and unconfigured or incompatible
+  Stealth capabilities.
 
 **Excluded:**
 
