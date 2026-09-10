@@ -13,17 +13,16 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 3 Minor. MAJ-003, MIN-002,
-NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002
-belong to other component scopes and are report-only for their owners.
-MIN-001 (script-repository) and MIN-003 through MIN-005 from the 2026-09-06
-pass are now resolved (see the 2026-09-10 section below); two new Minor
-findings (NEW-006, NEW-007) were opened for a schema-engine
-materialization-method deviation and a plan-runtime documented scope
-overstatement. MIN-001's resolution added a real unit test for the
-previously untested `SNR-GIT-004` lease-timeout behavior and corrected the
-script-repository test-module inventory — all other fixes in this pass
-remain documentation-only.
+**Open findings from this pass**: 1 Major and 2 Minor. MAJ-003, MIN-002, and NEW-006
+are the open findings from this pass. MAJ-003 and MIN-002 belong to other
+component scopes and are report-only for their owners. MIN-001 (script-repository),
+MIN-003, MIN-004, MIN-005, and NEW-007 from the 2026-09-06 pass are now resolved
+(see the 2026-09-10 section below); one new Minor finding (NEW-006) remains open
+for a schema-engine materialization-method deviation. MIN-001's resolution added
+a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior
+and corrected the script-repository test-module inventory. NEW-007's resolution
+split `plan-runtime.md` into implemented vs. target-state sections to clarify the
+v0.1 scope. All other fixes in this pass remain documentation-only.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -309,15 +308,16 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 3 | 4 | Status and test-inventory staleness |
+| Minor | 2 | 5 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
+MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass, and NEW-006 remains open as a new finding from this pass (see
 above) — they are report-only for their respective component owners and
-were not in this pass's docs-update scope. MIN-001, MIN-003, MIN-004, and
-MIN-005 are now resolved (see updated entries above); MIN-001's resolution
-also added a unit test closing its underlying `SNR-GIT-004` coverage gap.
-Two new Minor findings were opened below.
+were not in this pass's docs-update scope. MIN-001, MIN-003, MIN-004, MIN-005,
+and NEW-007 are now resolved (see updated entries above); MIN-001's resolution
+also added a unit test closing its underlying `SNR-GIT-004` coverage gap, and
+NEW-007's resolution clarified the v0.1 vs. target-state scope split in
+`plan-runtime.md`. One new Minor finding (NEW-006) remains open below.
 
 ### Doc Status Corrections Made This Pass
 
@@ -385,7 +385,7 @@ Two new Minor findings were opened below.
   schema-engine component; this is report-only, flagged for a later
   code-focused turn.
 
-#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation
+#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/plan-runtime.md` — File Structure section
   (Operations/Selectors, Transforms, Structure, Predicates, Locators, Budgets
@@ -414,6 +414,15 @@ Two new Minor findings were opened below.
   versus the eventual full-scope runtime.
 - **Ownership**: `src/Sanare.Core/Runtime/**` is owned by the plan-runtime
   component; this is report-only, flagged for a later code-focused turn.
+- **Resolution**: `docs/features/plan-runtime.md`'s File Structure and Test
+  Module sections are now each split into "Implemented (v0.1)" and "Planned /
+  target-state (not yet built)" subsections. The Implemented subsections list
+  only the four files that actually exist under `src/Sanare.Core/Runtime/`
+  and describe `FixtureScrapeRunnerTests.cs`'s actual test scope; the Planned
+  subsections retain the original target-state Operations/Locators/Budgets
+  tree and `PlanExecutorTests.cs` companion-file inventory, now explicitly
+  labeled as not yet built. No implementation was added — this is a
+  documentation-only clarification.
 
 ### Recommended Priority Actions (2026-09-10 update)
 
@@ -423,9 +432,10 @@ Two new Minor findings were opened below.
 2. **Decide schema-engine's materialization strategy (NEW-006)** — either
    implement the documented source-generation/trim-guard path or correct the
    spec to describe the actual reflection-based implementation.
-3. **Split plan-runtime.md into implemented vs. target-state sections
-   (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
-   structure and test suite is built today versus planned.
+3. ~~**Split plan-runtime.md into implemented vs. target-state sections
+   (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
+   sections are now split into "Implemented (v0.1)" and "Planned /
+   target-state" subsections.
 4. **Synchronize remaining status and test inventories** — address MIN-002
    when its owning component (scrape-api-contracts) is next active. MIN-001
    (script-repository) is resolved.
