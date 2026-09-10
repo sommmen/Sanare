@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: partial — a minimal, deterministic v0.1 HTML interpreter (`IPlanExecutor`/`PlanExecutor`, `ExtractionOutcome`, `Documents/HtmlDocument`) exists under `src/Sanare.Core/Runtime/`, matching `PlanExecutor.cs`'s own documented v0.1 operation subset. The Operations/Locators/Budgets subdirectory structure and companion test files described below are target-state and not yet built — see `docs/audit-report.md`.
 
 | Field | Value |
 |-------|-------|
@@ -249,6 +250,8 @@ Predicates are evaluated before field extraction, in that order.
 
 ## File Structure
 
+> Note: This file tree is target-state; only `IPlanExecutor.cs`, `PlanExecutor.cs`, `ExtractionOutcome.cs`, and `Documents/HtmlDocument.cs` (plus `tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs`) are implemented today — see the top-of-file Implementation status and `docs/audit-report.md` NEW-007.
+
 ```
 src/
 └── Sanare.Core/
@@ -308,6 +311,8 @@ src/
 ```
 
 ## Test Module
+
+> Note: This test list reflects the target-state; only `tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs` is implemented today — see the top-of-file Implementation status and `docs/audit-report.md` NEW-007.
 
 **Test file**: `tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs`
 
