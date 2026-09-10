@@ -69,7 +69,7 @@ All three commands are expected to run clean (0 warnings/errors) against the cur
 The following are explicitly out of scope for v0.1 or remain incomplete after the controlled HTTP acquisition foundation:
 
 - Integration of `HttpContentAcquirer` into `FixtureScrapeRunner` or the planned runtime path.
-- HTTP acquisition policy and resilience: robots.txt/llms.txt, host pacing and concurrency, retries, circuit breaking and challenge hand-off, cache/conditional requests, redirect-hop limits, cookie handling, browsing identity, and acquisition diagnostics/telemetry.
+- HTTP acquisition policy and resilience: default Compliance (robots enforcement and bot identity) plus audited Stealth capability gates, host pacing and concurrency, retries, circuit breaking and challenge detection, cache/conditional requests, redirect-hop limits, cookie handling, browsing identity, and acquisition diagnostics/telemetry. Both modes preserve the same request-volume safeguards.
 - Browser acquisition (Playwright) and structured-data acquisition.
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows.
 - The unimplemented remainder of Git-backed plan storage/resolution — advanced history/diff, heal branches, rollback, CLI-backed Git operation, and authoring integration remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md) and [docs/features/plan-resolver.md](docs/features/plan-resolver.md)).

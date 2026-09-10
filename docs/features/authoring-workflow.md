@@ -259,8 +259,7 @@ blank page.
 
 - **The model never executes anything** — its only output is a JSON plan drawn from the closed allow-list.
 - **Dry-runs never touch the network** — enforced by a throwing handler, not by convention.
-- **Probing is the only network phase**, and it obeys the same rate limiter, configured `RespectRobots`
-  setting (bypassed by default, per source opt-in — see `acquisition-pipeline`), and identity as normal runs.
+- **Probing is the only network phase**, and it obeys the same rate limiter, source `AcquisitionMode` (default Compliance enforcement; audited Stealth only when explicitly configured), and identity as normal runs.
 - **Attempt budget is hard** at 5; prompt budget is hard at 60 000 tokens per turn.
 - **Deterministic nodes must be deterministic** — steps 1, 2, 4, 5, 7 contain no model calls, so a
   workflow replay from a checkpoint reproduces them exactly.

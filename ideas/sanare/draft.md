@@ -82,10 +82,13 @@ Five design commitments that distinguish this from "an LLM that scrapes":
    bespoke "script_versions" table.
 4. **Cheapest viable extraction tier wins.** Structured data (JSON-LD / `__NEXT_DATA__` / internal JSON
    endpoints) → HTML parsing → headless browser. Playwright is an escalation, not a default.
-5. **Blend in rather than fight.** Present a plausible, consistent, *honest-about-being-a-bot-when-asked*
-   browsing identity (modern browser header set, HTTP/2 ordering, `Sec-Fetch-*`, per-host session
-   cookies, human-ish pacing), obey rate limits, cache aggressively, back off on 429/403. Bare minimum
-   evasion — no CAPTCHA solving, no residential proxy rotation, no auth-wall bypass.
+5. **Choose an explicit acquisition policy, never an accidental one.** `Compliance` mode is the default: it
+   enforces `robots.txt` and identifies Sanare as an automated client. `Stealth` mode is an explicit,
+   audited source-level opt-in for public data where compatible mitigation capabilities are enabled. Both
+   modes remain rate-limited, cached, paced, bounded in concurrency, responsive to `Retry-After` and block
+   signals, and prohibited from overloading a target. CAPTCHA detection, proxy rotation, and coherent
+   TLS/JA3 and UA/fingerprint profiles are optional capability-gated work; CAPTCHA solving is future work.
+   Login, paywall, authentication, authorization, and access-control bypass are out of scope.
 
 ## Existing Solutions & Gaps
 
