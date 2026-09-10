@@ -13,7 +13,7 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 2 Minor. MIN-001 and MIN-002 remain open. MAJ-003 was resolved on 2026-09-10 by implementing the extraction-plan structural-validator slice and its focused tests; its feature-spec and status documentation were updated in the same follow-up. NEW-006 (schema-engine materialization strategy) and NEW-007 (plan-runtime scope split) were also resolved on 2026-09-10 via documentation updates. MIN-001 concerns this session's script-repository documentation inventory. MIN-003 through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10 section below). No code fixes were made in the original audit pass — its 2026-09-10 update corrected status markers, implemented MAJ-003, and updated documentation for NEW-006 and NEW-007.
+**Open findings from this pass**: 1 Minor remains open (MIN-002). MAJ-003 was resolved on 2026-09-10 by implementing the extraction-plan structural-validator slice and its focused tests. MIN-001 (script-repository documentation inventory) was also resolved on 2026-09-10 with a real unit test for the previously untested `SNR-GIT-004` lease-timeout behavior. NEW-006 (schema-engine materialization strategy) and NEW-007 (plan-runtime scope split) were resolved on 2026-09-10 via documentation and scope-split updates. MIN-003, MIN-004, and MIN-005 from the 2026-09-06 pass remain resolved. All fixes in this pass are documentation-only except MIN-001's added unit test.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -141,7 +141,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
-> **Update (2026-09-10)**: MIN-003, MIN-004, and MIN-005 are now resolved — see
+> **Update (2026-09-10)**: MIN-001, MIN-003, MIN-004, and MIN-005 are now resolved — see
 > [Full-Repository Findings — 2026-09-10](#full-repository-findings--2026-09-10)
 > below for evidence and the updated summary table.
 
@@ -165,15 +165,28 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Minor Findings
 
-#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite
+#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/script-repository.md` — test-module inventory.
-- **Issue**: The specification names `FileLockRepositoryCoordinatorTests.cs`,
-  but that file is absent. Coordination behavior is presently exercised through
-  `GitScriptRepositoryTests.cs` rather than a standalone suite.
-- **Impact**: The documentation overstates the structure of focused coverage.
+- **Issue**: The specification named `FileLockRepositoryCoordinatorTests.cs`,
+  but that file was absent. Additionally, no existing test actually exercised
+  `FileLockRepositoryCoordinator`'s exclusive-acquisition/retryable-timeout
+  behavior (`SNR-GIT-004`, AC-GIT-007) — the doc's claim was also a coverage
+  gap, not just a naming mismatch.
+- **Impact**: The documentation overstated the structure of focused coverage,
+  and the lease-timeout acceptance criterion had no test backing it.
 - **Recommended fix**: Correct the inventory to name the actual test coverage,
   or add the stated standalone test suite if that granularity is intended.
+- **Ownership**: `src/Sanare.Core/Repository/**` is owned by the
+  script-repository component; this session is that owner's active work.
+- **Resolution**: Added
+  `GitScriptRepositoryTests.CommitPlanAsync_throws_retryable_SNR_GIT_004_when_the_write_lease_times_out`,
+  which pre-holds `.sanare-lock` exclusively with a short `LockTimeout` and
+  asserts the coordinator's retry loop raises retryable `SNR-GIT-004`,
+  closing the AC-GIT-007 coverage gap. `docs/features/script-repository.md`'s
+  test-module inventory now describes this coverage inside
+  `GitScriptRepositoryTests.cs` and no longer claims a standalone
+  `FileLockRepositoryCoordinatorTests.cs` file exists.
 
 #### MIN-002: Scrape API contracts test inventory lists test modules that are absent
 
@@ -284,15 +297,10 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 0 | 1 | Implemented-scope mismatch |
-| Minor | 2 | 6 | Status and test-inventory staleness |
+| Minor | 1 | 6 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MIN-001 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
-above) — they are report-only for their respective component owners and were
-not in this pass's docs-update scope. MAJ-003 is now resolved by the
-extraction-plan validator implementation documented above. MIN-003, MIN-004,
-and MIN-005 are now resolved (see updated entries above). Two new Minor
-findings were opened below.
+Only MIN-002 remains open and unchanged from the 2026-09-06 pass (see above) — it is report-only for its component owner and was not in this pass's scope. MAJ-003 is now resolved by the extraction-plan validator implementation. MIN-001, MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 are now resolved (see updated entries above); MIN-001's resolution added a unit test closing the underlying `SNR-GIT-004` coverage gap, NEW-006's resolution documented the reflection-only `IDocumentMaterializer`, and NEW-007's resolution clarified the v0.1 vs. target-state scope split in `plan-runtime.md`.
 
 ### Doc Status Corrections Made This Pass
 
@@ -410,8 +418,9 @@ findings were opened below.
 ### Recommended Priority Actions (2026-09-10 update)
 
 1. ✅ **MAJ-003 resolved** — extraction-plan validator implemented with comprehensive tests and documentation updates.
-2. ✅ **NEW-006 resolved** — schema-engine.md now describes the actual reflection-based implementation instead of the previously documented source-generation/trim-guard path.
-3. ✅ **NEW-007 resolved** — plan-runtime.md File Structure and Test Module sections now split into "Implemented (v0.1)" and "Planned / target-state" subsections.
-4. **Synchronize remaining status and test inventories** — address MIN-001 and MIN-002 when their owning components (script-repository, scrape-api-contracts) are next active.
-5. **Implement a trim/AOT-safe schema-engine materialization path (NEW-006 follow-up)** — schema-engine.md now accurately documents the reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding a source-generated alternative remains future work and would require its own design pass since it changes public API surface.
-6. **Re-run this audit after the owners update their specs or implementations** to verify that the status table, test inventory, and implementation scope remain aligned.
+2. ✅ **MIN-001 resolved** — script-repository documentation inventory corrected and real unit test added for previously untested `SNR-GIT-004` lease-timeout behavior.
+3. ✅ **NEW-006 resolved** — schema-engine.md now describes the actual reflection-based implementation instead of the previously documented source-generation/trim-guard path.
+4. ✅ **NEW-007 resolved** — plan-runtime.md File Structure and Test Module sections now split into "Implemented (v0.1)" and "Planned / target-state" subsections.
+5. **Synchronize remaining status for MIN-002** — address MIN-002 (scrape-api-contracts scope) when its owning component is next active.
+6. **Implement a trim/AOT-safe schema-engine materialization path (NEW-006 follow-up)** — schema-engine.md now accurately documents the reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding a source-generated alternative remains future work and would require its own design pass since it changes public API surface.
+7. **Re-run this audit after the owners update their specs or implementations** to verify that the status table, test inventory, and implementation scope remain aligned.
