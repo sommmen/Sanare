@@ -52,4 +52,54 @@ public sealed class SchemaValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Violations, v => v.JsonPointer == "/Items/*/Price" && v.Code == "SNR-SCH-004");
     }
+
+    [Fact]
+    public void Validate_continues_after_required_null_nodes()
+    {
+        var fields = new[]
+        {
+            new FieldDescriptor("/Items/*/Price", "Price", typeof(decimal), true, null, null, null, null),
+        };
+        var schema = new SchemaDescriptor(typeof(object), "Example", 1, "{}", "sha256:test", fields);
+        var document = new JsonObject
+        {
+            ["Items"] = new JsonArray
+            {
+                new JsonObject { ["Price"] = null },
+                new JsonObject { ["Price"] = "not a decimal" },
+            },
+        };
+
+        var result = new SchemaValidator().Validate(document, schema);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Violations, violation => violation.Code == "SNR-SCH-004");
+        Assert.Contains(result.Violations, violation => violation.Code == "SNR-SCH-002");
+    }
+
+    [Theory]
+    [InlineData(typeof(Dictionary<string, string>))]
+    [InlineData(typeof(IDictionary<string, string>))]
+    [InlineData(typeof(IReadOnlyDictionary<string, string>))]
+    [InlineData(typeof(CustomDictionary))]
+    public void Validate_accepts_supported_string_dictionary_shapes(Type dictionaryType)
+    {
+        var fields = new[]
+        {
+            new FieldDescriptor("/Details", "Details", dictionaryType, true, null, null, null, null),
+        };
+        var schema = new SchemaDescriptor(typeof(object), "Example", 1, "{}", "sha256:test", fields);
+        var document = new JsonObject
+        {
+            ["Details"] = new JsonObject { ["Color"] = "Blue" },
+        };
+
+        var result = new SchemaValidator().Validate(document, schema);
+
+        Assert.True(result.IsValid);
+    }
+
+    private sealed class CustomDictionary : Dictionary<string, string>
+    {
+    }
 }

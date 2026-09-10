@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: partial — `Sanare.Core.Acquisition.HttpContentAcquirer` provides the controlled HTTP/fixture boundary described below, but it is not yet integrated with `FixtureScrapeRunner` or the planned runtime.
 
 | Field | Value |
 |-------|-------|
@@ -20,6 +21,12 @@ Everything that touches the network goes through one pipeline, so politeness, ca
 capture are enforced in exactly one place and cannot be bypassed by a plan, an agent, or a sample app. It is the component that keeps the project's promise of
 "don't overload the server and don't get us blocked" mechanically true rather than aspirational, and it is
 the seam where offline replay substitutes disk for sockets.
+
+## Implementation Status
+
+The delivered foundation defines `IContentAcquirer`, `AcquisitionRequest`, `AcquiredContent`, `AcquisitionOptions`, and `HttpContentAcquirer` in `src/Sanare.Core/Acquisition/`. It accepts absolute GET URLs, requires HTTPS by default, streams and caps responses at 16 MiB, normalizes response headers, validates expected content types, resolves charset from the response header, BOM, HTML meta declaration, then UTF-8 fallback, and captures successful live responses through `IFixtureCorpus` before content-type rejection. In offline mode it replays the latest matching fixture without constructing a network request. Focused tests cover offline replay, charset precedence, fixture capture ordering, transport policy, and response constraints.
+
+The remainder of this specification is planned: runner/runtime integration; host pacing and concurrency; robots.txt and `llms.txt`; retries, `Retry-After`, circuit breaking, and challenge hand-off; HTTP caching; explicit redirect-hop policy; cookies and browsing identity; browser escalation; discovery limits; and acquisition diagnostics/telemetry. Requirement and acceptance-criterion language below describes the target completed component unless this section says otherwise.
 
 ## Scope
 

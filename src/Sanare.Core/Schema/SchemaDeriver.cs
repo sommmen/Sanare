@@ -30,6 +30,7 @@ public sealed class SchemaDeriver : ISchemaDeriver
     {
         var typeField = schemaType.GetCustomAttribute<ScrapeFieldAttribute>();
         var culture = schemaType.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? defaultCulture;
+        ValidateCulture(culture);
         var fields = new List<FieldDescriptor>();
         string? collectionPointer = null;
         Visit(schemaType, string.Empty, culture, 0, [], fields, ref collectionPointer);
@@ -59,6 +60,7 @@ public sealed class SchemaDeriver : ISchemaDeriver
 
             var pointer = prefix + "/" + EscapePointer(property.Name);
             var propertyCulture = property.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? inheritedCulture;
+            ValidateCulture(propertyCulture);
             var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
             var collection = property.GetCustomAttribute<ScrapeCollectionAttribute>() is not null;
             if (collection)
@@ -71,12 +73,13 @@ public sealed class SchemaDeriver : ISchemaDeriver
             }
 
             var elementType = GetCollectionElementType(propertyType);
-            if (collection || (elementType is not null && IsComplex(elementType)))
+            if (collection && elementType is null)
             {
-                if (elementType is null)
-                {
-                    throw InvalidShape($"collection '{pointer}' has no element type");
-                }
+                throw InvalidShape($"collection '{pointer}' has no element type");
+            }
+
+            if (elementType is not null && IsComplex(elementType))
+            {
                 Visit(elementType, pointer + "/*", propertyCulture, depth + 1, ancestry, fields, ref collectionPointer);
                 continue;
             }
@@ -103,7 +106,7 @@ public sealed class SchemaDeriver : ISchemaDeriver
         var propertyType = property.PropertyType;
         var nullable = Nullable.GetUnderlyingType(propertyType) is not null || (!propertyType.IsValueType && nullability.ReadState != NullabilityState.NotNull);
         var requiredMember = property.GetCustomAttribute<RequiredMemberAttribute>() is not null;
-        return new FieldDescriptor(pointer, property.Name, propertyType, field?.Required == true || requiredMember || !nullable,
+        return new FieldDescriptor(pointer, property.Name, Nullable.GetUnderlyingType(propertyType) ?? propertyType, field?.Required == true || requiredMember || !nullable,
             field?.Description, property.GetCustomAttribute<ScrapeUnitAttribute>()?.Unit,
             property.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? inheritedCulture,
             property.GetCustomAttribute<ScrapeHintAttribute>()?.Hint);
@@ -117,7 +120,25 @@ public sealed class SchemaDeriver : ISchemaDeriver
         return enumerable?.GetGenericArguments()[0];
     }
 
-    private static bool IsComplex(Type type) => type.IsClass && type != typeof(string) && type != typeof(Uri) && !typeof(System.Collections.IDictionary).IsAssignableFrom(type);
+    private static bool IsComplex(Type type) => type.IsClass && type != typeof(string) && type != typeof(Uri) &&
+        GetCollectionElementType(type) is null && !IsStringDictionary(type);
+
+    private static bool IsStringDictionary(Type type) => type.GetInterfaces().Append(type).Any(static candidate =>
+        candidate.IsGenericType && candidate.GetGenericTypeDefinition() is var definition &&
+        (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>)) &&
+        candidate.GetGenericArguments() is [var key, var value] && key == typeof(string) && value == typeof(string));
+
+    private static void ValidateCulture(string culture)
+    {
+        try
+        {
+            _ = CultureInfo.GetCultureInfo(culture);
+        }
+        catch (CultureNotFoundException exception)
+        {
+            throw InvalidShape($"culture '{culture}' is invalid: {exception.Message}");
+        }
+    }
     private static string EscapePointer(string name) => name.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal);
     private static InvalidOperationException InvalidShape(string detail) => new($"SNR-SCH-001: Schema {detail}.");
     private readonly record struct CacheKey(Type Type, string Culture);
