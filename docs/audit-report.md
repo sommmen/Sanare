@@ -305,7 +305,7 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 1 | 3 | Status and test-inventory staleness |
+| Minor | 1 | 6 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
 MAJ-003 and MIN-001 remain open and unchanged from the 2026-09-06
