@@ -3,7 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
-> Implementation status: implemented — derivation, hashing, validation, coercion, quality reporting, and materialization are all built under `src/Sanare.Core/Schema/`, matching the File Structure and Test Module sections below. Known deviation: materialization uses plain reflection rather than the `System.Text.Json` source-generation path described in Scope/Constraints — see `docs/audit-report.md`.
+> Implementation status: implemented — derivation, hashing, validation, coercion, quality reporting, and materialization are all built under `src/Sanare.Core/Schema/`, matching the File Structure and Test Module sections below. Materialization uses plain reflection (`Activator.CreateInstance`, `PropertyInfo.SetValue`); see the Materialise step, Dependencies, and Constraints sections below for its trim/AOT limitations.
 
 | Field | Value |
 |-------|-------|
@@ -37,7 +37,9 @@ validates against.
 - Culture- and unit-aware type coercion for every target type in §7.3's coercion table.
 - Unit normalisation via a transform library (mAh + V → Wh, inch → mm, g → kg).
 - `QualityReport` / `FieldHealth` construction, including unmapped-field detection.
-- Materialisation of the validated `JsonNode` into `TSchema` via `System.Text.Json` source generation (current implementation uses reflection instead; see the top-of-file Implementation status and `docs/audit-report.md` NEW-006).
+- Materialisation of the validated `JsonNode` into `TSchema` via reflection (`IDocumentMaterializer`),
+  writing every mapped, writable public property; null/missing mapped values are skipped (the instance
+  retains the CLR type's default values for those fields).
 
 **Excluded:**
 
@@ -56,8 +58,8 @@ validates against.
 3. **Coerce** raw extracted text into target CLR types under the source's culture and the field's unit.
 4. **Validate** the assembled document against the schema and report failures by JSON pointer.
 5. **Report** per-field presence, coercion outcome, and unmapped source fields.
-6. **Materialise** the validated document into the consumer's type without reflection at run time where
-   source generation is available.
+6. **Materialise** the validated document into the consumer's type via reflection, writing every mapped,
+   writable public property that has a non-null coerced value.
 
 ## Interfaces
 
@@ -80,7 +82,8 @@ validates against.
 ### Dependencies
 
 - **`scrape-api-contracts`** — attributes, `QualityReport`, `FieldHealth`, `ScrapeDiagnostic`.
-- **`System.Text.Json`** — `JsonNode`, `JsonSerializerOptions`, source-generation contexts.
+- **`System.Text.Json`** — `JsonNode`, `JsonSerializerOptions`.
+- **`System.Reflection`** — `IDocumentMaterializer`'s writable-property walk over `TSchema`.
 - **`System.Globalization`** — `CultureInfo`, `NumberFormatInfo`, `DateTimeStyles`.
 
 ## Data Flow
@@ -226,8 +229,12 @@ failure.
 
 - **Deterministic across environments**: schema derivation and hashing must not depend on reflection
   ordering, locale, or hash-seed randomisation. Property ordering is normalised by ordinal name.
-- **Trim/AOT friendly**: materialisation uses `System.Text.Json` source-generated contexts when the
-  consumer supplies one; the reflection fallback is guarded and warns under trimming.
+- **Not trim/AOT safe**: `IDocumentMaterializer` uses unconditional reflection
+  (`Activator.CreateInstance<TSchema>()`, `PropertyInfo.SetValue`) with no `JsonSerializerContext`
+  source-generation path, no `[DynamicallyAccessedMembers]` annotations, and no guard or warning under
+  trimming. Consumers publishing with `PublishTrimmed`/`PublishAot` may see materialization fail or
+  produce incomplete instances if `TSchema`'s public properties are trimmed; this is a known limitation,
+  not yet addressed (`docs/audit-report.md` NEW-006).
 - **Depth ≤ 8, ≤ 200 mapped properties** (§7.4) — breaching either is a derivation error, not a truncation.
 - **No network, no disk**: the engine is pure computation and is fully unit-testable.
 - **Coercion never silently succeeds partially**: a partial parse is a failure.
