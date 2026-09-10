@@ -417,9 +417,10 @@ were opened below.
 1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
    tests, or reduce the spec to the serializer-only implemented slice
    (unchanged from the 2026-09-06 pass).
-2. **Decide schema-engine's materialization strategy (NEW-006)** — either
-   implement the documented source-generation/trim-guard path or correct the
-   spec to describe the actual reflection-based implementation.
+2. ~~**Decide schema-engine's materialization strategy (NEW-006)**~~ — ✅
+   resolved 2026-09-10; `schema-engine.md` now describes the actual
+   reflection-based implementation instead of the previously documented
+   source-generation/trim-guard path.
 3. ~~**Split plan-runtime.md into implemented vs. target-state sections
    (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
    sections are now split into "Implemented (v0.1)" and "Planned /
@@ -427,11 +428,11 @@ were opened below.
 4. **Synchronize remaining status and test inventories** — address MIN-001 and
    MIN-002 when their owning components (script-repository,
    scrape-api-contracts) are next active.
-5. **Re-run this audit after the owners update their specs or implementations**
-   to verify that the status table, test inventory, and implementation scope
-   remain aligned.
 5. **Implement a trim/AOT-safe schema-engine materialization path
    (NEW-006 follow-up)** — schema-engine.md now accurately documents the
    reflection-only `IDocumentMaterializer` and its trim/AOT limitation; adding
    a source-generated alternative remains future work and would require its
    own design pass since it changes public API surface.
+6. **Re-run this audit after the owners update their specs or implementations**
+   to verify that the status table, test inventory, and implementation scope
+   remain aligned.
