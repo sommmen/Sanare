@@ -13,7 +13,7 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 2 Minor. MAJ-003 and MIN-002
+**Open findings from this pass**: 1 Major and 1 Minor. MAJ-003 and MIN-002
 are the open findings from this pass. MAJ-003 and MIN-002 belong to other
 component scopes and are report-only for their owners. MIN-001 (script-repository),
 MIN-003, MIN-004, MIN-005, NEW-006, and NEW-007 from the 2026-09-06 pass are now resolved
@@ -307,7 +307,7 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 2 | 5 | Status and test-inventory staleness |
+| Minor | 1 | 6 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
 MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
