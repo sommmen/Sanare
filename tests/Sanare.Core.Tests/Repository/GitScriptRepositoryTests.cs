@@ -68,6 +68,25 @@ public sealed class GitScriptRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitPlanAsync_throws_retryable_SNR_GIT_004_when_the_write_lease_times_out()
+    {
+        var options = new ScriptRepositoryOptions(_stateRoot, LockTimeout: TimeSpan.FromMilliseconds(100));
+        var lockPath = Path.Combine(options.RepositoryPath, ".sanare-lock");
+        var repository = new GitScriptRepository(options, new PlanSerializer(), new FileLockRepositoryCoordinator(lockPath));
+        await repository.InitializeAsync();
+
+        // Hold the lock file exclusively, as FileLockRepositoryCoordinator itself does, so the
+        // coordinator's retry loop exhausts options.EffectiveLockTimeout and raises SNR-GIT-004.
+        using var externalLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+
+        var exception = await Assert.ThrowsAsync<ScriptRepositoryException>(
+            () => repository.CommitPlanAsync(new PlanCommitRequest(SamplePlan(), "author", "should fail", "authoring")).AsTask());
+
+        Assert.Equal("SNR-GIT-004", exception.Code);
+        Assert.True(exception.Retryable);
+    }
+
+    [Fact]
     public async Task ApproveAsync_creates_monotonic_tags_and_is_idempotent_for_the_same_commit()
     {
         var repository = CreateRepository();

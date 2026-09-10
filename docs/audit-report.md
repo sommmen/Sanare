@@ -13,13 +13,17 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 4 Minor. MAJ-003, MIN-001, MIN-002, NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
-through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
-section below); two new Minor findings (NEW-006, NEW-007) were opened for a
-schema-engine materialization-method deviation and a plan-runtime documented
-scope overstatement. No code fixes were made in this pass — the 2026-09-10
-update is documentation-only, correcting status markers and flagging
-implementation discrepancies for a later turn.
+**Open findings from this pass**: 1 Major and 3 Minor. MAJ-003, MIN-002,
+NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002
+belong to other component scopes and are report-only for their owners.
+MIN-001 (script-repository) and MIN-003 through MIN-005 from the 2026-09-06
+pass are now resolved (see the 2026-09-10 section below); two new Minor
+findings (NEW-006, NEW-007) were opened for a schema-engine
+materialization-method deviation and a plan-runtime documented scope
+overstatement. MIN-001's resolution added a real unit test for the
+previously untested `SNR-GIT-004` lease-timeout behavior and corrected the
+script-repository test-module inventory — all other fixes in this pass
+remain documentation-only.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -147,7 +151,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
-> **Update (2026-09-10)**: MIN-003, MIN-004, and MIN-005 are now resolved — see
+> **Update (2026-09-10)**: MIN-001, MIN-003, MIN-004, and MIN-005 are now resolved — see
 > [Full-Repository Findings — 2026-09-10](#full-repository-findings--2026-09-10)
 > below for evidence and the updated summary table.
 
@@ -173,15 +177,28 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 
 ### Minor Findings
 
-#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite
+#### MIN-001: Script-repository test inventory names a nonexistent standalone coordinator suite — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/script-repository.md` — test-module inventory.
-- **Issue**: The specification names `FileLockRepositoryCoordinatorTests.cs`,
-  but that file is absent. Coordination behavior is presently exercised through
-  `GitScriptRepositoryTests.cs` rather than a standalone suite.
-- **Impact**: The documentation overstates the structure of focused coverage.
+- **Issue**: The specification named `FileLockRepositoryCoordinatorTests.cs`,
+  but that file was absent. Additionally, no existing test actually exercised
+  `FileLockRepositoryCoordinator`'s exclusive-acquisition/retryable-timeout
+  behavior (`SNR-GIT-004`, AC-GIT-007) — the doc's claim was also a coverage
+  gap, not just a naming mismatch.
+- **Impact**: The documentation overstated the structure of focused coverage,
+  and the lease-timeout acceptance criterion had no test backing it.
 - **Recommended fix**: Correct the inventory to name the actual test coverage,
   or add the stated standalone test suite if that granularity is intended.
+- **Ownership**: `src/Sanare.Core/Repository/**` is owned by the
+  script-repository component; this session is that owner's active work.
+- **Resolution**: Added
+  `GitScriptRepositoryTests.CommitPlanAsync_throws_retryable_SNR_GIT_004_when_the_write_lease_times_out`,
+  which pre-holds `.sanare-lock` exclusively with a short `LockTimeout` and
+  asserts the coordinator's retry loop raises retryable `SNR-GIT-004`,
+  closing the AC-GIT-007 coverage gap. `docs/features/script-repository.md`'s
+  test-module inventory now describes this coverage inside
+  `GitScriptRepositoryTests.cs` and no longer claims a standalone
+  `FileLockRepositoryCoordinatorTests.cs` file exists.
 
 #### MIN-002: Scrape API contracts test inventory lists test modules that are absent
 
@@ -292,14 +309,15 @@ direct file inspection. No production code was changed in this pass.
 |----------|-----:|--------------------:|----------|
 | Critical | 0 | 0 | — |
 | Major | 1 | 0 | Implemented-scope mismatch |
-| Minor | 4 | 3 | Status and test-inventory staleness |
+| Minor | 3 | 4 | Status and test-inventory staleness |
 | Info | 0 | 0 | — |
 
-MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
-pass (see above) — they are report-only for their respective component
-owners and were not in this pass's docs-update scope. MIN-003, MIN-004, and
-MIN-005 are now resolved (see updated entries above). Two new Minor findings
-were opened below.
+MAJ-003 and MIN-002 remain open and unchanged from the 2026-09-06 pass (see
+above) — they are report-only for their respective component owners and
+were not in this pass's docs-update scope. MIN-001, MIN-003, MIN-004, and
+MIN-005 are now resolved (see updated entries above); MIN-001's resolution
+also added a unit test closing its underlying `SNR-GIT-004` coverage gap.
+Two new Minor findings were opened below.
 
 ### Doc Status Corrections Made This Pass
 
@@ -408,9 +426,9 @@ were opened below.
 3. **Split plan-runtime.md into implemented vs. target-state sections
    (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
    structure and test suite is built today versus planned.
-4. **Synchronize remaining status and test inventories** — address MIN-001 and
-   MIN-002 when their owning components (script-repository,
-   scrape-api-contracts) are next active.
+4. **Synchronize remaining status and test inventories** — address MIN-002
+   when its owning component (scrape-api-contracts) is next active. MIN-001
+   (script-repository) is resolved.
 5. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
