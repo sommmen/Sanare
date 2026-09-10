@@ -297,7 +297,7 @@ re-checked all six open findings from the 2026-09-06 pass. Updated status
 markers and added per-feature "Implementation status" callouts where stale;
 flagged newly discovered code/doc mismatches for a later, code-focused turn.
 **Method**: Code-grounded cross-reference using symbolic search (Serena) and
-direct file inspection. No production code was changed in this pass.
+direct file inspection. No production code (src/) was changed in this pass; the MIN-002 resolution added two new test files.
 
 ### Findings Summary (current)
 
