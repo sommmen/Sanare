@@ -250,7 +250,29 @@ Predicates are evaluated before field extraction, in that order.
 
 ## File Structure
 
-> Note: This file tree is target-state; only `IPlanExecutor.cs`, `PlanExecutor.cs`, `ExtractionOutcome.cs`, and `Documents/HtmlDocument.cs` (plus `tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs`) are implemented today — see the top-of-file Implementation status and `docs/audit-report.md` NEW-007.
+> This section is split into what is built today and what is target-state. See the top-of-file
+> Implementation status and `docs/audit-report.md` NEW-007.
+
+### Implemented (v0.1)
+
+```
+src/
+└── Sanare.Core/
+    └── Runtime/
+        ├── IPlanExecutor.cs
+        ├── PlanExecutor.cs
+        ├── ExtractionOutcome.cs
+        └── Documents/
+            └── HtmlDocument.cs
+```
+
+### Planned / target-state (not yet built)
+
+> The tree below is the eventual full-scope runtime described by this spec's Scope and Key Behaviors
+> sections. None of it exists yet beyond the four implemented files listed above — no `Operations/`,
+> `Locators/`, or `Budgets/` subdirectory, no `FieldObservation.cs` or `RuntimeOptions.cs`, and no
+> additional `Documents/` adapters (`IDocumentView.cs`, `HtmlDocumentView.cs`, `JsonDocumentView.cs`,
+> `StructuredDataView.cs`, `StructuredDataExtractor.cs`, `DocumentViewFactory.cs`) have been built.
 
 ```
 src/
@@ -312,7 +334,23 @@ src/
 
 ## Test Module
 
-> Note: This test list reflects the target-state; only `tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs` is implemented today — see the top-of-file Implementation status and `docs/audit-report.md` NEW-007.
+> This section is split into what is built today and what is target-state. See the top-of-file
+> Implementation status and `docs/audit-report.md` NEW-007.
+
+### Implemented (v0.1)
+
+**Test file**: `tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs`
+
+**Test scope**: end-to-end coverage of the v0.1 HTML interpreter through `FixtureScrapeRunner` —
+successful extraction, missing required field, malformed request URL, unresolvable culture,
+non-required-field coercion failure, missing plan, missing fixture, determinism across repeated runs
+(matching status, payload, and schema hash), and the `StreamAsync` not-supported path. Fixtures are
+provided as inline HTML strings in the test file rather than from the `Fixtures/Data/` corpus.
+
+### Planned / target-state (not yet built)
+
+> The test inventory below is the eventual full-scope suite described by this spec's Scope and Key
+> Behaviors sections. None of it exists yet beyond `FixtureScrapeRunnerTests.cs` listed above.
 
 **Test file**: `tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs`
 

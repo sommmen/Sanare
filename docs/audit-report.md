@@ -13,14 +13,13 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 3 Minor. MAJ-003, MIN-001, MIN-002, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
+**Open findings from this pass**: 1 Major and 2 Minor. MAJ-003, MIN-001, MIN-002 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
 through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
 section below); two new Minor findings (NEW-006, NEW-007) were opened for a
 schema-engine materialization-method deviation and a plan-runtime documented
-scope overstatement. No code fixes were made in this pass — the 2026-09-10
-update is documentation-only, correcting status markers and flagging
-implementation discrepancies for a later turn. NEW-006 was resolved in a
-follow-up documentation-only turn (see NEW-006 below).
+scope overstatement — both NEW-006 and NEW-007 are now resolved (see below). No code fixes were
+made in this pass — the 2026-09-10 update is documentation-only, correcting
+status markers and flagging implementation discrepancies for a later turn.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -418,13 +417,17 @@ were opened below.
 1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
    tests, or reduce the spec to the serializer-only implemented slice
    (unchanged from the 2026-09-06 pass).
-2. **Split plan-runtime.md into implemented vs. target-state sections
-   (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
-   structure and test suite is built today versus planned.
-3. **Synchronize remaining status and test inventories** — address MIN-001 and
+2. **Decide schema-engine's materialization strategy (NEW-006)** — either
+   implement the documented source-generation/trim-guard path or correct the
+   spec to describe the actual reflection-based implementation.
+3. ~~**Split plan-runtime.md into implemented vs. target-state sections
+   (NEW-007)**~~ — ✅ resolved 2026-09-10; the File Structure and Test Module
+   sections are now split into "Implemented (v0.1)" and "Planned /
+   target-state" subsections.
+4. **Synchronize remaining status and test inventories** — address MIN-001 and
    MIN-002 when their owning components (script-repository,
    scrape-api-contracts) are next active.
-4. **Re-run this audit after the owners update their specs or implementations**
+5. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
 5. **Implement a trim/AOT-safe schema-engine materialization path
