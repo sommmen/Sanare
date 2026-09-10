@@ -87,7 +87,7 @@ public sealed class SchemaDeriverTests
 
     private sealed class InvalidCultureProduct
     {
-        [ScrapeCulture("invalid_culture")]
+        [ScrapeCulture("\0")]
         public string Name { get; set; } = string.Empty;
     }
 
