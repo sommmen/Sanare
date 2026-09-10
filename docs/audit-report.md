@@ -1,6 +1,6 @@
 # Documentation Audit Report — Sanare
 
-**Latest full-repository pass**: 2026-09-06 (documentation/code alignment)
+**Latest full-repository pass**: 2026-09-10 (documentation/code alignment)
 
 ## Latest Full-Repository Audit Pass
 
@@ -13,10 +13,13 @@ recommended default when the user was unavailable for the workflow's optional
 confirmation. Historical idea/research/session notes were treated as provenance,
 not as current implementation commitments.
 
-**Open findings from this pass**: 1 Major and 5 Minor. MAJ-003 and MIN-002 through
-MIN-004 belong to other component scopes and are report-only for their owners.
-MIN-001 concerns this session's script-repository documentation inventory, while
-MIN-005 is a stale root TODO. No fixes were made in this pass.
+**Open findings from this pass**: 1 Major and 4 Minor. MAJ-003, MIN-001, MIN-002, NEW-006, NEW-007 are the open findings from this pass. MAJ-003 and MIN-002 belong to other component scopes and are report-only for their owners. MIN-001 concerns this session's script-repository documentation inventory. MIN-003
+through MIN-005 from the 2026-09-06 pass are now resolved (see the 2026-09-10
+section below); two new Minor findings (NEW-006, NEW-007) were opened for a
+schema-engine materialization-method deviation and a plan-runtime documented
+scope overstatement. No code fixes were made in this pass — the 2026-09-10
+update is documentation-only, correcting status markers and flagging
+implementation discrepancies for a later turn.
 
 ## Persistent Extraction-Plan Storage Slice Audit (Historical)
 
@@ -144,6 +147,10 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 | Minor | 5 | 0 | Status and test-inventory staleness |
 | Info | 0 | 5 | — |
 
+> **Update (2026-09-10)**: MIN-003, MIN-004, and MIN-005 are now resolved — see
+> [Full-Repository Findings — 2026-09-10](#full-repository-findings--2026-09-10)
+> below for evidence and the updated summary table.
+
 ### Major Findings
 
 #### MAJ-003: Extraction-plan model spec presents deferred validation as implemented
@@ -188,7 +195,7 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 - **Ownership**: `src/Sanare.Abstractions/**` is frozen/out of scope for this
   session; this is report-only for the scrape-api-contracts owner.
 
-#### MIN-003: Schema-engine test inventory lists test modules that are absent
+#### MIN-003: Schema-engine test inventory lists test modules that are absent — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/schema-engine.md` — test-module inventory.
 - **Issue**: `SchemaHasherTests.cs`, `SchemaValidatorTests.cs`, and
@@ -199,8 +206,13 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
   or correct the inventory to the actual suite.
 - **Ownership**: `src/Sanare.Core/Schema/**` is owned by the schema-engine
   component; this is report-only.
+- **Resolution**: `tests/Sanare.Core.Tests/Schema/` now contains all five named
+  files (`SchemaDeriverTests.cs`, `SchemaHasherTests.cs`,
+  `SchemaValidatorTests.cs`, `TypeCoercerTests.cs`,
+  `QualityReportBuilderTests.cs`), matching `schema-engine.md`'s test-module
+  inventory exactly. No further action needed.
 
-#### MIN-004: Plan-runtime implementation status is stale
+#### MIN-004: Plan-runtime implementation status is stale — ✅ RESOLVED 2026-09-10
 
 - **Location**: `docs/features/overview.md` — Plan Runtime row.
 - **Issue**: The implementation order marks `plan-runtime` as `draft`, while
@@ -212,8 +224,13 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
   clear note that the existing runtime is an intentionally incomplete foundation.
 - **Ownership**: `src/Sanare.Core/Runtime/**` is outside this session's edit
   scope; this is report-only for the plan-runtime owner.
+- **Resolution**: `docs/features/overview.md`'s Plan Runtime row is now marked
+  `partial`, and `docs/features/plan-runtime.md` carries an explicit
+  "Implementation status: partial" callout describing the minimal v0.1 HTML
+  interpreter foundation. See NEW-007 below for the accompanying documented-
+  scope-overstatement finding that remains open.
 
-#### MIN-005: Root development TODO still says Git-backed storage is unimplemented
+#### MIN-005: Root development TODO still says Git-backed storage is unimplemented — ✅ RESOLVED (confirmed 2026-09-10)
 
 - **Location**: `DEVELOPMENT.md` — TODO item 2.
 - **Issue**: The item says to implement persistent/Git-backed extraction-plan
@@ -226,6 +243,8 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
 - **Recommended fix**: Replace the item with the specific remaining work, or
   mark the completed storage/resolution slice done and create follow-up items
   for the intended next capabilities.
+- **Resolution**: Confirmed `DEVELOPMENT.md`'s Git-backed storage item is
+  already checked off (`[x]`) as of this pass. No further action needed.
 
 ### Confirmed Current Alignment
 
@@ -256,3 +275,142 @@ Both recommendations were implemented in a follow-up test-coverage pass (see MAJ
   and that `src/Sanare.Core/Runtime/` contains production runtime types.
 - This pass was documentation-only. No build, test, or formatter run was needed
   because no code was changed.
+
+## Full-Repository Findings — 2026-09-10
+
+**Scope**: Re-verified every row of `docs/features/overview.md`'s 18-row
+implementation-status table against the current `src/` and `tests/` trees, and
+re-checked all six open findings from the 2026-09-06 pass. Updated status
+markers and added per-feature "Implementation status" callouts where stale;
+flagged newly discovered code/doc mismatches for a later, code-focused turn.
+**Method**: Code-grounded cross-reference using symbolic search (Serena) and
+direct file inspection. No production code was changed in this pass.
+
+### Findings Summary (current)
+
+| Severity | Open | Resolved this pass | Category |
+|----------|-----:|--------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 1 | 0 | Implemented-scope mismatch |
+| Minor | 4 | 3 | Status and test-inventory staleness |
+| Info | 0 | 0 | — |
+
+MAJ-003, MIN-001, and MIN-002 remain open and unchanged from the 2026-09-06
+pass (see above) — they are report-only for their respective component
+owners and were not in this pass's docs-update scope. MIN-003, MIN-004, and
+MIN-005 are now resolved (see updated entries above). Two new Minor findings
+were opened below.
+
+### Doc Status Corrections Made This Pass
+
+- **`docs/features/overview.md`** — Schema Engine (`#2`) status corrected
+  `draft` → `implemented`: `src/Sanare.Core/Schema/` contains every file named
+  in `schema-engine.md`'s File Structure section (`SchemaDeriver`,
+  `SchemaHasher`, `SchemaValidator`, `Coercion/*`, `Quality/QualityReportBuilder`,
+  `Materialization/*`), and `tests/Sanare.Core.Tests/Schema/` contains all five
+  named test files (confirms MIN-003 resolution).
+- **`docs/features/overview.md`** — Plan Runtime (`#9`) status corrected
+  `draft` → `partial`: `src/Sanare.Core/Runtime/` contains production
+  `IPlanExecutor`, `PlanExecutor`, `ExtractionOutcome`, and
+  `Documents/HtmlDocument`, matching `PlanExecutor.cs`'s own doc-comment that
+  describes a deliberately minimal v0.1 operation subset (confirms MIN-004
+  resolution).
+- **`docs/features/overview.md`** — "Updated:" date bumped to 2026-09-10.
+- **`docs/features/schema-engine.md`** and **`docs/features/plan-runtime.md`**
+  — added "Implementation status" callout lines (matching the pattern already
+  used by `script-repository.md` and `observability.md`) so each spec states
+  its current implementation state inline, not only in this report.
+- All other 16 rows of `docs/features/overview.md` were re-verified against
+  the source/test trees and found to already be accurate: `#1` Scrape API
+  Contracts (`draft` — `IScraperAdministration`/`IFixtureAdministration` and a
+  frozen public-API CI baseline are still fully absent), `#3` Extraction Plan
+  Model (`draft` — no validator, per open MAJ-003), `#4` Script Repository /
+  `#11` Plan Resolver (`partial`, unchanged), `#5` Fixture Corpus
+  (`implemented`, unchanged), `#6` Acquisition Pipeline (`partial`,
+  unchanged), `#7` Browsing Identity, `#8` Browser Tier, `#12` Authoring
+  Workflow, `#13` Agent Toolset, `#14` Quality Evaluator, `#15` Healing
+  Workflow, `#17` Hosting & Configuration, `#18` Lenovo Sample App (all
+  `draft`, unchanged — no matching source files exist for any of these
+  components), `#10` Pagination Engine (`draft`, unchanged —
+  `NotSupportedException` is still thrown for pagination in
+  `PlanExecutor.cs`/`FixtureScrapeRunner.cs`), `#16` Observability (`partial`,
+  unchanged).
+
+### New Minor Findings
+
+#### NEW-006: Schema-engine materialization uses reflection, not the documented source-generation path
+
+- **Location**: `docs/features/schema-engine.md` — Scope (materialization
+  bullet), the "Materialise" pipeline step, Dependencies, and Constraints
+  sections all describe `System.Text.Json` source-generation-based
+  materialization with a reflection fallback that is "guarded and warns under
+  trimming."
+- **Issue**: `src/Sanare.Core/Schema/Materialization/DocumentMaterializer.cs`
+  is unconditional reflection only (`Activator.CreateInstance`,
+  `PropertyInfo.SetValue`); its own doc-comment calls it a "Simple reflection
+  materializer for writable v0.1 schema properties." There is no
+  `JsonSerializerContext`-based source-gen path and no trim/AOT guard or
+  warning anywhere in the materialization code. A repository-wide search
+  confirms the only `JsonSerializerContext` in the codebase
+  (`AuditEventJsonContext.cs`) belongs to Observability/Audit and is unrelated
+  to schema materialization.
+- **Impact**: The spec's stated trimming/AOT safety story does not match the
+  implementation. A consumer relying on the documented guard/warning behavior
+  under trimming would find none exists; reflection-only materialization may
+  also fail silently or behave unexpectedly in trimmed/AOT-published
+  applications, which the spec explicitly claims is handled.
+- **Recommended fix**: Either implement the source-generation path with the
+  described trim/AOT guard and warning, or update `schema-engine.md`'s Scope,
+  pipeline-step, Dependencies, and Constraints sections to describe the actual
+  reflection-based materializer and its trimming/AOT limitations.
+- **Ownership**: `src/Sanare.Core/Schema/Materialization/**` is owned by the
+  schema-engine component; this is report-only, flagged for a later
+  code-focused turn.
+
+#### NEW-007: Plan-runtime documented file structure and test inventory substantially exceed the actual v0.1 implementation
+
+- **Location**: `docs/features/plan-runtime.md` — File Structure section
+  (Operations/Selectors, Transforms, Structure, Predicates, Locators, Budgets
+  subdirectories) and Test Module section (`PlanExecutorTests.cs` plus five
+  named companion files: `OperationTests.cs`, `LocatorChainTests.cs`,
+  `CoercionMatrixTests.cs`, `StructuredDataViewTests.cs`,
+  `DeterminismTests.cs`).
+- **Issue**: `src/Sanare.Core/Runtime/` contains only four top-level items
+  (`IPlanExecutor.cs`, `PlanExecutor.cs`, `ExtractionOutcome.cs`,
+  `Documents/HtmlDocument.cs`) — none of the documented Operations, Locators,
+  or Budgets subdirectories exist. `tests/Sanare.Core.Tests/Runtime/` contains
+  only `FixtureScrapeRunnerTests.cs`; none of the six named test files exist.
+- **Impact**: The spec reads as though the full runtime (structured-data
+  adapters, the full operation allow-list, locator chains, pagination
+  budgets, and a dedicated executor test suite) is already built, when the
+  actual implementation is an intentionally minimal, HTML-only v0.1
+  interpreter — `PlanExecutor.cs`'s own doc-comment states that "acquisition,
+  browser operations, collections, and operations outside this subset are
+  intentionally deferred." This is a genuine partial foundation, not a gap to
+  close immediately, but the doc does not clearly separate target-state scope
+  from what is built today.
+- **Recommended fix**: Split `plan-runtime.md`'s File Structure and Test
+  Module sections into "Implemented (v0.1)" and "Planned / target state"
+  subsections (or move the target-state material to a follow-on milestone
+  note), so the spec accurately reflects the current minimal interpreter
+  versus the eventual full-scope runtime.
+- **Ownership**: `src/Sanare.Core/Runtime/**` is owned by the plan-runtime
+  component; this is report-only, flagged for a later code-focused turn.
+
+### Recommended Priority Actions (2026-09-10 update)
+
+1. **Resolve MAJ-003 first** — implement the extraction-plan validator and its
+   tests, or reduce the spec to the serializer-only implemented slice
+   (unchanged from the 2026-09-06 pass).
+2. **Decide schema-engine's materialization strategy (NEW-006)** — either
+   implement the documented source-generation/trim-guard path or correct the
+   spec to describe the actual reflection-based implementation.
+3. **Split plan-runtime.md into implemented vs. target-state sections
+   (NEW-007)** — clarify which of the documented Operations/Locators/Budgets
+   structure and test suite is built today versus planned.
+4. **Synchronize remaining status and test inventories** — address MIN-001 and
+   MIN-002 when their owning components (script-repository,
+   scrape-api-contracts) are next active.
+5. **Re-run this audit after the owners update their specs or implementations**
+   to verify that the status table, test inventory, and implementation scope
+   remain aligned.

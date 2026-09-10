@@ -3,6 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
+> Implementation status: implemented — derivation, hashing, validation, coercion, quality reporting, and materialization are all built under `src/Sanare.Core/Schema/`, matching the File Structure and Test Module sections below. Known deviation: materialization uses plain reflection rather than the `System.Text.Json` source-generation path described in Scope/Constraints — see `docs/audit-report.md`.
 
 | Field | Value |
 |-------|-------|
@@ -36,7 +37,7 @@ validates against.
 - Culture- and unit-aware type coercion for every target type in §7.3's coercion table.
 - Unit normalisation via a transform library (mAh + V → Wh, inch → mm, g → kg).
 - `QualityReport` / `FieldHealth` construction, including unmapped-field detection.
-- Materialisation of the validated `JsonNode` into `TSchema` via `System.Text.Json` source generation.
+- Materialisation of the validated `JsonNode` into `TSchema` via `System.Text.Json` source generation (current implementation uses reflection instead; see the top-of-file Implementation status and `docs/audit-report.md` NEW-006).
 
 **Excluded:**
 
