@@ -24,10 +24,41 @@ public sealed class SchemaDeriverTests
         Assert.True(name.Required);
         Assert.Equal("GBP", name.Unit);
         Assert.False(count.Required);
+        Assert.Equal(typeof(int), count.ClrType);
         Assert.DoesNotContain(schema.Fields, field => field.Name == nameof(Product.Ignored));
         Assert.StartsWith("sha256:", schema.Hash);
         Assert.Equal(71, schema.Hash.Length);
         Assert.Contains("\"properties\"", schema.JsonSchema);
+    }
+
+    [Fact]
+    public void Derive_validates_effective_property_cultures()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => new SchemaDeriver().Derive<InvalidCultureProduct>());
+
+        Assert.Contains("culture", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Derive_keeps_scalar_collections_as_field_descriptors()
+    {
+        var schema = new SchemaDeriver().Derive<ScalarCollectionProduct>();
+
+        var items = Assert.Single(schema.Fields);
+        Assert.Equal("/Items", items.JsonPointer);
+        Assert.Equal(typeof(string[]), items.ClrType);
+        Assert.Equal("/Items", schema.CollectionPointer);
+    }
+
+    [Fact]
+    public void Derive_recurses_into_complex_collection_elements()
+    {
+        var schema = new SchemaDeriver().Derive<VariantCollectionProduct>();
+
+        var price = Assert.Single(schema.Fields);
+        Assert.Equal("/Items/*/Price", price.JsonPointer);
+        Assert.Equal(typeof(decimal), price.ClrType);
+        Assert.Equal("/Items", schema.CollectionPointer);
     }
 
     private sealed class Product
@@ -52,5 +83,28 @@ public sealed class SchemaDeriverTests
     {
         [ScrapeHint("Original description")]
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class InvalidCultureProduct
+    {
+        [ScrapeCulture("\0")]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ScalarCollectionProduct
+    {
+        [ScrapeCollection]
+        public string[] Items { get; set; } = [];
+    }
+
+    private sealed class VariantCollectionProduct
+    {
+        [ScrapeCollection]
+        public List<Variant> Items { get; set; } = [];
+    }
+
+    private sealed class Variant
+    {
+        public decimal Price { get; set; }
     }
 }

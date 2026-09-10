@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -5,66 +6,140 @@ using Sanare.Abstractions.Attributes;
 
 namespace Sanare.Core.Schema;
 
-/// <summary>Reflection-based v0.1 schema derivation for flat typed result models.</summary>
+/// <summary>Derives deterministic metadata from supported typed result models.</summary>
 public sealed class SchemaDeriver : ISchemaDeriver
 {
+    private static readonly ConcurrentDictionary<CacheKey, SchemaDescriptor> Cache = new();
     private readonly NullabilityInfoContext _nullability = new();
 
-    public SchemaDescriptor Derive<TSchema>(string defaultCulture = "en-US") where TSchema : class =>
-        Derive(typeof(TSchema), defaultCulture);
+    public SchemaDescriptor Derive<TSchema>(string defaultCulture = "en-US") where TSchema : class => Derive(typeof(TSchema), defaultCulture);
 
     public SchemaDescriptor Derive(Type schemaType, string defaultCulture = "en-US")
     {
         ArgumentNullException.ThrowIfNull(schemaType);
         _ = CultureInfo.GetCultureInfo(defaultCulture);
-
         if (!schemaType.IsClass || schemaType.IsAbstract)
         {
             throw new InvalidOperationException("SNR-SCH-001: A schema must be a concrete class.");
         }
 
-        var collectionProperties = schemaType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(static property => property.GetCustomAttribute<ScrapeCollectionAttribute>() is not null)
-            .ToArray();
-        if (collectionProperties.Length > 1)
+        return Cache.GetOrAdd(new CacheKey(schemaType, defaultCulture), static (key, self) => self.DeriveCore(key.Type, key.Culture), this);
+    }
+
+    private SchemaDescriptor DeriveCore(Type schemaType, string defaultCulture)
+    {
+        var typeField = schemaType.GetCustomAttribute<ScrapeFieldAttribute>();
+        var culture = schemaType.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? defaultCulture;
+        ValidateCulture(culture);
+        var fields = new List<FieldDescriptor>();
+        string? collectionPointer = null;
+        Visit(schemaType, string.Empty, culture, 0, [], fields, ref collectionPointer);
+        var ordered = fields.OrderBy(static x => x.JsonPointer, StringComparer.Ordinal).ToArray();
+        var json = SchemaHasher.CreateCanonicalJson(schemaType.Name, typeField?.Version ?? 1, ordered);
+        var descriptor = new SchemaDescriptor(schemaType, schemaType.Name, typeField?.Version ?? 1, json, string.Empty, ordered, collectionPointer);
+        return descriptor with { Hash = SchemaHasher.Compute(descriptor) };
+    }
+
+    private void Visit(Type type, string prefix, string inheritedCulture, int depth, HashSet<Type> ancestry, ICollection<FieldDescriptor> fields, ref string? collectionPointer)
+    {
+        if (depth > 8)
         {
-            throw new InvalidOperationException($"SNR-SCH-001: Schema '{schemaType.Name}' has multiple collection properties: {string.Join(", ", collectionProperties.Select(static property => property.Name))}.");
+            throw InvalidShape($"depth exceeds 8 at '{prefix}'");
+        }
+        if (!ancestry.Add(type))
+        {
+            throw InvalidShape($"type cycle at '{prefix}'");
         }
 
-        var typeField = schemaType.GetCustomAttribute<ScrapeFieldAttribute>();
-        var typeCulture = schemaType.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? defaultCulture;
-        var fields = schemaType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(static property => property.GetIndexParameters().Length == 0 && property.GetCustomAttribute<ScrapeIgnoreAttribute>() is null)
-            .Select(property => ToDescriptor(property, typeCulture))
-            .OrderBy(static field => field.JsonPointer, StringComparer.Ordinal)
-            .ToArray();
+        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(static p => p.GetMethod is not null && p.GetIndexParameters().Length == 0).OrderBy(static p => p.Name, StringComparer.Ordinal))
+        {
+            if (property.GetCustomAttribute<ScrapeIgnoreAttribute>() is not null)
+            {
+                continue;
+            }
 
-        var name = schemaType.Name;
-        var version = typeField?.Version ?? 1;
-        var jsonSchema = SchemaHasher.CreateCanonicalJson(name, version, fields);
-        var seed = new SchemaDescriptor(schemaType, name, version, jsonSchema, string.Empty, fields);
-        return seed with { Hash = SchemaHasher.Compute(seed) };
+            var pointer = prefix + "/" + EscapePointer(property.Name);
+            var propertyCulture = property.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? inheritedCulture;
+            ValidateCulture(propertyCulture);
+            var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            var collection = property.GetCustomAttribute<ScrapeCollectionAttribute>() is not null;
+            if (collection)
+            {
+                if (collectionPointer is not null)
+                {
+                    throw InvalidShape($"multiple collection properties at '{pointer}'");
+                }
+                collectionPointer = pointer;
+            }
+
+            var elementType = GetCollectionElementType(propertyType);
+            if (collection && elementType is null)
+            {
+                throw InvalidShape($"collection '{pointer}' has no element type");
+            }
+
+            if (elementType is not null && IsComplex(elementType))
+            {
+                Visit(elementType, pointer + "/*", propertyCulture, depth + 1, ancestry, fields, ref collectionPointer);
+                continue;
+            }
+
+            if (IsComplex(propertyType))
+            {
+                Visit(propertyType, pointer, propertyCulture, depth + 1, ancestry, fields, ref collectionPointer);
+                continue;
+            }
+
+            if (fields.Count >= 200)
+            {
+                throw InvalidShape($"mapped property limit exceeds 200 at '{pointer}'");
+            }
+            fields.Add(ToDescriptor(property, pointer, propertyCulture));
+        }
+        ancestry.Remove(type);
     }
 
-    private FieldDescriptor ToDescriptor(PropertyInfo property, string typeCulture)
+    private FieldDescriptor ToDescriptor(PropertyInfo property, string pointer, string inheritedCulture)
     {
-        var metadata = property.GetCustomAttribute<ScrapeFieldAttribute>();
-        var nullable = _nullability.Create(property);
-        var isNullableReference = !property.PropertyType.IsValueType && nullable.ReadState == NullabilityState.Nullable;
-        var isNullableValue = Nullable.GetUnderlyingType(property.PropertyType) is not null;
-        var requiredKeyword = property.GetCustomAttribute<RequiredMemberAttribute>() is not null;
-        var required = requiredKeyword || metadata?.Required == true || !(isNullableReference || isNullableValue);
-        var culture = property.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? typeCulture;
-        _ = CultureInfo.GetCultureInfo(culture);
-
-        return new FieldDescriptor(
-            "/" + property.Name,
-            property.Name,
-            Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType,
-            required,
-            metadata?.Description,
-            property.GetCustomAttribute<ScrapeUnitAttribute>()?.Unit,
-            culture,
+        var field = property.GetCustomAttribute<ScrapeFieldAttribute>();
+        var nullability = _nullability.Create(property);
+        var propertyType = property.PropertyType;
+        var nullable = Nullable.GetUnderlyingType(propertyType) is not null || (!propertyType.IsValueType && nullability.ReadState != NullabilityState.NotNull);
+        var requiredMember = property.GetCustomAttribute<RequiredMemberAttribute>() is not null;
+        return new FieldDescriptor(pointer, property.Name, Nullable.GetUnderlyingType(propertyType) ?? propertyType, field?.Required == true || requiredMember || !nullable,
+            field?.Description, property.GetCustomAttribute<ScrapeUnitAttribute>()?.Unit,
+            property.GetCustomAttribute<ScrapeCultureAttribute>()?.Culture ?? inheritedCulture,
             property.GetCustomAttribute<ScrapeHintAttribute>()?.Hint);
     }
+
+    private static Type? GetCollectionElementType(Type type)
+    {
+        if (type == typeof(string) || type == typeof(byte[])) return null;
+        if (type.IsArray) return type.GetElementType();
+        var enumerable = type.GetInterfaces().Append(type).FirstOrDefault(static x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+        return enumerable?.GetGenericArguments()[0];
+    }
+
+    private static bool IsComplex(Type type) => type.IsClass && type != typeof(string) && type != typeof(Uri) &&
+        GetCollectionElementType(type) is null && !IsStringDictionary(type);
+
+    private static bool IsStringDictionary(Type type) => type.GetInterfaces().Append(type).Any(static candidate =>
+        candidate.IsGenericType && candidate.GetGenericTypeDefinition() is var definition &&
+        (definition == typeof(IDictionary<,>) || definition == typeof(IReadOnlyDictionary<,>)) &&
+        candidate.GetGenericArguments() is [var key, var value] && key == typeof(string) && value == typeof(string));
+
+    private static void ValidateCulture(string culture)
+    {
+        try
+        {
+            _ = CultureInfo.GetCultureInfo(culture);
+        }
+        catch (CultureNotFoundException exception)
+        {
+            throw InvalidShape($"culture '{culture}' is invalid: {exception.Message}");
+        }
+    }
+    private static string EscapePointer(string name) => name.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal);
+    private static InvalidOperationException InvalidShape(string detail) => new($"SNR-SCH-001: Schema {detail}.");
+    private readonly record struct CacheKey(Type Type, string Culture);
 }
