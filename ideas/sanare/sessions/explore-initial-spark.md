@@ -55,8 +55,7 @@ stated absence of APIs for both. This is an in-hand requirement, not a hypotheti
    rollback out of the box.
 4. **Tiered extraction.** Structured data (JSON-LD / embedded JSON / internal JSON endpoints) → HTML
    parsing → Playwright, with escalation only on failure and a recorded rationale.
-5. **Blend-in politeness, not evasion.** Realistic assistant-browser identity, robots awareness, per-host
-   rate limiting, caching, backoff. No CAPTCHA solving, no proxy rotation, no auth bypass.
+5. **Explicit acquisition modes with universal politeness.** Default Compliance enforces robots and identifies Sanare; audited Stealth may capability-gate proxy rotation, CAPTCHA detection, and coherent transport or identity profiles. Both preserve per-host rate limiting, caching, and backoff. CAPTCHA solving is future work; auth, paywall, and access-control bypass remain excluded.
 6. **Heal runs must not regress.** A repaired script must pass against both the new fixture and the
    retained historical fixtures before it can be promoted.
 

@@ -221,8 +221,7 @@ price comparison.
 - **Patches are minimal**; whole-plan rewrites are rejected and routed to authoring.
 - **No LLM call for deterministically classifiable failures.**
 - **3 attempts, one heal per source**, both hard limits.
-- Fresh capture obeys the same rate limiter, configured `RespectRobots` setting (bypassed by default, per
-  source opt-in), and identity as production runs — a heal is not an excuse to hammer the host.
+- Fresh capture obeys the same rate limiter, source `AcquisitionMode` (default Compliance enforcement; audited Stealth only when explicitly configured), and identity as production runs — a heal is not an excuse to hammer the host.
 - The workflow is checkpointed; an interrupted heal resumes rather than re-capturing.
 - Heal commits never touch the default branch directly; promotion is a tag move.
 - The workflow reports a **predicted** per-field improvement so the evaluator can verify it later; a heal

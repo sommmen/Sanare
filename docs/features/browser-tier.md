@@ -15,12 +15,7 @@
 
 ## Purpose
 
-Playwright is the last resort, exactly as the brief demanded: prefer networked and normal scraping, and run
-a browser only when the data cannot be reached otherwise. This component owns that escape hatch — a pooled,
-bounded, opt-in Playwright surface that executes only the closed set of browser interaction steps a plan is
-allowed to declare, captures the resulting DOM as a fixture, and hands it to the same deterministic runtime
-the HTTP tiers use. It is also where "we tried and the site said no" ends: the browser is not used to work
-around a block.
+Playwright is the last resort for rendering or bounded interaction, not a reason to increase target load. It uses the same per-host budgets as HTTP, captures the resulting DOM as a fixture, and follows the source's explicit acquisition mode. In `Compliance`, challenge detection ends automated execution. In `Stealth`, a preconfigured compatible browser identity/fingerprint profile may be used where the optional capability is implemented; CAPTCHA solving remains future work and no mode permits access-control bypass.
 
 ## Scope
 
@@ -47,10 +42,10 @@ around a block.
 
 - Deciding that Tier 3 is required — that is authoring-time tier selection (`authoring-workflow`).
 - Interpreting the DOM into typed values — `plan-runtime` (identical code path for HTML and rendered HTML).
-- Rate limiting and robots policy (including `RespectRobots` enforcement/bypass) — reused from
-  `acquisition-pipeline`; the browser tier is not a separate policy path.
-- Fingerprint randomisation, stealth plugins, or automation-flag patching beyond the ordinary defaults
-  (DR-006).
+- Rate limiting and robots policy — reused from `acquisition-pipeline`; the browser tier is not a separate
+  policy path and applies the source's `AcquisitionMode` decision.
+- Unconfigured or reactive fingerprint mutation, stealth tooling, or automation-flag patching. Only a
+  preconfigured, validated Stealth capability/profile selected before the run may be used (DR-006).
 
 ## Core Responsibilities
 
@@ -92,7 +87,7 @@ around a block.
 flowchart TD
     A[BrowserAcquisitionRequest] --> B{Browser.Enabled AND AllowBrowserTier?}
     B -- no --> C[SNR-BRW-001 BrowserTierDisabled]
-    B -- yes --> D{RespectRobots enabled AND robots disallows, OR circuit open?}
+    B -- yes --> D{Compliance mode robots disallows, OR circuit open?}
     D -- yes --> E[SNR-ACQ-004 / SNR-ACQ-003]
     D -- no --> F[Acquire host rate + concurrency lease]
     F --> G[Rent context from pool]
@@ -169,8 +164,7 @@ public interface IBrowserLease : IAsyncDisposable
 | `ExtraHTTPHeaders` | `Accept-Language` from the identity profile |
 | `JavaScriptEnabled` | true |
 
-No stealth plugin, no `navigator.webdriver` patching, no fingerprint randomisation. Realism here means
-"a coherent ordinary headless Chromium deployment", not "a disguise".
+In Compliance, realism means a coherent ordinary headless Chromium deployment without disguise. In Stealth, only a preconfigured, validated UA/fingerprint profile is permitted; no runtime patching or fingerprint randomisation is allowed.
 
 ### Wait strategies
 
@@ -246,22 +240,15 @@ tooling" constraint below:
 
 ## Constraints
 
-- **Opt-in twice** — global and per-source; default off.
-- **No run-time escalation into or out of the browser tier** (DR-004).
-- **Shared politeness** — the browser acquires the same per-host rate and concurrency leases as HTTP, so a
-  browser run cannot exceed the budget.
-- **Bounded resources** — contexts, pages, scrolls, operations per context, and context age are all capped.
+- **Shared politeness** — browser work acquires the same per-host rate and concurrency leases as HTTP and cannot exceed the source budget.
+- **Configured, never reactive stealth** — browser identity/fingerprint selection happens before a run; challenge signals cannot trigger profile mutation, proxy rotation, or a solver.
+- **Bounded resources** — contexts, pages, scrolls, operations per context, and context age are capped.
 - **No leaks** — an integration test asserts zero orphaned Chromium processes after a fault-injected run.
-- **No stealth tooling** — no evasion packages are referenced; the dependency list is asserted. This
-  constraint applies identically to the manual challenge hand-off path — it launches the same plain
-  Chromium build, never a hardened/evasion variant.
-- Playwright browsers must be installed; a missing installation fails at startup with actionable guidance
-  (`SNR-BRW-005`), never at the first user request.
-- **Manual challenge hand-off is operator-invoked only** (DR-014) — `PlaywrightChallengeHandoff` has no
-  in-pipeline caller, is disabled outside interactive execution modes, and never automates the challenge
-  itself; it only opens a real window for a human to use normally. It does not weaken DR-004: the gating
-  flags still govern every *automated* Tier 3 run, and the hand-off never executes a plan's interaction
-  steps.
+- Playwright browsers must be installed; a missing installation fails at startup with actionable guidance.
+
+### Scope boundaries
+
+CAPTCHA/challenge detection is supported. CAPTCHA solving through a provider, human-in-the-loop completion, or an agent controlling a browser is future work. Login, paywall, authentication, authorization, and access-control bypass are out of scope in both modes. Browser execution never escapes the acquisition pipeline's host limiter, cache policy, `Retry-After`, circuit breaker, or source-level mode audit.
 
 ## Acceptance Criteria
 
@@ -283,7 +270,7 @@ tooling" constraint below:
 | AC-BRW-009 | P0 | Given a browser run for a host at its rate limit | The run waits for the same per-host lease as HTTP; the combined rate stays within budget | Integration — shared limiter |
 | AC-BRW-010 | P0 | Given a consent wall in the browser | One accept click is performed, the cookies are lifted into the per-host jar, and a subsequent HTTP-tier request carries them | Integration — cookie hand-off |
 | AC-BRW-011 | P0 | Given Playwright browsers are not installed | Startup validation fails with `SNR-BRW-005` and a message naming the install command | Unit — environment validation |
-| AC-BRW-012 | P0 | Given the shipped dependency list | No stealth/evasion package is referenced | Unit — dependency assertion test |
+| AC-BRW-012 | P0 | Given a configured Stealth browser profile | Only an implemented, validated capability/provider is used; unsupported configuration fails before launch | Unit — capability validation |
 | AC-BRW-013 | P1 | Given resource blocking enabled on a product page | Image/media/font requests are aborted and total bytes drop by ≥ 50 % versus unblocked | Integration — byte accounting on a recorded page |
 | AC-BRW-014 | P1 | Given a source flagged `RequiresImages` with `NetworkIdle` | Resource blocking is automatically disabled | Unit — interaction rule |
 | AC-BRW-015 | P1 | Given `CaptureNetwork = true` on a page that fetches a JSON API | The network log contains that endpoint with method, URL, and status | Integration — endpoint discovery |
@@ -291,7 +278,7 @@ tooling" constraint below:
 | AC-BRW-017 | P1 | Given an idle pool for longer than `ContextIdleTimeout` | Contexts are evicted and the browser process is shut down | Integration — idle eviction |
 | AC-BRW-018 | P1 | Given a source in `ChallengePaused` and an operator invokes the manual hand-off in `ExecutionMode.Development` | A non-headless, plain Chromium context opens at the source URL with standard `DesktopChrome` realism and no interaction steps are executed | Integration — assert visible context, zero step invocations |
 | AC-BRW-019 | P0 | Given `ExecutionMode.OfflineFixture` or a CI profile | Invoking the manual hand-off throws immediately without launching a browser | Unit — mode gate |
-| AC-BRW-020 | P1 | Given the manual hand-off's shipped dependency list | No stealth/evasion package is referenced, identical to the assertion for the automated tier (AC-BRW-012) | Unit — dependency assertion test |
+| AC-BRW-020 | P1 | Given CAPTCHA detection during browser acquisition | The result is recorded as a challenge; no CAPTCHA solver is invoked | Integration — detector and absence-of-solver assertion |
 
 ## Error Handling
 

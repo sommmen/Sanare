@@ -24,7 +24,7 @@
 | 1.1 | 2026-09-06 | Spec-Forge | Agent Framework facts verified against release **1.20.0**: package pins and preview/abandoned-package traps recorded in §7.1; renamed API vocabulary (`AgentSession`, `AgentResponse<T>`, `AsAIAgent`, `CreateSessionAsync`) adopted; §8.3.2 given an explicit workflow/executor/request-port mapping; §9.2.4 states the deliberate non-dependency on `Microsoft.Agents.AI.Hosting`; §13.2 pins the OpenTelemetry source names and the single-layer instrumentation rule; §18 Appendix B expanded. |
 | 1.2 | 2026-09-06 | Spec-Forge | Adds bounded `llms.txt` discovery evidence, a composable content-transformation pipeline, reduced/full LLM content views, and TOON at JSON-shaped tool-output boundaries; preserves fixture-first authoring, robots precedence, typed internal models, and the fixed ten-tool surface. |
 | 1.3 | 2026-09-06 | Spec-Forge | Resolves OQ-1–OQ-6 (see DR-010–DR-015): configurable, OmniRoute-compatible model-profile routing for authoring vs. healing (§7.1, §9.2.4); pyramid fixture-retention policy (§7.4); monthly per-source LLM budget with typed exhaustion behaviour (§7.4, §11.5, §13.2); a swappable script-repository coordination lease abstraction, file-lock default (§8.1, `script-repository`); adaptive, per-source-configurable polite rate limiting plus an operator-only manual challenge-clearing workflow that does not weaken NG-1/NG-2/NG-3 or the "never escalate around a block" rule (§7.4, §11.4, `acquisition-pipeline`, `browser-tier`); confirms no admin UI and full Aspire/OpenTelemetry-compatible observability (§13, `observability`). |
-| 1.4 | 2026-09-06 | Spec-Forge | **Corrects the robots.txt default (DR-016), superseding the v1.0–v1.3 framing:** `RespectRobots = false` by default — `Disallow` rules are bypassed unless an operator opts a source into enforcement, replacing the previous "honoured by default" / "override requires acknowledgement" posture (§11.4, NG-6, `acquisition-pipeline`, `browsing-identity`, `sample-app-lenovo`). `robots.txt` fetch/parse/cache, `Crawl-delay` politeness, and `llms.txt` discovery remain unconditional and unaffected. `Retry-After` obedience, per-host rate limiting, and the 403/challenge circuit breaker were never conditional on robots.txt and remain fully mandatory. NG-1/NG-2/NG-3 and DR-014's no-automated-bypass posture are explicitly unchanged. |
+| 1.4 | 2026-09-06 | Spec-Forge | Adds explicit `Compliance` (default) and audited `Stealth` acquisition modes. Compliance enforces `robots.txt` and identifies Sanare; Stealth capability-gates proxy rotation, CAPTCHA detection, and coherent TLS/JA3 and UA/fingerprint profiles. Both modes retain mandatory traffic safeguards; CAPTCHA solving is future work and authentication/paywall/access-control bypass remains out of scope. |
 | 1.5 | 2026-09-06 | Spec-Forge | **Renames the project from "Self-Healing Scraper" to "Sanare" (DR-017).** Purely a naming/branding change with no architectural impact: `SelfHealingScraper.*` package/namespace prefixes become `Sanare.*`; the `self-healing-scraper` slug becomes `sanare` (directories, doc titles, project/feature identifiers); the `SHS-{AREA}-{nnn}` error-code prefix becomes `SNR-{AREA}-{nnn}`; the `shs.*` telemetry/metric namespace becomes `sanare.*`; `docs/self-healing-scraper/` and `ideas/self-healing-scraper/` are renamed to `docs/sanare/` and `ideas/sanare/`. No requirement, acceptance criterion, decision record, or behavioural default introduced by v1.0–v1.4 is altered. |
 
 ## 3. Overview
@@ -76,9 +76,9 @@ output, workflow orchestration, human-in-the-loop, and observability substrate.
 
 | # | Non-goal | Rationale |
 |---|----------|-----------|
-| NG-1 | CAPTCHA solving, challenge-page defeat, or commercial anti-bot bypass | Explicitly out of scope; "bare minimum" evasion only. A hard block is a terminal, reported outcome, not something to defeat |
-| NG-2 | Residential/rotating proxy networks, TLS/JA3 fingerprint spoofing | Beyond "blend in as an ordinary browser"; carries legal and operational risk disproportionate to the benefit |
-| NG-3 | Bypassing authentication, paywalls, or access controls | Only publicly reachable pages are in scope |
+| NG-1 | Automated CAPTCHA solving or challenge defeat | CAPTCHA and challenge detection are supported; solver services, human-in-the-loop completion, and agent-controlled browser solving are future work |
+| NG-2 | Unconditional or hidden evasion behaviour | Proxy rotation and coherent TLS/JA3 and UA/fingerprint profiles are allowed only through explicitly enabled, observable stealth capabilities; they are never default or adaptive escalation |
+| NG-3 | Bypassing authentication, paywalls, or access controls | Only publicly reachable pages are in scope, in both acquisition modes |
 | NG-4 | A hosted service, control-plane UI, or multi-tenant SaaS | Deliverable is an embeddable library plus a sample app |
 | NG-5 | Distributed crawl scheduling / queue infrastructure | Single-process and embeddable; the host application owns scheduling and scale-out |
 | NG-6 | A general-purpose "ask the web anything" agent | The system extracts a *declared schema* from a *declared source* |
@@ -142,7 +142,7 @@ component feature specs under `docs/features/`, not as separate sub-project tech
 | AC-008 | P0 | Given a per-host rate limit of N requests/minute, when a run needs more than N requests | Requests are paced so that no rolling 60-second window exceeds N; the run still completes | Integration — fake clock + request timestamp assertions |
 | AC-009 | P0 | Given the target responds `429` with `Retry-After`, when the pipeline retries | The pipeline waits at least the `Retry-After` duration, applies exponential backoff with jitter on subsequent failures, and abandons after the configured attempt cap with `RateLimited` status | Integration — stub transport returning 429 sequences |
 | AC-010 | P0 | Given the target responds `403` consistently for a host | The host is circuit-broken for the configured cool-down; subsequent calls fail fast with `Blocked` without issuing requests | Integration — assert zero requests during the open-circuit window |
-| AC-011 | P0 | Given `robots.txt` disallows the requested path and `RespectRobots` is enabled | The run returns `DisallowedByRobots` before any content request is made | Unit — robots parser + pipeline gate |
+| AC-011 | P0 | Given `robots.txt` disallows the requested path and `AcquisitionMode.Compliance` is active | The run returns `DisallowedByRobots` before any content request is made | Unit — robots parser + pipeline gate |
 | AC-012 | P0 | Given a fixture exists for a URL, when the fixture-replay transport is active | No network socket is opened; extraction runs against the stored bytes | Integration — run the full suite with an egress-blocking handler installed |
 | AC-013 | P0 | Given a heal run produces a repaired plan, when the plan is validated | The repaired plan must pass against the newly captured fixture **and** all retained historical fixtures for that source; failing any historical fixture rejects the heal | Integration — repair a lister plan and assert rejection when an old fixture regresses |
 | AC-014 | P0 | Given per-field null-rate for a P0 field exceeds its configured threshold over the evaluation window | The evaluator raises a `QualityDegraded` signal naming source, field, previous and current rate, and dispatches at most one concurrent heal run per source | Unit + Integration — seeded telemetry store; assert single dispatch under concurrent triggers |
@@ -1570,61 +1570,23 @@ Because every behaviour change is a git commit, "who changed the scraper and why
 | Cookie handling | Per-host jar limited to consent/session cookies required to reach public content; never shared across sources |
 | Browser isolation | Ephemeral contexts, downloads disabled, no persistent storage, navigation allow-list |
 
-### 11.4 Anti-Detection, Politeness, and Legal Posture
+### 11.4 Acquisition Policy, Politeness, and Legal Posture
 
-This is the area with the most potential for misuse, so the design states its limits explicitly.
+Every source has an explicit `AcquisitionMode`; `Compliance` is the default. Mode selection changes identity and allowed mitigation capabilities, but **never** the traffic-protection invariants.
 
-**What the system does (the requested "bare minimum"):**
+| Mode | Identity and access policy | Allowed capability posture |
+|------|----------------------------|----------------------------|
+| `Compliance` | Enforces applicable `robots.txt` `Disallow` rules before a request and uses a Sanare-identifying bot User-Agent. | Normal HTTP/browser acquisition, consent handling, caching, and CAPTCHA/challenge detection. A block is terminal for automated execution. |
+| `Stealth` | Is an audited, source-level opt-in for publicly accessible data; it does not permit authentication, paywall, or access-control bypass. | Optional, provider-backed proxy rotation and coherent TLS/JA3 and UA/fingerprint profiles may be enabled only when implemented and validated. CAPTCHA/challenge detection is allowed; solving is future work. |
 
-1. **Honest, stable browsing identity.** A single consistent, documented User-Agent identifying an
-   automated assistant-style browser (the `AssistantBrowser` profile), with a coherent header set
-   (`Accept`, `Accept-Language` matching the source culture, `Accept-Encoding`, `Sec-Fetch-*`) and correct
-   HTTP/2 behaviour. Coherence — not disguise — is what avoids naive bot heuristics.
-2. **Human-plausible, adaptive pacing.** Per-host rate limits, minimum delays, jitter, and bounded
-   concurrency, so the crawler is indistinguishable from light human traffic by volume. The limiter is
-   adaptive within source-configurable bounds (DR-014): it backs off automatically on `429`/`403`/
-   challenge signals and recovers gradually, because some sites tolerate far more sustained volume than
-   others and a single fixed default either overshoots quiet sites or undershoots tolerant ones.
-3. **Cache-first behaviour.** Conditional requests, result caching, and fixture replay mean the same page
-   is not fetched twice without reason. The cheapest way not to be blocked is not to make the request.
-4. **Consent-wall handling.** Detect the wall, apply the standard consent cookie (or dismiss it once in
-   the browser tier), persist it per host, and move on.
-5. **Respect pushback signals, unconditionally.** `Retry-After` is obeyed and `429`/`403` open a circuit
-   breaker that stops traffic rather than escalating it — this is never optional. `robots.txt` is fetched
-   and parsed by default (for crawl-delay and `llms.txt` discovery) but its `Disallow` rules are **bypassed
-   by default**; enforcing them is an explicit, per-source opt-in (`RespectRobots`, DR-016) — the design
-   does not treat a policy file as a blocking signal the way it treats an actual server pushback response.
-6. **Browser tier realism.** When Playwright is used, it runs with a normal viewport, locale, and timezone
-   matching the source, and with the automation flag surface reduced to the level of an ordinary
-   headless-Chromium deployment.
-7. **Operator-only manual challenge hand-off (DR-014).** When a source is `Blocked` by a hard challenge or
-   IP block that politeness alone cannot clear, a developer/operator may explicitly invoke a workflow that
-   opens a real, visible browser window against the source, so a human can view and clear the challenge (or
-   get the IP unblocked) themselves. This is a person taking a recovery action outside the automated
-   pipeline, not an automated escalation: it requires an explicit operator invocation, is unavailable in
-   unattended/offline execution modes, is fully audited (§11.5), and does not change `browser-tier`'s
-   "no run-time escalation into or out of the browser tier" rule (DR-004) or its "no stealth tooling"
-   constraint — the browser is a normal, visible, human-driven session, not an automated evasion technique.
+**Mandatory in both modes:**
 
-**What the system deliberately does not do (NG-6):**
+1. **Centralized governed acquisition.** Plans, agents, and sample applications cannot bypass `IContentAcquirer` / browser-host limiter enforcement.
+2. **Bounded, adaptive traffic.** Per-host rate and concurrency limits, pacing with jitter, cache-first and conditional requests, `Crawl-delay` as a politeness floor where readable, bounded retries, and strict `Retry-After` handling apply in every mode. `429`, `403`, and challenge signals only slow or stop traffic; they never increase request volume or trigger automatic capability escalation.
+3. **Bounded browser cost.** Browser requests consume the same host budgets and block nonessential resources where doing so does not change required page behaviour.
+4. **Observable decisions.** Mode, identity profile, enabled capabilities, proxy-provider identity (not credentials), robots decision, request volume, and block/challenge outcomes are recorded in diagnostics.
 
-- No rotating residential proxies, no IP rotation, no CAPTCHA-solving services, no TLS/JA3 fingerprint
-  spoofing, no browser-fingerprint randomisation, no impersonation of a *specific* third party's
-  infrastructure or crawler identity.
-- No bypassing of authentication, paywalls, or access controls.
-- `robots.txt` `Disallow` enforcement is opt-in, not a thing this list restricts: bypassing it is the
-  default posture (DR-016). What remains off the table regardless of `RespectRobots` is everything above
-  this bullet — proxy/IP rotation, CAPTCHA solving, fingerprint spoofing/randomisation, third-party
-  impersonation, and access-control bypass. Robots.txt is a voluntary crawler-etiquette signal, not an
-  access control, and treating it as one would conflate two very different kinds of "no."
-
-**Legal/ToS posture.** Automated collection of public product data may still conflict with a site's terms
-of service. The library therefore (a) makes the operator's choices explicit and auditable rather than
-implicit, (b) ships with `RespectRobots = false` by default — `Disallow` rules are bypassed unless an
-operator opts a source into enforcement — while `Retry-After`, rate limiting, and circuit-breaking remain
-mandatory and unaffected by this switch, (c) documents that the operator is responsible for the legality of
-each configured source, and (d) provides a `ComplianceReport` per source summarising the `RespectRobots`
-configuration state, robots status, request volume, and identity profile. See DR-006 and DR-016 in §17.
+**Capability boundaries:** CAPTCHA/challenge **detection** is an optional supported capability. Automated solver services, human-in-the-loop completion, and an agent controlling a browser to solve a challenge are future work. Proxy rotation, TLS/JA3 spoofing, and UA/fingerprint disguise are optional stealth-only capabilities that require explicit provider/profile configuration, startup validation of compatible values, and auditable provenance. No mode may bypass login, paywall, authentication, authorization, or another access control.
 
 ### 11.5 Audit Logging
 
@@ -1870,7 +1832,7 @@ traceability.
 | OQ-2 | Should the fixture corpus be committed to the consumer's repo or kept only in the state root? | Platform | Resolved — DR-011. Neither extreme: a **pyramid** — a handful of "full" reference captures per source plus targeted, redacted slice fixtures pinned to specific bugs/regressions — all retained in the state root (fixtures remain outside the script git repo, unchanged from v1.2), with the small/redacted tier being the one a consumer would choose to commit to their own repo for CI if they want fixtures under source control. |
 | OQ-3 | What is the acceptable monthly LLM budget per source? | Product | Resolved — DR-012. No single fixed figure; a **configurable monthly budget per source** gates authoring/healing attempts and evaluator cadence, with a typed exhaustion outcome rather than silent overspend. |
 | OQ-4 | Do we need multi-process/multi-machine coordination for the script repository? | Platform | Resolved — DR-013. The default remains single-machine file locking, but coordination is now expressed behind a swappable `IRepositoryCoordinator` abstraction so a distributed semaphore/mutex can replace it without changing `script-repository`'s public contract. |
-| OQ-5 | How are bol.com-style sources with aggressive protection treated if politeness alone is insufficient? | Product/Legal | Resolved — DR-014. The no-bypass posture (NG-1/NG-2/NG-3, DR-006) is unchanged: no CAPTCHA solving, no fingerprint spoofing, no auth/paywall bypass. What is added is (a) an adaptive, per-source-configurable polite rate limiter tuned to each site's real tolerance instead of one fixed global default, and (b) an operator-only, development-time manual browser hand-off that lets a human clear a challenge/unblock an IP outside the automated pipeline — this is explicitly a recovery action taken *by a person*, not an automated escalation, and does not relax the acquisition pipeline's "never escalate around a block" rule. |
+| OQ-5 | How are bol.com-style sources with aggressive protection treated if politeness alone is insufficient? | Product/Legal | Resolved — DR-014. The public-data boundary remains: CAPTCHA solving is future work, and no mode permits authentication, paywall, or access-control bypass. Explicit Stealth mode may use only preconfigured, capability-gated proxy and coherent TLS/JA3 or UA/fingerprint profiles. What is added is (a) an adaptive, per-source-configurable polite rate limiter tuned to each site's real tolerance instead of one fixed global default, and (b) an operator-only, development-time manual browser hand-off that lets a human clear a challenge/unblock an IP outside the automated pipeline — this is explicitly a recovery action taken *by a person*, not an automated escalation, and does not relax the acquisition pipeline's "never escalate around a block" rule. |
 | OQ-6 | Is a minimal admin UI in scope, or is the administration API sufficient? | Product | Resolved — DR-015. No admin UI; the administration API remains the only control surface. Observability is expanded, not reduced: chat/agent-session activity, cost, and model-route data must be visible through OpenTelemetry so a consumer hosting the library under .NET Aspire sees it in the Aspire dashboard without the library shipping its own UI. |
 
 ### 17.2 Decision Records
@@ -1907,13 +1869,11 @@ layout and silently breaks variant pages (a different Lenovo spec-table shape, a
 block). Consequence: fixture retention has real cost, and the retention policy protects tag-referenced
 fixtures from pruning.
 
-**DR-006 — Bare-minimum, honest blending-in; no arms race, no impersonation of a named third party.**
-*Status: Accepted.* The system presents a consistent, documented automated-assistant browsing identity and
-invests in politeness, caching, and coherence rather than in fingerprint spoofing, proxy rotation, or
-CAPTCHA solving. It does not claim to be another organisation's crawler. Rationale: the effective, durable
-defence against blocking is low, well-behaved volume; an arms race is expensive, fragile, and carries
-legal and ethical exposure. Consequence: some heavily protected sources will simply be unavailable, and
-that is reported honestly as `Blocked` rather than escalated around.
+**DR-006 — Explicit acquisition modes and identity profiles.** *Status: Accepted.*
+
+**Decision:** Model acquisition policy explicitly. `Compliance` is the default and uses the `AssistantBrowser` identity that identifies Sanare. `Stealth` is an audited opt-in that may select validated proxy and coherent TLS/JA3 or UA/fingerprint profiles. Identity/profile changes are configuration-driven, never automatic responses to a block.
+
+**Rationale:** The prior single identity could not express the product's two supported operating policies. Explicit mode and capability provenance preserves operational control while retaining stable, compatible profiles.
 
 **DR-007 — Fixtures are the single test corpus for authoring, CI, and healing.**
 *Status: Accepted.* Alternatives: hand-written HTML samples (rejected: they diverge from reality and
@@ -1981,22 +1941,11 @@ a local on-disk repo" design goal); leaving coordination unabstracted (rejected:
 change later for any host that outgrows a single process). Consequence: `script-repository` documents the
 coordinator seam and its default; no new external dependency is introduced by default.
 
-**DR-014 — Politeness becomes adaptive and per-source-configurable; a human-operated manual challenge
-hand-off is added; the no-bypass posture (DR-006, NG-1–NG-3) is unchanged.** *Status: Accepted.* Two
-additions, both scoped tightly so as not to weaken DR-006: (a) the acquisition pipeline's rate limiter
-becomes adaptive within source-configurable bounds (e.g. an AIMD-style controller that backs off on
-`429`/`403`/challenge signals and can recover), because different sites tolerate different sustained
-volumes and a single fixed global default (previously 20/min, §7.4) either overshoots quiet sites or
-undershoots tolerant ones; (b) a development-time, operator-invoked workflow lets a human open a real,
-visible browser window against a blocked source, clear a challenge or get an IP unblocked themselves, and
-signal the pipeline to resume — this is a person taking a manual recovery action outside the automated
-pipeline, not an automated escalation, and it does not alter `browser-tier`'s "no run-time escalation into
-or out of the browser tier" constraint (DR-004) or its "no stealth tooling" constraint. Explicitly out of
-scope, unchanged from DR-006/NG-1/NG-2/NG-3: CAPTCHA-solving, fingerprint spoofing, proxy/IP rotation, and
-any bypass of authentication, paywalls, or access controls. Consequence: `acquisition-pipeline` gains
-adaptive-limiter parameters and a `ChallengePaused`-style state distinct from the terminal `Blocked`
-status; `browser-tier` gains a clearly-scoped, explicitly manual recovery mode; the circuit-breaker rule in
-§7.4 is updated to reference this recovery path instead of only "open 30 min".
+**DR-014 — Adaptive politeness across both acquisition modes.** *Status: Accepted.*
+
+**Decision:** Apply adaptive politeness in every acquisition mode. Block and challenge detection feeds the same per-host circuit breaker and can only reduce or pause traffic. In `Compliance`, a challenge is terminal for automated execution. In `Stealth`, enabled mitigation capabilities are chosen before the run; no response may cause automatic proxy rotation, fingerprint change, or CAPTCHA solving.
+
+**Rationale:** Mode flexibility must not turn target pushback into an escalation loop or weaken request-volume safeguards.
 
 **DR-015 — No admin UI; observability is the administration surface, and it must be Aspire-friendly.**
 *Status: Accepted.* The administration API (approve/roll back/override) remains the only control surface;
@@ -2011,27 +1960,11 @@ unobserved (rejected: without it, cost and model-routing decisions would be unau
 new UI component is designed; `observability` gains model-route tags and budget metrics rather than a
 visualisation layer.
 
-**DR-016 — `robots.txt` `Disallow` enforcement is bypassed by default; it is a per-source opt-in, not the
-default posture.** *Status: Accepted.* Supersedes the robots-related framing in DR-006/NG-6/§11.4 as
-originally written (those sections previously stated `RespectRobots = true` by default with no override).
-The corrected default: `RespectRobots = false` per source — a disallowed URL is still requested through the
-normal governed acquisition path. `robots.txt` is still fetched, parsed, and cached by default because
-`Crawl-delay` (a politeness signal, honoured unconditionally) and `llms.txt` discovery both depend on it;
-only the `Disallow`-rule *enforcement* is conditional. An operator may set `RespectRobots = true` per source
-as an ordinary configuration value — this is not logged as an "override" or "acknowledgement" the way a
-genuine escape hatch would be, because bypass is the normal default, not an exception. Alternatives
-considered: obey robots.txt by default with an explicit override (rejected: this was the original v1.3
-posture and does not match the accepted product decision); ignore robots.txt entirely with no way to
-opt into enforcement (rejected: some sources are consumed by another team or in a context where honouring
-robots.txt is desired, so the capability must remain available, just not mandatory). This decision is
-narrowly scoped to the robots.txt policy file only. It does **not** relax any other boundary: NG-1
-(no CAPTCHA-solving), NG-2 (no proxy/IP rotation, no fingerprint spoofing), NG-3 (no bypass of
-authentication, paywalls, or access controls), and DR-014's no-automated-bypass posture for actual blocks
-and challenges are all unchanged — `Retry-After` obedience, per-host rate limiting, and the 403/challenge
-circuit breaker remain mandatory regardless of `RespectRobots`. Consequence: `acquisition-pipeline`'s data
-flow no longer gates every request on a robots check; `SNR-ACQ-004 DisallowedByRobots` only fires when
-`RespectRobots = true` for that source; `ComplianceReport` reports the `RespectRobots` configuration state
-per source rather than an "override acknowledgement."
+**DR-016 — Compliance robots enforcement is the default.** *Status: Accepted.*
+
+**Decision:** `AcquisitionMode.Compliance` is the default and enforces applicable `robots.txt` `Disallow` rules. `AcquisitionMode.Stealth` is an explicit, audited source configuration that may request publicly accessible disallowed paths through the normal governed pipeline. Both modes fetch and parse robots for crawl-delay and discovery evidence, and both apply all pacing, cache, retry, and circuit-breaker limits.
+
+**Rationale:** Robots behaviour is a core mode distinction, not an incidental per-source boolean. A safe default makes compliant operation predictable while preserving an intentional, observable stealth policy.
 
 **DR-017 — Project renamed to "Sanare."** *Status: Accepted.* The working name "Self-Healing Scraper"
 was descriptive rather than a proper product name and was never registered anywhere; the project is renamed
@@ -2123,7 +2056,7 @@ becomes `SNR-`; the `shs.` metric namespace becomes `sanare.`; `docs/self-healin
 | AC-008 per-host politeness | §7.5 politeness maths | `acquisition-pipeline` |
 | AC-009 retry/backoff on 429/5xx | §7.6 retry config | `acquisition-pipeline` |
 | AC-010 circuit breaker on block | §7.6, §13.3 | `acquisition-pipeline` |
-| AC-011 robots enforcement is opt-in (bypassed by default) | §11.4, §7.7 SNR-ACQ-004, DR-016 | `acquisition-pipeline` |
+| AC-011 default Compliance mode enforces robots; explicit Stealth decisions are audited | §11.4, §7.7 SNR-ACQ-004, DR-016 | `acquisition-pipeline` |
 | AC-012 offline fixture replay | §8.4, §9.2.3 | `fixture-corpus` |
 | AC-013 heal regression gate | §8.3.3 step 5, DR-005 | `healing-workflow` |
 | AC-014 degradation detection | §7.5 field health, §13.3 | `quality-evaluator` |

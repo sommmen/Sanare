@@ -238,7 +238,7 @@ Rules:
 | browser tier | global `Browser.Enabled` **and** source `AllowBrowserTier` | global false |
 | compiled C# plan | source `Runtime.AllowCompiledPlans` **and** valid signed marker file | false |
 | prune/history rewrite | administration API only; tag-referenced fixtures still protected | restricted |
-| robots enforcement | ordinary per-source configuration value (not an audited override) | `RespectRobots = false` (bypasses `Disallow` by default); set `true` per source to opt into enforcement |
+| acquisition mode | source-level explicit configuration with provenance | `AcquisitionMode.Compliance` by default (enforces `Disallow`); audited `Stealth` is required to proceed through a disallowed public path |
 
 ### Environment profiles
 

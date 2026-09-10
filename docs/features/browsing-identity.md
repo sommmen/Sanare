@@ -15,13 +15,7 @@
 
 ## Purpose
 
-The brief asked the scraper to "blend in" with bare-minimum circumvention. This component is the concrete,
-bounded answer: a single **honest, coherent, stable** browsing identity — the `AssistantBrowser` profile —
-whose header set, language, and encoding negotiation are internally consistent, plus consent-wall handling
-so a cookie banner does not masquerade as a layout break. Coherence, not disguise, is what defeats naive
-bot heuristics. Everything beyond that line (proxy rotation, CAPTCHA solving, fingerprint randomisation,
-impersonating a named third party's crawler) is deliberately absent from the API surface, and this spec is
-where that absence is tested.
+This component makes the source's explicit acquisition mode mechanically visible in every request. In default `Compliance` mode it supplies a stable, coherent `AssistantBrowser` identity that identifies Sanare as an automated client and supports robots enforcement. In audited `Stealth` mode it selects only explicitly enabled, internally compatible proxy and TLS/JA3 or UA/fingerprint profiles for public data. CAPTCHA/challenge detection is represented here; solving remains future work.
 
 ## Scope
 
@@ -36,9 +30,10 @@ where that absence is tested.
 - Referer synthesis for detail pages reached from a lister within the same run.
 - Consent-wall detection (signatures) and the standard consent-cookie response, persisted per host.
 - Per-host cookie jar with a bounded, inspectable, non-persisted-to-fixture lifetime.
-- `ComplianceReport` per source: `RespectRobots` configuration state, robots status, request volume,
-  identity profile.
-- Compile-time/API-time refusal of the excluded techniques.
+- `ComplianceReport` per source: acquisition mode, robots decision/status, request volume, identity profile,
+  and enabled capability identifiers (never credentials).
+- Compile-time/API-time refusal of excluded bypasses, CAPTCHA solvers, and unconfigured or incompatible
+  Stealth capabilities.
 
 **Excluded:**
 
@@ -178,19 +173,19 @@ suspicious traffic in production.
   which the resulting cookies are lifted into the per-host jar so the HTTP tier can continue unaided.
 - Cookies are **never** written into fixtures (redaction strips them) and are never logged.
 
-### What is not offered
+### Scope boundaries
 
-The following have no configuration, no interface, and no extension point, and an approval test asserts
-their absence from the public API surface (AC-028):
+- CAPTCHA solving through a service, human-in-the-loop completion, and browser-agent solving are future work.
+- Authentication, login, paywall, authorization, and access-control bypass are out of scope in every mode.
+- Sending requests, rate limiting, robots enforcement, and circuit breaking belong to `acquisition-pipeline`.
 
-- Proxy or IP rotation.
-- CAPTCHA-solving integrations.
-- TLS/JA3 or browser-fingerprint spoofing or randomisation.
-- Impersonating a named third-party crawler's user agent or IP ranges.
+## Constraints
 
-Robots.txt policy is deliberately **not** in the list above: bypassing `Disallow` rules is the library's
-ordinary default (§11.4/DR-016 in `tech-design.md`), configurable per source via `RespectRobots`, and is
-unrelated to the honest-identity and no-evasion guarantees this list protects.
+- **Compliance by default** — absent an explicit source setting, use `AcquisitionMode.Compliance`, enforce robots, and identify Sanare in the User-Agent.
+- **No automatic escalation** — a block may record detection and reduce traffic, but cannot rotate a proxy, mutate a fingerprint, or invoke a solver.
+- **Coherent and auditable stealth** — optional proxy rotation and TLS/JA3 or UA/fingerprint profiles are selected before a run, validated against the actual transport/browser context, and recorded without secrets.
+- **Public data only** — identity capabilities never authorize access-control bypass.
+- Cookies stay in the per-host jar and never in fixtures, logs, or telemetry.
 
 ## Constraints
 
@@ -205,26 +200,12 @@ unrelated to the honest-identity and no-evasion guarantees this list protects.
 
 | AC-ID | Priority | Criterion | Expected Result | Verification Method |
 |-------|----------|-----------|-----------------|---------------------|
-| AC-028 | P0 | Given the public API of all shipped packages | No type or member exposes proxy rotation, CAPTCHA solving, fingerprint spoofing, or third-party crawler impersonation | Unit — PublicApiGenerator approval test plus a name-pattern assertion over the API surface |
-| AC-010 | P0 | Given a host that blocks the identity | The identity is not changed or rotated in response; the run reports `Blocked` | Integration — assert the same UA on every attempt |
-| AC-011 | P0 | Given robots.txt disallows the path | Identity itself offers no CAPTCHA-solving, fingerprint-spoofing, or impersonation escape hatch (those remain absent); `RespectRobots` enforcement/bypass is handled by `acquisition-pipeline`, not by identity | Unit — no evasion member exists |
-| AC-ID-001 | P0 | Given the `AssistantBrowser` profile and culture `nl-NL` | `Accept-Language` is `nl-NL,nl;q=0.9,en;q=0.8` | Unit — culture mapping |
-| AC-ID-002 | P0 | Given culture `en-US` | `Accept-Language` leads with `en-US`; the profile is otherwise byte-identical | Unit — culture variance is confined to one header |
-| AC-ID-003 | P0 | Given two identity requests with identical inputs | The header lists are equal **including order** | Unit — determinism and ordering |
-| AC-ID-004 | P0 | Given 1 000 identity requests for the same source | Exactly one distinct User-Agent is observed | Unit — no rotation |
-| AC-ID-005 | P0 | Given a profile declaring `Sec-Fetch-User: ?1` with `Sec-Fetch-Mode: cors` | Startup validation fails with `SNR-ID-001` naming the rule | Unit — coherence negative |
-| AC-ID-006 | P0 | Given a profile whose `Accept-Encoding` includes `zstd` while the transport cannot decode it | Startup validation fails with `SNR-ID-001` | Unit — coherence negative |
-| AC-ID-007 | P0 | Given a `DetailFromLister` navigation | `Referer` is the actual lister URL and `Sec-Fetch-Site` is `same-origin` | Unit — navigation context |
-| AC-ID-008 | P0 | Given a `TopLevel` navigation | No `Referer` is sent and `Sec-Fetch-Site` is `none` | Unit — negative for referer synthesis |
-| AC-ID-009 | P0 | Given a cross-origin detail URL with a lister context | No `Referer` is emitted | Unit — same-origin restriction |
-| AC-ID-010 | P0 | Given a OneTrust consent wall fixture | It is detected, the consent cookie is composed, and exactly one retry is signalled | Unit — consent detection with `consent-wall.html` |
-| AC-ID-011 | P0 | Given a consent wall that persists after the retry | Fails with `SNR-ACQ-005`, the diagnostic names the CMP, and no second retry occurs | Integration — negative, assert exactly two requests |
-| AC-ID-012 | P0 | Given a normal product page containing the string `cookie` in body copy | It is **not** classified as a consent wall | Unit — false-positive guard using the real Lenovo product fixture |
-| AC-ID-013 | P0 | Given a consent cookie set for host A | It is not sent to host B | Unit — jar scoping |
-| AC-ID-014 | P0 | Given a captured fixture from a run that had consent cookies | No cookie value appears in the fixture bytes | Integration — with the fixture corpus |
-| AC-ID-015 | P1 | Given a source with `RespectRobots = true` configured explicitly | The compliance report shows `RespectRobots = true` and the source id | Unit — compliance report content |
-| AC-ID-016 | P1 | Given a source with no explicit `RespectRobots` configuration | The compliance report shows `RespectRobots = false` (default bypass posture) | Unit — default posture |
-| AC-ID-017 | P1 | Given the browser tier | The Playwright context's UA matches the `DesktopChrome` profile and its locale matches the source culture | Integration — browser tier coherence |
+| AC-028 | P0 | Given default source configuration | The resolved mode is `Compliance`, the UA identifies Sanare, and an applicable robots `Disallow` is enforceable by acquisition | Unit — policy/profile resolution and acquisition integration |
+| AC-010 | P0 | Given a block or challenge in either mode | The report records the outcome and traffic only slows or stops; identity and proxy selection do not change automatically | Integration — fixed profile and host-budget assertions |
+| AC-011 | P0 | Given stealth is requested with unavailable or incoherent capabilities | Configuration fails with an actionable diagnostic; it does not silently fall back or create a mismatched profile | Unit — capability/profile validation |
+| AC-ID-015 | P1 | Given a configured stealth source | The compliance report includes mode, enabled capability IDs, proxy-provider identifier, and robots decision without credentials | Unit — provenance report content |
+| AC-ID-016 | P1 | Given CAPTCHA signatures | The result is classified as a challenge and no solver is invoked | Unit — detector and absence-of-solver assertion |
+| AC-ID-017 | P1 | Given a login or paywall wall | The result reports unavailable public content; no identity capability attempts bypass | Integration — terminal classification |
 
 ## Error Handling
 

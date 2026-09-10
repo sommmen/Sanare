@@ -16,17 +16,7 @@
 
 ## Purpose
 
-Everything that touches the network goes through one pipeline, so politeness, caching, robots.txt policy
-(bypassed by default, honourable per source on request), rate limiting, circuit breaking, and fixture
-capture are enforced in exactly one place and cannot be bypassed by a plan, an agent, or a sample app. It is the component that keeps the project's promise of
-"don't overload the server and don't get us blocked" mechanically true rather than aspirational, and it is
-the seam where offline replay substitutes disk for sockets.
-
-## Implementation Status
-
-The delivered foundation defines `IContentAcquirer`, `AcquisitionRequest`, `AcquiredContent`, `AcquisitionOptions`, and `HttpContentAcquirer` in `src/Sanare.Core/Acquisition/`. It accepts absolute GET URLs, requires HTTPS by default, streams and caps responses at 16 MiB, normalizes response headers, validates expected content types, resolves charset from the response header, BOM, HTML meta declaration, then UTF-8 fallback, and captures successful live responses through `IFixtureCorpus` before content-type rejection. In offline mode it replays the latest matching fixture without constructing a network request. Focused tests cover offline replay, charset precedence, fixture capture ordering, transport policy, and response constraints.
-
-The remainder of this specification is planned: runner/runtime integration; host pacing and concurrency; robots.txt and `llms.txt`; retries, `Retry-After`, circuit breaking, and challenge hand-off; HTTP caching; explicit redirect-hop policy; cookies and browsing identity; browser escalation; discovery limits; and acquisition diagnostics/telemetry. Requirement and acceptance-criterion language below describes the target completed component unless this section says otherwise.
+Everything that touches the network goes through one pipeline, so acquisition-mode policy, politeness, caching, robots.txt handling, rate limiting, circuit breaking, and fixture capture are enforced in exactly one place. `Compliance` is the default and enforces robots rules with a bot-identifying identity; audited `Stealth` configuration may enable supported mitigation capabilities for public data. Both modes retain the same per-host request-volume safeguards, and offline replay substitutes disk for sockets.
 
 ## Scope
 
@@ -38,9 +28,9 @@ The remainder of this specification is planned: runner/runtime integration; host
   ceiling on clean responses and halves immediately on any block signal (DR-014).
 - Politeness delay with jitter between sequential requests to the same host.
 - `robots.txt` fetching, parsing, and caching for every source (always on, needed for `llms.txt` discovery
-  and crawl-delay information); **enforcement** of its `Disallow` rules is an explicit per-source opt-in
-  (`RespectRobots`, default `false` — see §11.4/DR-016). Crawl-delay is honoured as a politeness floor
-  whenever robots.txt is readable, independent of the `RespectRobots` switch.
+  and crawl-delay information). `AcquisitionMode.Compliance` is the default and enforces applicable
+  `Disallow` rules; explicitly configured, audited `AcquisitionMode.Stealth` records its robots decision.
+  Crawl-delay is honoured as a politeness floor whenever robots.txt is readable in either mode.
 - Discovery-document (`llms.txt`) acquisition when referenced by robots.txt, through the same governed path
   as any other target request — this fetch/parse is independent of whether `Disallow` enforcement is on.
 - Conditional-request HTTP caching (`ETag`/`Last-Modified`) persisted under `cache/http/`.
@@ -69,8 +59,8 @@ The remainder of this specification is planned: runner/runtime integration; host
    status, headers, origin).
 2. **Pace** all traffic per host so the target never sees a burst the library would not want to receive.
 3. **Honor** `Retry-After` and cache headers unconditionally; read robots.txt for crawl-delay and discovery
-   hints by default, and enforce its `Disallow` rules only when `RespectRobots` is explicitly enabled for
-   that source (default: bypass — see §11.4/DR-016).
+   hints in both modes, enforce its applicable `Disallow` rules in default `AcquisitionMode.Compliance`, and
+   record the decision for explicitly configured, audited `AcquisitionMode.Stealth` sources (see §11.4/DR-016).
 4. **Stop** rather than escalate when a host signals blocking.
 5. **Capture** every response into the fixture corpus so the corpus grows naturally from real runs.
 6. **Replay** from the corpus when offline, with a hard guarantee of no network I/O.
@@ -106,7 +96,7 @@ flowchart TD
     B -- yes --> C[FixtureCorpus lookup]
     C -->|hit| D[AcquiredContent origin=Fixture]
     C -->|miss| E[SNR-FIX-001]
-    B -- no --> F{RespectRobots enabled AND robots disallows?}
+    B -- no --> F{Compliance mode AND robots disallows?}
     F -- yes --> G[SNR-ACQ-004 DisallowedByRobots]
     F -- no --> H{circuit open for host?}
     H -- yes --> I[SNR-ACQ-003 Blocked - fail fast]
@@ -174,22 +164,11 @@ public enum ContentOrigin { Network, Cache, Fixture, Browser }
 
 ### robots.txt
 
-- Fetched once per host, cached in memory for 24 hours and on disk under `cache/http/robots/`, regardless
-  of the `RespectRobots` setting — the document is always read because crawl-delay and `llms.txt` discovery
-  depend on it.
-- Parsed for `User-agent`, `Disallow`, `Allow` (longest-match wins), `Crawl-delay`, and `Sitemap`.
-- Matched against the configured identity's product token first, falling back to `*`.
-- Unreachable robots.txt (timeout, 5xx) is treated as "no restrictions" after a short retry budget (3
-  attempts), logged as a warning; a `404` means "no restrictions" per the standard. This applies whether or
-  not `RespectRobots` is enabled.
-- **`RespectRobots` (default `false` — bypass) is a per-source switch (§11.4/DR-016):**
-  - `false` (default): `Disallow` rules are **not** enforced — a disallowed URL is still requested through
-    the normal governed path (rate limiting, circuit breaker, `Retry-After`, and all other politeness
-    controls still apply in full). `Crawl-delay` is still honoured as a politeness floor.
-  - `true` (explicit per-source opt-in): a disallowed URL fails with `SNR-ACQ-004` **before** any request is
-    made — the socket is never opened.
-  - Turning `RespectRobots` on for a source is an ordinary configuration value, not an audited
-    "override" — bypass is the normal, unflagged default; enforcement is the opt-in case.
+- Fetched once per host and cached in memory for 24 hours and on disk under `cache/http/robots/`, regardless of mode, because crawl-delay and `llms.txt` discovery depend on it.
+- Parsed for `User-agent`, `Disallow`, `Allow` (longest-match wins), `Crawl-delay`, and `Sitemap`, matching the configured identity token first and falling back to `*`.
+- An unreachable robots file is logged and treated as no restrictions after the short retry budget; a `404` means no restrictions. This does not relax any other traffic controls.
+- **`AcquisitionMode.Compliance` (default):** an applicable `Disallow` fails with `SNR-ACQ-004` before a socket is opened. Its identity identifies Sanare as an automated client.
+- **`AcquisitionMode.Stealth`:** an applicable `Disallow` may proceed only through the normal governed path and is emitted as a mode/robots diagnostic. `Crawl-delay` remains a politeness floor. This mode does not permit login, paywall, authentication, authorization, or access-control bypass.
 
 ### Discovery documents (`llms.txt`)
 
@@ -274,8 +253,8 @@ DR-006/NG-1–NG-3 (never automate around a block):
   traffic; asserted by an architecture test.
 - **Limiters are shared and process-wide** — per-host budgets are not per-run.
 - **Offline mode opens no sockets** — asserted with a connect-throwing handler.
-- **Never escalate around a block** — a blocked host yields `Blocked`, not a browser retry.
-- **No proxy rotation, no fingerprint spoofing** (DR-006); the pipeline exposes no configuration for them.
+- **Never increase traffic around a block** — a blocked host yields `Blocked`; an explicitly preconfigured Stealth profile may be used only on a later governed run, never as an automatic response.
+- **Stealth capabilities are explicit and provider-backed** (DR-006); optional proxy rotation and validated TLS/JA3 or UA/fingerprint profiles are configured before a run, never selected in response to a block.
 - Every response, including error responses that carry a body, is offered to the fixture corpus so that
   consent walls and empty results become testable artefacts.
 - **Adaptive rate limiting only ever tightens automatically** — the additive-increase step is the sole
@@ -293,9 +272,9 @@ DR-006/NG-1–NG-3 (never automate around a block):
 | AC-009b | P0 | Given a `429` with `Retry-After: 600` (over the 120 s cap) | Fails immediately with `SNR-ACQ-002`; no sleep occurs | Unit — cap boundary |
 | AC-010 | P0 | Given 5 consecutive `403` responses within 5 minutes | The circuit opens; the 6th request fails with `SNR-ACQ-003` **without** a network call; it closes after 30 min | Integration — assert stub server receives exactly 5 requests |
 | AC-010b | P0 | Given 4 consecutive `403` then a `200` | The circuit stays closed and the streak resets | Integration — boundary below the threshold |
-| AC-011 | P0 | Given `robots.txt` disallows the path and `RespectRobots = true` for that source | Fails with `SNR-ACQ-004`; the stub server records zero requests for that path | Integration — robots enforcement |
-| AC-011a | P0 | Given `robots.txt` disallows the path and `RespectRobots = false` (default) | The request proceeds through the normal governed path; rate limiting, circuit breaker, and `Retry-After` still apply | Integration — default-bypass conformance |
-| AC-011b | P0 | Given `robots.txt` returns 404 | The request proceeds (no restrictions), regardless of `RespectRobots` | Integration — standard-conformance |
+| AC-011 | P0 | Given `robots.txt` disallows the path in default `AcquisitionMode.Compliance` | Fails with `SNR-ACQ-004`; the stub server records zero requests for that path | Integration — robots enforcement |
+| AC-011a | P0 | Given robots.txt disallows the path in explicit `AcquisitionMode.Stealth` | The request proceeds through the normal governed path with a mode/robots audit record; rate limiting, circuit breaker, and `Retry-After` still apply | Integration — explicit-stealth conformance |
+| AC-011b | P0 | Given `robots.txt` returns 404 | The request proceeds (no restrictions) in either acquisition mode | Integration — standard-conformance |
 | AC-012 | P0 | Given offline mode | Content resolves from the fixture corpus and no socket is opened | Integration — connect-throwing handler |
 | AC-027 | P1 | Given two concurrent runs against the same host | They share one per-host limiter; combined rate respects the single budget | Integration — two parallel runners, one stub host |
 | AC-ACQ-001 | P0 | Given a `Crawl-delay: 10` in robots.txt and a configured delay of 2 s | The larger (10 s) is used | Unit — delay selection |
@@ -313,13 +292,13 @@ DR-006/NG-1–NG-3 (never automate around a block):
 | AC-ACQ-013 | P1 | Given a page declaring `charset=ISO-8859-1` with accented Dutch text | Text decodes correctly; no mojibake | Unit — charset detection |
 | AC-ACQ-014 | P1 | Given a page with no charset anywhere | UTF-8 is used and a warning diagnostic is recorded | Unit — fallback path |
 | AC-ACQ-015 | P1 | Given robots.txt is unreachable 3 times | Requests proceed with a warning; the failure is recorded in the compliance report | Integration — fail-open grace |
-| AC-ACQ-016 | P1 | Given a cross-host redirect | Robots (crawl-delay, and `Disallow` enforcement if `RespectRobots` is enabled) and limiters for the **destination** host are applied | Integration — two stub hosts |
+| AC-ACQ-016 | P1 | Given a cross-host redirect | Destination-host robots (including Compliance-mode `Disallow` enforcement), crawl-delay, and limiters are applied | Integration — two stub hosts |
 | AC-ACQ-017 | P1 | Given `robots.txt` validly references an `llms.txt` document | It is fetched through the normal `IContentAcquirer` path (same identity, limiter, cache, retries) and captured as a `discovery-llms` fixture | Integration — stub robots + `llms.txt` responses; assert identical governance and fixture capture |
 | AC-ACQ-018 | P1 | Given the discovery-document fetch fails, is disallowed, is malformed, or is absent | Fails with `SNR-ACQ-009` as a non-fatal diagnostic; the caller's primary page-content acquisition proceeds unaffected and no browser-tier fallback is triggered | Integration — each failure mode; assert page acquisition still succeeds |
 | AC-ACQ-019 | P1 | Given a discovery-document response exceeding 512 KiB | The read aborts and fails `SNR-ACQ-010` without buffering the full body | Integration — streaming abort with an oversized stub response |
 | AC-ACQ-020 | P1 | Given `RateLimit.Mode = Adaptive` and a sustained run of clean `200` responses | The effective rate climbs additively toward, but never above, the configured ceiling | Integration — fake clock; assert monotonic non-decreasing rate bounded by the ceiling |
 | AC-ACQ-021 | P1 | Given `RateLimit.Mode = Adaptive` and a `429`/`403`/challenge signature mid-run | The effective rate is immediately halved and the additive climb restarts from the reduced value; the rate never increases as a reaction to a block signal | Integration — inject a block response mid-run; assert rate trajectory |
-| AC-033 | P1 | Given 5 consecutive hard challenge/IP-block signatures (not a generic 403 streak) | The circuit opens as `ChallengePaused` (`SNR-ACQ-011`) with no auto-close timer; subsequent requests fail fast without a network call until either a successful slow-interval probe or an operator-invoked manual hand-off clears it; no automated CAPTCHA-solving, fingerprint spoofing, or access-control bypass occurs | Integration — assert no requests during pause window; assert clearance paths |
+| AC-033 | P1 | Given 5 consecutive hard challenge/IP-block signatures (not a generic 403 streak) | The circuit opens as `ChallengePaused` (`SNR-ACQ-011`) with no auto-close timer; subsequent requests fail fast without a network call until either a successful slow-interval probe or an operator-invoked manual hand-off clears it; no automated CAPTCHA solving or access-control bypass occurs; identity/proxy capabilities remain fixed for the run | Integration — assert no requests during pause window; assert clearance paths |
 | AC-ACQ-022 | P1 | Given a source in `ChallengePaused` and an operator invokes `IChallengeHandoff.OpenAsync` followed by one clean probe | The circuit closes, `ManualChallengeHandoffResolved` is logged, and normal acquisition resumes | Integration — fake handoff completion + stub clean probe |
 | AC-ACQ-023 | P0 | Given `ExecutionMode.OfflineFixture` or a CI profile | `IChallengeHandoff.OpenAsync` throws immediately without attempting to launch a browser | Unit — mode gate |
 
@@ -330,7 +309,7 @@ DR-006/NG-1–NG-3 (never automate around a block):
 | `SNR-ACQ-001` | Transport failure after retries | Error | `ExtractionFailed` | Yes |
 | `SNR-ACQ-002` | Rate limited beyond the wait cap | Error | `RateLimited` | Yes, later |
 | `SNR-ACQ-003` | Blocked / circuit open | Error | `Blocked` | No (until the circuit closes) |
-| `SNR-ACQ-004` | robots.txt disallows **and** `RespectRobots = true` for that source (never raised when `RespectRobots` is `false`, the default) | Error | `DisallowedByRobots` | No |
+| `SNR-ACQ-004` | robots.txt disallows in `AcquisitionMode.Compliance` (the default) | Error | `DisallowedByRobots` | No |
 | `SNR-ACQ-005` | Consent wall detected and unhandled | Error | `ConsentWallBlocked` | No |
 | `SNR-ACQ-006` | Unsupported content type | Error | `ExtractionFailed` | No |
 | `SNR-ACQ-007` | Response body exceeds the ceiling | Error | `ExtractionFailed` | No |
