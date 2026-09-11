@@ -61,8 +61,10 @@ the quality report returned to every caller.
 
 - **`RunObservation`** — the run record produced at the end of every `RunAsync`/`StreamAsync`:
   `RunId`, `SourceId`, `SchemaHash`, `PlanCommitId`, `Status`, `Tier`, `Origin`, `PagesFetched`,
-  `ItemCount`, `Fields[]` (`Pointer`, `Observed`, `Missing`, `CoercionFailed`), `Diagnostics[]`,
-  `HttpStatusCounts`, `BytesDownloaded`, `LlmTokens`, `DurationMs`.
+  `ItemCount`, `Fields[]` (`Pointer`, `Observed`, `Missing`, `CoercionFailed`, `LocatorIndex`,
+  `PrimaryFailureReason`), `Diagnostics[]`, `HttpStatusCounts`, `BytesDownloaded`, `LlmTokens`,
+  `DurationMs`. `LocatorIndex = 1` records a valid fallback selection and `PrimaryFailureReason` preserves
+  why candidate 0 did not complete its pipeline.
 
 ### Outputs
 
@@ -134,6 +136,13 @@ Windowed rules require `observed ≥ MinObservations` (default 5) and any of:
 | `NullRateDrift` | `nullRate(f) − baseline(f) > NullRateDelta` (default 0.25) | required fields |
 | `CoercionFailure` | `coerceFailRate > 0.10` | any field |
 | `ItemCountCollapse` | `itemCount < 50 %` of the trailing median | collection schemas |
+| `FallbackRecoveryRate` | `fallbackRate(f) > FallbackRateDelta` (default 0.10), where `fallbackRate(f) = count(LocatorIndex == 1) / observed(f)` | any field with a fallback candidate |
+
+`FallbackRecoveryRate` is the only rule that dispatches `DegradationDetected` with `Classification hint =
+FallbackRecovered` rather than `Unknown`; the healing workflow's classifier (§ Step 3, `healing-workflow.md`)
+still re-derives the classification independently from fresh evidence, but the hint lets the evaluator
+route straight to candidate replenishment instead of a full diff when the pattern is already this legible
+from telemetry alone.
 
 Immediate triggers fire on a **single** run, with no window and no `MinObservations` gate:
 

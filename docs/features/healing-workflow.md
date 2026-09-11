@@ -85,14 +85,16 @@ flowchart TD
     A[DegradationDetected] --> B[1 Capture fresh fixtures]
     B --> C[2 Structural diff vs validation fixture]
     C --> D[3 Classify deterministic pair recovery]
-    D -- FallbackRecovered --> R[Replenish degraded candidate - queued, no LLM in critical path]
+    D -- FallbackRecovered --> R[Queue replenishment after successful fallback]
+    R --> Q{Deterministic replacement derived?}
+    Q -- yes --> J[5 Regression-validate]
+    Q -- no --> H[4 Repair: agent returns minimal patch]
     D -- ConsentWall --> E[Apply consent strategy - no LLM]
     D -- Challenge --> F[Report Blocked - no circumvention]
     D -- SourceNotFound --> G[Alert - not a code problem]
     D -- LayoutChange / FormatChange / PaginationChange --> H[4 Repair: agent returns minimal patch]
     D -- ContentRemoved --> I[Mark field permanently absent - propose schema change]
     D -- Unknown --> H
-    R --> H
     E --> J[5 Regression-validate]
     F --> J
     H --> J
@@ -144,7 +146,7 @@ sibling `.pdp-price__amount` appeared at the same depth" is a far better prompt 
 | `ConsentWall` | consent-platform markers present, content absent | apply/refresh the source's consent strategy | no |
 | `Challenge` | interstitial/challenge markers, 403 pattern | report `Blocked`; do not escalate tiers or attempt circumvention | no |
 | `SourceNotFound` | 404 / not-found predicate matched | alert; the URL is gone, this is not a plan defect | no |
-| `FallbackRecovered` | primary candidate misses, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if deterministic replacement cannot be derived |
+| `FallbackRecovered` | primary candidate misses, fails a transform/operation, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if deterministic replacement cannot be derived |
 | `LayoutChange` | selectors miss, DOM structure changed | minimal patch | yes |
 | `FormatChange` | selectors hit, coercion fails (e.g. `€ 1.299,00` → `1 299,00 EUR`) | minimal patch | yes |
 | `PaginationChange` | pagination terminates early or loops | minimal patch | yes |

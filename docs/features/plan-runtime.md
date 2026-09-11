@@ -91,7 +91,7 @@ flowchart TD
     H -- no --> J[Single-object scope]
     I --> K[For each item: evaluate fields]
     J --> K
-    K --> L[Locator chain: try locators in order]
+    K --> L[Evaluate primary then fallback candidate]
     L --> M[Apply transform pipeline]
     M --> N[Coerce to target type via schema-engine]
     N --> O[FieldObservation: value + locatorIndex + status]
@@ -142,13 +142,18 @@ locations, but both are intended to recover the same field value.
 1. Evaluate the primary candidate through the field's complete downstream pipeline: selection, transforms,
    type coercion, and field/schema constraints. It succeeds only when that pipeline succeeds; a non-empty
    node set or raw text is not sufficient.
-2. On a primary miss, uncoercible result, or failed constraint, evaluate the fallback through that same
-   pipeline. A successful fallback records `LocatorIndex = 1` and emits an `Info` diagnostic with the
-   primary failure reason. The evaluator records this as a low-confidence drift signal; it is a cheap
-   recovery, not silent proof that the source remains healthy.
-3. If neither candidate yields a valid field value, report `Missing` for an optional field or
-   `SNR-SCH-004` (`RequiredFieldMissing`) for a required field. A required field that is missing never
-   yields `Succeeded` and may dispatch healing when enabled.
+2. On a primary miss, a transform/operation failure, an uncoercible result, or a failed constraint, evaluate
+   the fallback through that same pipeline. A successful fallback records `LocatorIndex = 1` and emits an
+   `Info` diagnostic with the primary failure reason (including a transform failure, not only selection or
+   coercion). The evaluator records this as a low-confidence drift signal; it is a cheap recovery, not
+   silent proof that the source remains healthy.
+3. If neither candidate yields a valid field value, the terminal status is derived from the fallback
+   candidate's own failure reason, mirroring `schema-engine`'s structural codes (§ Validation,
+   `schema-engine.md`): an absent value reports `Missing` for an optional field or `SNR-SCH-004`
+   (`RequiredFieldMissing`) for a required field; a present-but-uncoercible value reports `SNR-SCH-005`
+   (`TypeCoercionFailed`) regardless of required-ness; any other non-required structural constraint
+   violation reports `SNR-SCH-002`. A required field never yields `Succeeded` from this branch and may
+   dispatch healing when enabled.
 
 The executor does not try a third candidate or invoke an LLM. Pair repair belongs to `healing-workflow`.
 
@@ -225,7 +230,7 @@ Predicates are evaluated before field extraction, in that order.
 | AC-003b | P0 | Given a price `"1,299.00"` and culture `nl-NL` | Coercion fails with `SNR-SCH-005`; no silent misparse to `1.299` | Unit — negative, the dangerous case |
 | AC-004 | P0 | Given a spec table with duplicate label cells | Keys are suffixed `#2`, `#3`; no entry is lost and no exception is thrown | Unit — `keyValueTable` |
 | AC-005 | P0 | Given a required field whose every locator is empty | Status is `SchemaValidationFailed`, payload is `null`, and the result includes `SNR-SCH-004` with a `Missing` observation; healing is dispatched when enabled | Unit — the core honesty guarantee |
-| AC-014 | P0 | Given a plan whose primary locator broke but whose fallback matches | Extraction succeeds with `LocatorIndex = 1` and an `Info` diagnostic | Unit — locator chain |
+| AC-014 | P0 | Given a plan whose primary locator broke but whose fallback matches | Extraction succeeds with `LocatorIndex = 1` and an `Info` diagnostic | Unit — primary/fallback pair |
 | AC-015 | P0 | Given a page matching the `notFound` predicate | Outcome is `SourceNotFound` with zero field errors | Unit — deleted-product path |
 | AC-023 | P0 | Given the same plan and fixture executed twice | The output JSON is byte-identical | Unit — determinism |
 | AC-023b | P0 | Given execution on a thread with `CurrentCulture = en-US` and a plan culture of `nl-NL` | Results match the `nl-NL` expectation; ambient culture has no effect | Unit — ambient-culture immunity |
@@ -253,6 +258,7 @@ Predicates are evaluated before field extraction, in that order.
 | `SNR-EXT-002` | Operation or wall-clock budget exceeded | Error | `ExtractionFailed` | Partial outcome returned |
 | `SNR-EXT-003` | Regex match timeout | Warning | `PartialExtraction` | Field-scoped |
 | `SNR-EXT-004` | Output payload exceeds the ceiling | Error | `ExtractionFailed` | — |
+| `SNR-SCH-002` | Structural validation failed (not a required-missing or coercion case) | Error | `SchemaValidationFailed` | Null payload; heal trigger |
 | `SNR-SCH-004` | Required field missing | Error | `SchemaValidationFailed` | Null payload; heal trigger |
 | `SNR-SCH-005` | Type coercion failed | Error | `SchemaValidationFailed` | Null payload; heal trigger |
 | `SNR-PLAN-002` | Plan version or operation is unsupported by the executing runtime/allow-list | Error | `PlanInvalid` | Compatibility and security boundary |
@@ -334,7 +340,7 @@ src/
         │       ├── ExistsOperation.cs
         │       └── NotFoundPredicateOperation.cs
         ├── Locators/
-        │   ├── LocatorChain.cs
+        │   ├── PrimaryFallbackEvaluator.cs
         │   └── LocatorResult.cs
         └── Budgets/
             ├── ExecutionBudget.cs
@@ -366,7 +372,7 @@ provided as inline HTML strings in the test file rather than from the `Fixtures/
 **Test scope**:
 
 - **Unit**: one focused test class per operation family, each covering a happy case, an empty-input case,
-  and a malformed-input case; locator-chain fallback ordering; predicate precedence; culture matrix for
+  and a malformed-input case; primary/fallback candidate ordering; predicate precedence; culture matrix for
   `nl-NL` / `en-US` / `de-DE` on decimals, dates, and booleans; duplicate-key spec tables; enum synonym
   misses; budget boundaries at exactly the limit and one over; ambient-culture immunity; determinism by
   double execution and byte comparison.
@@ -380,7 +386,7 @@ provided as inline HTML strings in the test file rather than from the `Fixtures/
   documents for each operation's edge cases. No network and no browser in the default suite.
 
 Companion test files: `tests/Sanare.Core.Tests/Runtime/OperationTests.cs`,
-`tests/Sanare.Core.Tests/Runtime/LocatorChainTests.cs`,
+`tests/Sanare.Core.Tests/Runtime/PrimaryFallbackEvaluatorTests.cs`,
 `tests/Sanare.Core.Tests/Runtime/CoercionMatrixTests.cs`,
 `tests/Sanare.Core.Tests/Runtime/StructuredDataViewTests.cs`,
 `tests/Sanare.Core.Tests/Runtime/DeterminismTests.cs`.

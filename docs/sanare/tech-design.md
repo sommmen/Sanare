@@ -1065,10 +1065,15 @@ boundaries next to the fixtures and plans they reference. Outputs leave the grap
    against the fixture the current plan was validated on (added/removed/renamed classes and ids, changed
    node depth around each failing locator, new consent/challenge markers).
 3. **Classify** — a deterministic classifier runs before the LLM: `ConsentWall`, `Challenge`,
-   `LayoutChange`, `ContentRemoved`, `PaginationChange`, `FormatChange`, `SourceNotFound`, `Unknown`.
-   `ConsentWall` has a deterministic remediation (apply consent strategy) and can be resolved without any
-   model call. `Challenge` has no remediation — it is reported as `Blocked` with no circumvention attempted.
-4. **Repair** — for `LayoutChange`/`FormatChange`/`PaginationChange`, the healing agent receives the
+   `LayoutChange`, `ContentRemoved`, `PaginationChange`, `FormatChange`, `SourceNotFound`,
+   `FallbackRecovered`, `Unknown`. `ConsentWall` has a deterministic remediation (apply consent strategy)
+   and can be resolved without any model call. `Challenge` has no remediation — it is reported as
+   `Blocked` with no circumvention attempted. `FallbackRecovered` covers the drift signal from step 1: when
+   a replacement primary locator can be derived deterministically from the structural diff (e.g. the
+   fallback's own selector, or a trivial rename of the broken primary), it is applied without an LLM call;
+   only when no deterministic replacement can be derived does the field enter step 4's repair path.
+4. **Repair** — for `LayoutChange`/`FormatChange`/`PaginationChange` and for `FallbackRecovered` cases
+   where no deterministic replacement was derived, the healing agent receives the
    current plan, the failing fields, the structural diff, and the reduced new DOM, and returns a
    **minimal patch** to the plan (changed operations only), not a rewritten plan.
 5. **Regression-validate** — the patched plan must pass the new fixture **and every retained historical
@@ -1378,7 +1383,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 
 ```jsonc
 {
-  "planVersion": 1,                       // plan vocabulary major version
+  "planVersion": 2,                       // plan vocabulary major version
   "sourceId": "lenovo-com/tablet-lister",
   "schemaName": "TabletListing",
   "schemaVersion": 1,
@@ -1405,17 +1410,16 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
     {
       "pointer": "/products/-/name",
       "required": true,
-      "locators": [
-        { "op": "selectFirst", "selector": "h3.product-title" },
-        { "op": "jsonPath", "source": "jsonld", "path": "$.name" }
-      ],
+      "primaryLocator": { "op": "selectFirst", "selector": "h3.product-title" },
+      "fallbackLocator": { "op": "jsonPath", "source": "jsonld", "path": "$.name" },
       "transforms": [ { "op": "text" }, { "op": "trim" }, { "op": "collapseWhitespace" } ],
       "type": "string"
     },
     {
       "pointer": "/products/-/price",
       "required": false,
-      "locators": [ { "op": "selectFirst", "selector": "[data-testid='price-final']" } ],
+      "primaryLocator": { "op": "selectFirst", "selector": "[data-testid='price-final']" },
+      "fallbackLocator": { "op": "selectFirst", "selector": "[data-testid='price-sale']" },
       "transforms": [ { "op": "text" }, { "op": "stripCurrency", "into": "/products/-/currency" },
                       { "op": "parseDecimal", "culture": "nl-NL" } ],
       "type": "decimal"
@@ -1523,7 +1527,7 @@ erDiagram
 
 | Change | Mechanism |
 |--------|-----------|
-| Plan vocabulary version bump | `planVersion` field; runtime supports the current major plus a documented `N-1` read-compatibility window. Plans below the window are marked `PlanVersionUnsupported` and re-authored automatically on next run |
+| Plan vocabulary version bump | `planVersion` field; runtime supports the current major (`2`) plus a documented `N-1` read-compatibility window (`1`). Plans below the window are marked `PlanVersionUnsupported` and re-authored automatically on next run. The `1 → 2` bump replaced each field's `locators[]` array with named `primaryLocator`/`fallbackLocator`; a version-1 plan is only upgradeable in memory if its `locators[]` has exactly two entries (index 0 → `primaryLocator`, index 1 → `fallbackLocator`) — any other arity is rejected as `PlanVersionUnsupported` rather than silently truncated or padded |
 | Consumer schema change (POCO edited) | `schemaHash` changes → resolution misses → authoring produces a new plan version. Old plans remain approved for the old hash, so a rollback of application code keeps working |
 | Explicit schema version bump | `[ScrapeSchema(Version = 2)]` produces a new plan path, keeping v1 intact |
 | Fixture manifest format change | `version` field with a forward-only migrator run at startup; a backup copy is written before rewriting |

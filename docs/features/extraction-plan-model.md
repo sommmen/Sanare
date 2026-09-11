@@ -177,11 +177,12 @@ Rules:
 
 ### Versioning
 
-`PlanVersion` is an integer. The runtime declares `CurrentPlanVersion` and `MinimumReadablePlanVersion =
-CurrentPlanVersion - 1` (DR-002). A plan below the minimum fails with `SNR-PLAN-002` and a message naming
-both versions; a plan above the current version fails with the same code. Reading an `N-1` plan applies a
-registered upgrade function that produces an in-memory `N` plan without rewriting the file on disk;
-rewriting only happens when a heal or re-author commits.
+`PlanVersion` is an integer. The current vocabulary is **version 2**: `CurrentPlanVersion = 2` and
+`MinimumReadablePlanVersion = 1` (DR-002). Version 1 used `locators[]`; version 2 uses the named
+`PrimaryLocator` and `FallbackLocator` pair. A plan below the minimum fails with `SNR-PLAN-002` and a
+message naming both versions; a plan above the current version fails with the same code. Reading a version-1
+plan applies the registered upgrade that produces an in-memory version-2 plan without rewriting the file on
+disk; rewriting only happens when a heal or re-author commits.
 
 ### Canonical serialization
 
