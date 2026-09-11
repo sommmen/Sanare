@@ -414,7 +414,7 @@ neither the Playwright browser payload nor the AI stack as a dependency.
 
 | Concern | Choice | Rationale |
 |---------|--------|-----------|
-| Runtime | .NET 9 (`net9.0`), C# 13, nullable enabled, `TreatWarningsAsErrors` | Host backend is .NET; the Agent Framework and Playwright for .NET both target modern .NET |
+| Runtime | .NET 10 (`net10.0`), C# 14, nullable enabled, `TreatWarningsAsErrors` | Host backend is .NET; the Agent Framework and Playwright for .NET both target modern .NET |
 | Agent orchestration | **Microsoft Agent Framework** — `Microsoft.Agents.AI`, `Microsoft.Agents.AI.Abstractions`, `Microsoft.Agents.AI.Workflows`, all **1.20.0 (GA, MIT)** | Explicit requirement. Provides the agent abstraction (`AIAgent`/`ChatClientAgent`), function tools, session state, structured output, graph workflows with checkpointing, human-in-the-loop request ports, and OpenTelemetry integration |
 | LLM abstraction | `Microsoft.Extensions.AI` **10.9.0 (GA)** (`IChatClient`) beneath the agent | Provider-neutral (Azure OpenAI / OpenAI / local / OmniRoute-compatible proxies); middleware pipeline for logging, caching, and token accounting. Owns `IChatClient`, `ChatMessage`, `ChatOptions`, `ChatResponseFormat`, `AITool`, `AIFunction`, `AIFunctionFactory`. Model selection is routed through named, per-role model profiles rather than a single default (DR-010), so an OmniRoute proxy/model-combo route is registered like any other `IChatClient` |
 | HTML parsing | **AngleSharp** | Standards-compliant HTML5 DOM with real CSS-selector semantics; needed because plans express CSS selectors and the runtime must match browser behaviour |

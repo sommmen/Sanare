@@ -42,7 +42,7 @@ The minimal runner example remains usable with hand-authored plans through `InMe
 
 ### Requirements
 
-- .NET SDK 9.0 or later (`net9.0` target framework, `LangVersion` 13.0).
+- .NET SDK 10.0 or later (`net10.0` target framework, `LangVersion` 14.0).
 
 ### Build
 
