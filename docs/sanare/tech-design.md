@@ -136,7 +136,8 @@ component feature specs under `docs/features/`, not as separate sub-project tech
 | AC-002 | P0 | Given no plan exists for `(host, schema, version)`, when `RunAsync<T>` is called with authoring enabled, then the authoring workflow runs and produces a committed plan | Result is `Succeeded`; script repository contains a new commit whose message references the fixture content hash | Integration — empty repo + recorded fixture + scripted LLM responses |
 | AC-003 | P0 | Given no plan exists and authoring is disabled, when `RunAsync<T>` is called | Result status is `NoPlanAvailable` with `Payload == null`; no upstream request is issued | Unit — assert status and that the transport recorded zero requests |
 | AC-004 | P0 | Given the authoring workflow cannot reach the configured validation score after the max attempt budget | Result status is `AuthoringFailed`, containing per-attempt scores and the agent's final diagnosis; nothing is committed to the default branch | Integration — scripted LLM that always emits an invalid plan; assert attempt count equals budget and repository HEAD is unchanged |
-| AC-005 | P0 | Given a schema with a required field, when extraction omits that field or cannot coerce it | The result is `SchemaValidationFailed` with a `null` payload and a diagnostic naming the JSON pointer — `SNR-SCH-004` when the field is absent, `SNR-SCH-005` when it is present but fails coercion; required-field partial data is not returned, and healing is dispatched when enabled | Unit — validate a deliberately incomplete extraction against the generated JSON Schema and assert status, payload, diagnostic, and healing dispatch |
+| AC-005 | P0 | Given a schema with a required field, when both selector candidates omit that field or cannot coerce it | The result is `SchemaValidationFailed` with a `null` payload and a diagnostic naming the JSON pointer — `SNR-SCH-004` when the field is absent, `SNR-SCH-005` when it is present but fails coercion; required-field partial data is not returned, and healing is dispatched when enabled | Unit — validate a deliberately incomplete extraction against the generated JSON Schema and assert status, payload, diagnostic, and healing dispatch |
+| AC-005a | P0 | Given a primary selector candidate misses or yields an invalid field value and its fallback yields the same field's valid value | The run succeeds without an LLM call and records fallback provenance (`LocatorIndex = 1`) and a drift diagnostic naming the primary failure reason, rather than silently masking primary degradation; this single recovery does not by itself dispatch a heal — it contributes to the windowed `FallbackRecoveryRate` signal (`quality-evaluator.md`) that queues candidate replenishment once the configured threshold is met | Integration — fixture where only the fallback survives; assert payload, `LocatorIndex = 1`, zero LLM calls, and drift telemetry |
 | AC-006 | P0 | Given a field declared `decimal`, when the page value is `"1.299,00 €"` under a `nl-NL` source culture | The value coerces to `1299.00m`; currency and culture are recorded in provenance | Unit — coercion table tests, including `en-US`, `nl-NL`, thousands separators, and unit suffixes |
 | AC-007 | P0 | Given a field declared `decimal`, when the page value is non-numeric (`"Op aanvraag"`) | Coercion fails with `TypeCoercionError` naming field, raw value, and target type; the field is reported in the quality report rather than silently nulled | Unit — negative coercion tests |
 | AC-008 | P0 | Given a per-host rate limit of N requests/minute, when a run needs more than N requests | Requests are paced so that no rolling 60-second window exceeds N; the run still completes | Integration — fake clock + request timestamp assertions |
@@ -1018,14 +1019,19 @@ the loop governed by the attempt budget.
    document. Discovery evidence is additive context only; it never substitutes for or overrides fixture
    evidence, schema requirements, or validation.
 3. **Propose** — the authoring agent receives the JSON Schema, the field metadata (descriptions, units,
-   culture, examples), and the evidence pack; it returns an **Extraction Plan** as structured output.
-4. **Statically validate** — plan schema, operation allow-list, selector parseability, size caps.
+   culture, examples), and the evidence pack; it returns an **Extraction Plan** as structured output with
+   exactly a primary and fallback selector candidate for every eligible field.
+4. **Statically validate** — plan schema, operation allow-list, selector-pair cardinality and distinctness,
+   selector parseability, size caps.
    Failures are fed back into the loop as a tool result, not thrown.
 5. **Dry-run** — the plan runtime executes the candidate plan **against the fixture only** (never the
-   network) and produces a per-field extraction report and a score (§7.5).
+   network), independently reports each candidate's selection, transforms, coercion, and constraint result,
+   then produces a per-field extraction report and a score (§7.5). A non-empty match alone cannot validate
+   a fallback.
 6. **Judge** — if `score < MinPlanScore` or a required field is missing, the failing fields, their
-   attempted locators, and nearby DOM context are returned to the agent for a repair turn. Loop until the
-   score gate passes or the attempt budget is exhausted.
+   primary/fallback candidate outcomes, and nearby DOM context are returned to the agent for a repair turn.
+   Primary failure hidden by fallback success is still reported as drift. Loop until the score gate passes or
+   the attempt budget is exhausted.
 7. **Commit** — write the plan, a human-readable rationale note, and the fixture references into the
    script repository. Auto-approve or create an approval-gated candidate per source configuration.
 8. **Emit** — return the plan commit id to the caller and record authoring telemetry (attempts, tokens,
@@ -1051,15 +1057,29 @@ boundaries next to the fixtures and plans they reference. Outputs leave the grap
 #### 8.3.3 Healing workflow
 
 1. **Trigger** — evaluator raises `DegradationDetected(sourceId, schemaHash, failingFields, evidenceRunIds)`.
-   Heals are coalesced per source; one heal at a time.
+   Heals are coalesced per source; one heal at a time. Per-field selector pairs attempt the primary then one
+   fallback before a field is considered failed: a valid fallback serves the current result without an LLM
+   call, while its `LocatorIndex = 1` provenance and primary-failure reason are drift signals recorded per
+   run; once the windowed `FallbackRecoveryRate` rule (`quality-evaluator.md`) trips, it raises this trigger
+   and schedules replenishment of the degraded candidate.
 2. **Capture** — fetch the affected URLs fresh, store as new fixtures, and compute a **structural diff**
    against the fixture the current plan was validated on (added/removed/renamed classes and ids, changed
    node depth around each failing locator, new consent/challenge markers).
 3. **Classify** — a deterministic classifier runs before the LLM: `ConsentWall`, `Challenge`,
-   `LayoutChange`, `ContentRemoved`, `PaginationChange`, `FormatChange`, `SourceNotFound`, `Unknown`.
-   `ConsentWall` has a deterministic remediation (apply consent strategy) and can be resolved without any
-   model call. `Challenge` has no remediation — it is reported as `Blocked` with no circumvention attempted.
-4. **Repair** — for `LayoutChange`/`FormatChange`/`PaginationChange`, the healing agent receives the
+   `LayoutChange`, `ContentRemoved`, `PaginationChange`, `FormatChange`, `SourceNotFound`,
+   `FallbackRecovered`, `Unknown`. `ConsentWall` has a deterministic remediation (apply consent strategy)
+   and can be resolved without any model call. `Challenge` has no remediation — it is reported as
+   `Blocked` with no circumvention attempted. `FallbackRecovered` covers the drift signal from step 1:
+   replenishment always **promotes the surviving fallback to primary** (index `0`) first, then attempts to
+   derive a **new, distinct** fallback (index `1`) deterministically from the structural diff (e.g. a
+   different sibling anchor, an ancestor-scoped selector, or an attribute-based locator the diff names near
+   the same value). The derived candidate is checked for structural distinctness (`extraction-plan-model`'s
+   locator distinctness rule) against the promoted primary; if distinct, the pair is applied without an LLM
+   call. A deterministic replenishment is not applied — and the field instead enters step 4's repair path —
+   when either no distinct new fallback can be derived, or the derived candidate would be structurally
+   identical to the promoted primary.
+4. **Repair** — for `LayoutChange`/`FormatChange`/`PaginationChange` and for `FallbackRecovered` cases
+   where no distinct new fallback was derived, the healing agent receives the
    current plan, the failing fields, the structural diff, and the reduced new DOM, and returns a
    **minimal patch** to the plan (changed operations only), not a rewritten plan.
 5. **Regression-validate** — the patched plan must pass the new fixture **and every retained historical
@@ -1330,6 +1350,7 @@ services.AddSanare(options =>
     {
         evaluator.Interval = TimeSpan.FromHours(6);
         evaluator.NullRateDelta = 0.25;
+        evaluator.FallbackRateDelta = 0.10;
         evaluator.AutoPromoteHeals = false;
     });
 ```
@@ -1369,7 +1390,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 
 ```jsonc
 {
-  "planVersion": 1,                       // plan vocabulary major version
+  "planVersion": 2,                       // plan vocabulary major version
   "sourceId": "lenovo-com/tablet-lister",
   "schemaName": "TabletListing",
   "schemaVersion": 1,
@@ -1396,17 +1417,16 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
     {
       "pointer": "/products/-/name",
       "required": true,
-      "locators": [
-        { "op": "selectFirst", "selector": "h3.product-title" },
-        { "op": "jsonPath", "source": "jsonld", "path": "$.name" }
-      ],
+      "primaryLocator": { "op": "selectFirst", "selector": "h3.product-title" },
+      "fallbackLocator": { "op": "attribute", "selector": "a[data-testid='product-link']", "argument": "title" },
       "transforms": [ { "op": "text" }, { "op": "trim" }, { "op": "collapseWhitespace" } ],
       "type": "string"
     },
     {
       "pointer": "/products/-/price",
       "required": false,
-      "locators": [ { "op": "selectFirst", "selector": "[data-testid='price-final']" } ],
+      "primaryLocator": { "op": "selectFirst", "selector": "[data-testid='price-final']" },
+      "fallbackLocator": { "op": "selectFirst", "selector": "[data-testid='price-sale']" },
       "transforms": [ { "op": "text" }, { "op": "stripCurrency", "into": "/products/-/currency" },
                       { "op": "parseDecimal", "culture": "nl-NL" } ],
       "type": "decimal"
@@ -1514,7 +1534,7 @@ erDiagram
 
 | Change | Mechanism |
 |--------|-----------|
-| Plan vocabulary version bump | `planVersion` field; runtime supports the current major plus a documented `N-1` read-compatibility window. Plans below the window are marked `PlanVersionUnsupported` and re-authored automatically on next run |
+| Plan vocabulary version bump | `planVersion` field; runtime supports the current major (`2`) plus a documented `N-1` read-compatibility window (`1`). Plans below the window are marked `PlanVersionUnsupported` and re-authored automatically on next run. The `1 → 2` bump replaced each field's `locators[]` array with named `primaryLocator`/`fallbackLocator`; a version-1 plan is upgradeable in memory only if every field's `locators[]` has exactly two entries (index 0 → `primaryLocator`, index 1 → `fallbackLocator`). A field with any other arity — including the single-locator chains that predate the fallback-selector requirement — cannot be upgraded in memory (no candidate may be fabricated to fill the missing slot), so the whole plan is treated as `PlanVersionUnsupported` and re-authored automatically on next run, the same remediation as a plan below the window, rather than being silently truncated, padded, or hard-rejected with no path forward |
 | Consumer schema change (POCO edited) | `schemaHash` changes → resolution misses → authoring produces a new plan version. Old plans remain approved for the old hash, so a rollback of application code keeps working |
 | Explicit schema version bump | `[ScrapeSchema(Version = 2)]` produces a new plan path, keeping v1 intact |
 | Fixture manifest format change | `version` field with a forward-only migrator run at startup; a backup copy is written before rewriting |

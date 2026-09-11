@@ -61,8 +61,10 @@ the quality report returned to every caller.
 
 - **`RunObservation`** — the run record produced at the end of every `RunAsync`/`StreamAsync`:
   `RunId`, `SourceId`, `SchemaHash`, `PlanCommitId`, `Status`, `Tier`, `Origin`, `PagesFetched`,
-  `ItemCount`, `Fields[]` (`Pointer`, `Observed`, `Missing`, `CoercionFailed`), `Diagnostics[]`,
-  `HttpStatusCounts`, `BytesDownloaded`, `LlmTokens`, `DurationMs`.
+  `ItemCount`, `Fields[]` (`Pointer`, `Observed`, `Missing`, `CoercionFailed`, `LocatorIndex`,
+  `PrimaryFailureReason`), `Diagnostics[]`, `HttpStatusCounts`, `BytesDownloaded`, `LlmTokens`,
+  `DurationMs`. `LocatorIndex = 1` records a valid fallback selection and `PrimaryFailureReason` preserves
+  why candidate 0 did not complete its pipeline.
 
 ### Outputs
 
@@ -134,13 +136,28 @@ Windowed rules require `observed ≥ MinObservations` (default 5) and any of:
 | `NullRateDrift` | `nullRate(f) − baseline(f) > NullRateDelta` (default 0.25) | required fields |
 | `CoercionFailure` | `coerceFailRate > 0.10` | any field |
 | `ItemCountCollapse` | `itemCount < 50 %` of the trailing median | collection schemas |
+| `FallbackRecoveryRate` | `fallbackRate(f) > FallbackRateDelta` (default 0.10), where `fallbackRate(f) = count(LocatorIndex == 1) / observed(f)` | any field with a fallback candidate |
+
+`NullRateDelta` and `FallbackRateDelta` are bindable `QualityOptions` properties (`src/Sanare.Core/Quality/QualityOptions.cs`,
+§ File Structure), not fixed constants — a host sets either via `AddQualityEvaluator` alongside `Interval` and
+`AutoPromoteHeals` (`hosting-configuration.md`'s `AddQualityEvaluator` example already binds both). `MinObservations`
+and the fixed 0.10 `CoercionFailure`/50 % `ItemCountCollapse` thresholds are not currently exposed as options.
+
+`FallbackRecoveryRate` is the only rule that dispatches `DegradationDetected` with `Classification hint =
+FallbackRecovered` rather than `Unknown`. The healing workflow still runs its full evidence sequence
+unconditionally — fresh capture, structural diff (§ Step 2), then the deterministic classifier (§ Step 3,
+`healing-workflow.md`) — because the hint alone is telemetry, not fresh proof that the source still matches
+it. The hint's effect is prioritization, not a shortcut around evidence: it lets the healing queue schedule
+this source's classification ahead of others when the pattern is already this legible from telemetry alone,
+and the classifier still independently re-derives `FallbackRecovered` (or a different classification) from
+the fresh diff before any replenishment is attempted.
 
 Immediate triggers fire on a **single** run, with no window and no `MinObservations` gate:
 
 | Rule | Condition |
 |------|-----------|
 | `EmptyResult` | zero items from a lister that previously returned items |
-| `SchemaValidationFailure` | run ended with `ScrapeStatus.SchemaValidationFailed` (`SNR-SCH-002` or `SNR-SCH-004`) |
+| `SchemaValidationFailure` | run ended with `ScrapeStatus.SchemaValidationFailed` (`SNR-SCH-002`, `SNR-SCH-004`, or `SNR-SCH-005`) |
 | `ConsentWallBlocked` | run ended in `ConsentWallBlocked` |
 | `BlockedStreak` | `Blocked` on 3 consecutive runs |
 

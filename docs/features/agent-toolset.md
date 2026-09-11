@@ -124,7 +124,7 @@ ToolStructuredDataResult ListStructuredData();
 [Description("Execute a candidate extraction plan against the bound fixture and return the per-field extraction report.")]
 ToolDryRunResult DryRunPlan(ExtractionPlanDraft plan);
 
-[Description("Execute a single field's locator chain and transforms against the bound fixture.")]
+[Description("Execute a field's primary and fallback locator candidates and transforms against the bound fixture. Returns per-candidate match, transformed-value, coercion, constraint, and selected-candidate evidence.")]
 ToolFieldResult DryRunField(FieldPlanDraft field);
 
 [Description("List the fixtures available for this source, with their capture time, tier, and role.")]
@@ -133,6 +133,9 @@ ToolFixtureListResult ListFixtures();
 [Description("Summarise the structural difference between the bound fixture and an earlier fixture: added/removed classes and ids, and depth changes around a selector.")]
 ToolDiffResult DiffFixtures(string baselineFixtureId, string? aroundSelector = null);
 ```
+
+`DryRunField` and `DryRunPlan` expose the chosen candidate index and the primary failure reason even when
+the fallback recovers, so authoring and healing can distinguish genuine success from masked drift.
 
 `DiffFixtures` exists primarily for the healing agent; it is registered for both workflows because an
 authoring agent that can see how a page changed sometimes authors a more resilient locator the first time.

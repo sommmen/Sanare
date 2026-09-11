@@ -123,7 +123,8 @@ public sealed record AcquisitionSpec(
 
 public sealed record FieldPlan(
     string Pointer, bool Required, string Type,
-    IReadOnlyList<LocatorStep> Locators,
+    LocatorStep PrimaryLocator,
+    LocatorStep FallbackLocator,
     IReadOnlyList<TransformStep> Transforms);
 
 public sealed record LocatorStep(PlanOperation Operation, IReadOnlyList<string> Arguments);
@@ -176,11 +177,12 @@ Rules:
 
 ### Versioning
 
-`PlanVersion` is an integer. The runtime declares `CurrentPlanVersion` and `MinimumReadablePlanVersion =
-CurrentPlanVersion - 1` (DR-002). A plan below the minimum fails with `SNR-PLAN-002` and a message naming
-both versions; a plan above the current version fails with the same code. Reading an `N-1` plan applies a
-registered upgrade function that produces an in-memory `N` plan without rewriting the file on disk;
-rewriting only happens when a heal or re-author commits.
+`PlanVersion` is an integer. The current vocabulary is **version 2**: `CurrentPlanVersion = 2` and
+`MinimumReadablePlanVersion = 1` (DR-002). Version 1 used `locators[]`; version 2 uses the named
+`PrimaryLocator` and `FallbackLocator` pair. A plan below the minimum fails with `SNR-PLAN-002` and a
+message naming both versions; a plan above the current version fails with the same code. Reading a version-1
+plan applies the registered upgrade that produces an in-memory version-2 plan without rewriting the file on
+disk; rewriting only happens when a heal or re-author commits.
 
 ### Canonical serialization
 
@@ -192,6 +194,17 @@ rewriting only happens when a heal or re-author commits.
 - Numbers written in round-trip (`"R"`) invariant form; `Score` fixed at 4 decimal places.
 - Timestamps as ISO-8601 with `Z`.
 - Unicode escaped only where JSON requires it, so selectors stay legible in a diff.
+- Each field emits `primaryLocator` before `fallbackLocator`; these are the only serialized locator
+  candidates, so arbitrary `locators[]` chains cannot enter an approved plan.
+
+`PrimaryLocator` and `FallbackLocator` replace the prior `locators[]` representation in the current plan
+version. The registered in-memory upgrade maps a legacy two-entry chain in priority order (index 0 →
+`PrimaryLocator`, index 1 → `FallbackLocator`). A legacy chain with any other cardinality — most notably a
+single-locator chain, which was the norm for `locators[]` plans authored before the fallback-selector
+requirement existed — cannot be upgraded in memory, because there is no second candidate to promote and one
+must not be fabricated. Such a plan is treated exactly like a plan below `MinimumReadablePlanVersion`: it is
+marked `PlanVersionUnsupported` and re-authored automatically on next run, rather than silently truncated,
+padded, or hard-rejected without a remediation path.
 
 Round-trip property: `Read(WriteCanonical(p)) == p` and `WriteCanonical(Read(json)) == WriteCanonical(Read(WriteCanonical(Read(json))))`.
 
@@ -216,7 +229,10 @@ Checks, all reported together:
 3. Every required schema pointer is covered by some `FieldPlan` — an uncovered required field is a defect,
    because it guarantees a run-time `SNR-SCH-004`.
 4. `Pointer` values are unique.
-5. Every field has at least one locator.
+5. Every field has exactly two non-null locator candidates: `PrimaryLocator` and `FallbackLocator`.
+   The candidates must each be valid for the plan's acquisition tier and must not be structurally identical.
+   They may use different strategies against the same content or target an equivalent alternate location, but
+   the fallback is not permitted to select a different semantic field.
 6. The implemented model's pagination cap, `MaxPages`, is present and within 1–10 000; `LoadMoreButton`
    and `InfiniteScroll` require `Tier == Browser`. `MaxItems` is a target-state cap and cannot yet be
    validated because `PaginationSpec` has no corresponding property.
@@ -248,7 +264,8 @@ Checks, all reported together:
 | AC-PLAN-001 | P0 | Given a valid plan document read then canonically written | Output is byte-identical to a stored golden file | Unit — Verify snapshot |
 | AC-PLAN-002 | P0 | Given canonical output re-read and re-written | Second output equals the first byte-for-byte | Unit — idempotence property test |
 | AC-PLAN-003 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion + 1` | Fails with `SNR-PLAN-002` naming both versions | Unit — forward-incompatibility |
-| AC-PLAN-004 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` | Reads successfully via the registered upgrade; the on-disk file is unchanged | Unit — `N-1` window |
+| AC-PLAN-004 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` and every field's legacy `locators[]` has exactly two entries | Reads successfully via the registered upgrade; the on-disk file is unchanged | Unit — `N-1` window |
+| AC-PLAN-004a | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` but at least one field's legacy `locators[]` does not have exactly two entries (e.g. a single-locator field) | Fails as `PlanVersionUnsupported`, the same remediation as a plan below the `N-1` window, rather than fabricating a fallback or truncating extra candidates | Unit — legacy arity mismatch |
 | AC-PLAN-005 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 2` | Fails with `SNR-PLAN-002` | Unit — the exact lower boundary |
 | AC-PLAN-006 | P0 | Given an `Html`-tier plan containing a `Click` interaction | Validation fails with `SNR-PLAN-001` naming the tier/operation conflict | Unit — tier gating |
 | AC-PLAN-007 | P0 | Given a `Browser`-tier plan containing a `Click` interaction | Validation succeeds | Unit — positive counterpart |
