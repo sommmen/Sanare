@@ -11,7 +11,7 @@ dotnet test Sanare.slnx
 dotnet format Sanare.slnx --verify-no-changes
 ```
 
-Requires .NET SDK 9.0+. See [README.md](README.md) for the current architecture
+Requires .NET SDK 10.0+. See [README.md](README.md) for the current architecture
 and scope of the v0.1 foundation.
 
 ## Todo
