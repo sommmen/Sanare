@@ -30,7 +30,7 @@ returning an empty object.
 - Document adapters: HTML/DOM (AngleSharp), JSON (`JsonDocument`), and structured-data extraction
   (JSON-LD, microdata, `__NEXT_DATA__`, `__NUXT__`, `window.__INITIAL_STATE__`).
 - The operation interpreter for all allow-listed selector, transform, and predicate operations.
-- Locator evaluation with ordered fallbacks and per-locator provenance.
+- Primary-plus-fallback locator evaluation with per-candidate provenance.
 - Culture-aware type coercion into the schema's target types.
 - Root/item scoping for collection extraction.
 - The `notFound` predicate and consent/challenge predicates.
@@ -50,7 +50,7 @@ returning an empty object.
 ## Core Responsibilities
 
 1. **Interpret** plan operations deterministically with no dynamic code execution.
-2. **Locate** values via ordered locator fallbacks, recording which one won.
+2. **Locate** values with the primary candidate, then exactly one fallback candidate, recording which one won.
 3. **Coerce** raw text into the schema's types using the source culture.
 4. **Report** every field's outcome: extracted (with locator index), missing, or coercion-failed.
 5. **Bound** execution so a hostile or pathological document cannot hang the process.
@@ -133,15 +133,24 @@ public enum FieldStatus { Extracted, Missing, CoercionFailed, Skipped }
 Adapters expose a single `IDocumentView` abstraction so the interpreter has no tier-specific branches beyond
 selection.
 
-### Locator chains
+### Per-field selector pairs
 
-A field declares `locators[]` in priority order. Evaluation:
+Every eligible field declares exactly two ordered locator candidates: `PrimaryLocator` (index `0`) and
+`FallbackLocator` (index `1`). They may use independent selector strategies or equivalent alternate DOM
+locations, but both are intended to recover the same field value.
 
-1. Try locator *i*; if it yields a non-empty node set, use it and record `LocatorIndex = i`.
-2. Otherwise continue. A field resolved by a non-zero index emits an `Info` diagnostic — a source that
-   consistently resolves via fallbacks is drifting and the evaluator should know.
-3. All locators empty ⇒ `Missing` for optional fields, `SNR-SCH-004` (`RequiredFieldMissing`) for required
-   fields (AC-005: a required field that is missing never yields `Succeeded`).
+1. Evaluate the primary candidate through the field's complete downstream pipeline: selection, transforms,
+   type coercion, and field/schema constraints. It succeeds only when that pipeline succeeds; a non-empty
+   node set or raw text is not sufficient.
+2. On a primary miss, uncoercible result, or failed constraint, evaluate the fallback through that same
+   pipeline. A successful fallback records `LocatorIndex = 1` and emits an `Info` diagnostic with the
+   primary failure reason. The evaluator records this as a low-confidence drift signal; it is a cheap
+   recovery, not silent proof that the source remains healthy.
+3. If neither candidate yields a valid field value, report `Missing` for an optional field or
+   `SNR-SCH-004` (`RequiredFieldMissing`) for a required field. A required field that is missing never
+   yields `Succeeded` and may dispatch healing when enabled.
+
+The executor does not try a third candidate or invoke an LLM. Pair repair belongs to `healing-workflow`.
 
 ### Operation interpreter
 

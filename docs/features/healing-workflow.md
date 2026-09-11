@@ -84,13 +84,15 @@ and the scraper silently rots one heal at a time.
 flowchart TD
     A[DegradationDetected] --> B[1 Capture fresh fixtures]
     B --> C[2 Structural diff vs validation fixture]
-    C --> D[3 Classify deterministically]
+    C --> D[3 Classify deterministic pair recovery]
+    D -- FallbackRecovered --> R[Replenish degraded candidate - queued, no LLM in critical path]
     D -- ConsentWall --> E[Apply consent strategy - no LLM]
     D -- Challenge --> F[Report Blocked - no circumvention]
     D -- SourceNotFound --> G[Alert - not a code problem]
     D -- LayoutChange / FormatChange / PaginationChange --> H[4 Repair: agent returns minimal patch]
     D -- ContentRemoved --> I[Mark field permanently absent - propose schema change]
     D -- Unknown --> H
+    R --> H
     E --> J[5 Regression-validate]
     F --> J
     H --> J
@@ -142,11 +144,17 @@ sibling `.pdp-price__amount` appeared at the same depth" is a far better prompt 
 | `ConsentWall` | consent-platform markers present, content absent | apply/refresh the source's consent strategy | no |
 | `Challenge` | interstitial/challenge markers, 403 pattern | report `Blocked`; do not escalate tiers or attempt circumvention | no |
 | `SourceNotFound` | 404 / not-found predicate matched | alert; the URL is gone, this is not a plan defect | no |
+| `FallbackRecovered` | primary candidate misses, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if deterministic replacement cannot be derived |
 | `LayoutChange` | selectors miss, DOM structure changed | minimal patch | yes |
 | `FormatChange` | selectors hit, coercion fails (e.g. `€ 1.299,00` → `1 299,00 EUR`) | minimal patch | yes |
 | `PaginationChange` | pagination terminates early or loops | minimal patch | yes |
 | `ContentRemoved` | field's region absent and no equivalent found anywhere | mark permanently absent, propose a schema change | no (advisory) |
 | `Unknown` | none of the above | minimal patch attempt | yes |
+
+A `FallbackRecovered` run is successful for the immediate caller and must not trigger an LLM repair in the
+critical path. Repeated primary failure or fallback selection remains a measurable drift signal; healing
+replenishes or repairs the degraded candidate while preserving the valid candidate. Both candidates failing,
+or fallback output that remains invalid, follows the normal failure classifications and may reach LLM repair.
 
 Classifying before prompting is a cost and a correctness decision: roughly half of real-world "the scraper
 broke" incidents are consent walls or challenges, and paying for a model call to rediscover a cookie
@@ -184,6 +192,10 @@ The patched plan must pass:
 
 - the **new** fixture, and
 - **every retained historical fixture that the superseded plan passed**.
+
+For a selector-pair patch, dry-run both primary and fallback candidates on every applicable fixture. The
+patched pair must preserve field correctness; a non-empty match or semantically wrong value is not a valid
+replacement for either candidate.
 
 Any regression rejects the patch with `SNR-HEAL-002`, returns the regression report (which fixture, which
 field, what it produced before and after) to the agent, and consumes one attempt.

@@ -123,7 +123,8 @@ public sealed record AcquisitionSpec(
 
 public sealed record FieldPlan(
     string Pointer, bool Required, string Type,
-    IReadOnlyList<LocatorStep> Locators,
+    LocatorStep PrimaryLocator,
+    LocatorStep FallbackLocator,
     IReadOnlyList<TransformStep> Transforms);
 
 public sealed record LocatorStep(PlanOperation Operation, IReadOnlyList<string> Arguments);
@@ -192,6 +193,12 @@ rewriting only happens when a heal or re-author commits.
 - Numbers written in round-trip (`"R"`) invariant form; `Score` fixed at 4 decimal places.
 - Timestamps as ISO-8601 with `Z`.
 - Unicode escaped only where JSON requires it, so selectors stay legible in a diff.
+- Each field emits `primaryLocator` before `fallbackLocator`; these are the only serialized locator
+  candidates, so arbitrary `locators[]` chains cannot enter an approved plan.
+
+`PrimaryLocator` and `FallbackLocator` replace the prior `locators[]` representation in the current plan
+version. The registered N-1 upgrade maps a legacy two-entry chain in priority order; a legacy chain with
+any other cardinality is rejected rather than silently dropping recovery behavior.
 
 Round-trip property: `Read(WriteCanonical(p)) == p` and `WriteCanonical(Read(json)) == WriteCanonical(Read(WriteCanonical(Read(json))))`.
 
@@ -216,7 +223,10 @@ Checks, all reported together:
 3. Every required schema pointer is covered by some `FieldPlan` — an uncovered required field is a defect,
    because it guarantees a run-time `SNR-SCH-004`.
 4. `Pointer` values are unique.
-5. Every field has at least one locator.
+5. Every field has exactly two non-null locator candidates: `PrimaryLocator` and `FallbackLocator`.
+   The candidates must each be valid for the plan's acquisition tier and must not be structurally identical.
+   They may use different strategies against the same content or target an equivalent alternate location, but
+   the fallback is not permitted to select a different semantic field.
 6. The implemented model's pagination cap, `MaxPages`, is present and within 1–10 000; `LoadMoreButton`
    and `InfiniteScroll` require `Tier == Browser`. `MaxItems` is a target-state cap and cannot yet be
    validated because `PaginationSpec` has no corresponding property.

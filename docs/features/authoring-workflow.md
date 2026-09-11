@@ -224,13 +224,20 @@ Ceiling: 60 000 tokens per authoring turn. On breach, in order:
 - **Dry-run is offline.** The runtime executes the candidate against the fixture with a network handler
   that throws on connect (AC-020). This is asserted, because an accidental live fetch during a 5-attempt
   loop is 5× the traffic at the target and defeats the whole fixture-based design.
+- **Selector pairs are authored and proved independently.** For every eligible field, the proposal supplies
+  a primary and one non-identical fallback candidate. `TestSelector`/`DryRunField` records each candidate's
+  match, transformed value, coercion, and constraint result; a fallback that merely parses or selects a
+  wrong node is rejected. When feasible, candidates use independent strategies or alternate equivalent DOM
+  locations to limit common-mode failure.
 - **Score** per §7.5: `fieldScore = 1.0` when extracted, coerced, and constraint-passing; `0.5` when a
   fallback locator was used; `0.0` otherwise. Weighted `w_req = 3`, `w_opt = 1`. A candidate is
   `Validated` when `score ≥ MinPlanScore` (default 0.9) **and** every required field scores 1.0 **and**,
   for collection schemas, `itemCount ≥ MinItemsPerPage` (default 1). The required-fields-at-1.0 clause is
   the one that matters: a 0.92 average that hides a missing required field must not pass.
-- **Judge feedback** contains, per failing field: the pointer, the attempted locators, why each failed
-  (no match / matched-but-uncoercible), and the DOM neighbourhood of the most likely candidate node.
+- **Judge feedback** contains, per failing field: the pointer, primary and fallback candidate outcomes,
+  why each failed (no match / matched-but-uncoercible / constraint failure), and the DOM neighbourhood of
+  the most likely candidate node. It also reports primary misses hidden by a successful fallback so the
+  authoring loop cannot mistake degraded recovery for a healthy primary.
 
 ### Step 7 — Commit
 
