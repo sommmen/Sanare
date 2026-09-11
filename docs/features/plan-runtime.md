@@ -116,10 +116,19 @@ public interface IPlanExecutor
 
 public sealed record FieldObservation(
     string Pointer, FieldStatus Status, int? LocatorIndex,
-    string? RawValue, string? CoercionError, TimeSpan Elapsed);
+    string? RawValue, string? CoercionError, string? FailureReason, TimeSpan Elapsed);
 
-public enum FieldStatus { Extracted, Missing, CoercionFailed, Skipped }
+public enum FieldStatus { Extracted, Missing, CoercionFailed, ConstraintFailed, Skipped }
 ```
+
+`FailureReason` carries the primary candidate's failure description (selection miss, runtime transform failure,
+or failed constraint) whenever a fallback was attempted or a field reaches a terminal failure — it is the
+field-level source for `RunObservation.PrimaryFailureReason` (`quality-evaluator.md`), which `plan-runtime`
+populates verbatim per field when assembling the run record. `CoercionError` remains coercion-specific detail
+(the parse/conversion failure text); `FailureReason` is the general-purpose slot for every other pipeline
+failure, including the `ConstraintFailed` terminal case below. `ConstraintFailed` represents a present,
+coercible value that still fails a non-required structural constraint (`SNR-SCH-002`) — distinct from
+`Missing` (`SNR-SCH-004`) and `CoercionFailed` (`SNR-SCH-005`).
 
 ### Document adapters
 
@@ -151,18 +160,19 @@ locations, but both are intended to recover the same field value.
    conflict, which are static `PlanValidator` errors (`SNR-PLAN-001`/`SNR-PLAN-002`, `extraction-plan-model.md`)
    that are terminal at validation time and never reach this per-field evaluation), an uncoercible result, or
    a failed constraint, discard the primary candidate's staged writes and evaluate the fallback through that
-   same pipeline, staged the same way. A successful fallback records `LocatorIndex = 1`, commits only its own
-   staged writes (including any `into` sibling writes) to the payload, and emits an `Info` diagnostic with the
-   primary failure reason (including a runtime transform failure, not only selection or coercion). The
-   evaluator records this as a low-confidence drift signal; it is a cheap recovery, not silent proof that the
-   source remains healthy.
-3. If neither candidate yields a valid field value, the terminal status is derived from the fallback
-   candidate's own failure reason, mirroring `schema-engine`'s structural codes (§ Validation,
-   `schema-engine.md`): an absent value reports `Missing` for an optional field or `SNR-SCH-004`
-   (`RequiredFieldMissing`) for a required field; a present-but-uncoercible value reports `SNR-SCH-005`
-   (`TypeCoercionFailed`) regardless of required-ness; any other non-required structural constraint
-   violation reports `SNR-SCH-002`. A required field never yields `Succeeded` from this branch and may
-   dispatch healing when enabled.
+   same pipeline, staged the same way. A successful fallback records `LocatorIndex = 1` and `FailureReason`
+   set to the primary's failure description, commits only its own staged writes (including any `into`
+   sibling writes) to the payload, and emits an `Info` diagnostic with the primary failure reason (including
+   a runtime transform failure, not only selection or coercion). The evaluator records this as a
+   low-confidence drift signal; it is a cheap recovery, not silent proof that the source remains healthy.
+3. If neither candidate yields a valid field value, the terminal `FieldStatus` and `FailureReason` are
+   derived from the fallback candidate's own failure, mirroring `schema-engine`'s structural codes
+   (§ Validation, `schema-engine.md`): an absent value reports `Missing` for an optional field or
+   `SNR-SCH-004` (`RequiredFieldMissing`) for a required field; a present-but-uncoercible value reports
+   `CoercionFailed` with `SNR-SCH-005` (`TypeCoercionFailed`) regardless of required-ness, and the parse
+   detail in `CoercionError`; any other non-required structural constraint violation reports
+   `ConstraintFailed` with `SNR-SCH-002` in `FailureReason`. A required field never yields `Succeeded` from
+   this branch and may dispatch healing when enabled.
 
 The executor does not try a third candidate or invoke an LLM. Pair repair belongs to `healing-workflow`.
 

@@ -138,6 +138,11 @@ Windowed rules require `observed ≥ MinObservations` (default 5) and any of:
 | `ItemCountCollapse` | `itemCount < 50 %` of the trailing median | collection schemas |
 | `FallbackRecoveryRate` | `fallbackRate(f) > FallbackRateDelta` (default 0.10), where `fallbackRate(f) = count(LocatorIndex == 1) / observed(f)` | any field with a fallback candidate |
 
+`NullRateDelta` and `FallbackRateDelta` are bindable `QualityOptions` properties (`src/Sanare.Core/Quality/QualityOptions.cs`,
+§ File Structure), not fixed constants — a host sets either via `AddQualityEvaluator` alongside `Interval` and
+`AutoPromoteHeals` (`hosting-configuration.md`'s `AddQualityEvaluator` example already binds both). `MinObservations`
+and the fixed 0.10 `CoercionFailure`/50 % `ItemCountCollapse` thresholds are not currently exposed as options.
+
 `FallbackRecoveryRate` is the only rule that dispatches `DegradationDetected` with `Classification hint =
 FallbackRecovered` rather than `Unknown`. The healing workflow still runs its full evidence sequence
 unconditionally — fresh capture, structural diff (§ Step 2), then the deterministic classifier (§ Step 3,
