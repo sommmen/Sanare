@@ -198,8 +198,13 @@ disk; rewriting only happens when a heal or re-author commits.
   candidates, so arbitrary `locators[]` chains cannot enter an approved plan.
 
 `PrimaryLocator` and `FallbackLocator` replace the prior `locators[]` representation in the current plan
-version. The registered N-1 upgrade maps a legacy two-entry chain in priority order; a legacy chain with
-any other cardinality is rejected rather than silently dropping recovery behavior.
+version. The registered in-memory upgrade maps a legacy two-entry chain in priority order (index 0 →
+`PrimaryLocator`, index 1 → `FallbackLocator`). A legacy chain with any other cardinality — most notably a
+single-locator chain, which was the norm for `locators[]` plans authored before the fallback-selector
+requirement existed — cannot be upgraded in memory, because there is no second candidate to promote and one
+must not be fabricated. Such a plan is treated exactly like a plan below `MinimumReadablePlanVersion`: it is
+marked `PlanVersionUnsupported` and re-authored automatically on next run, rather than silently truncated,
+padded, or hard-rejected without a remediation path.
 
 Round-trip property: `Read(WriteCanonical(p)) == p` and `WriteCanonical(Read(json)) == WriteCanonical(Read(WriteCanonical(Read(json))))`.
 
@@ -259,7 +264,8 @@ Checks, all reported together:
 | AC-PLAN-001 | P0 | Given a valid plan document read then canonically written | Output is byte-identical to a stored golden file | Unit — Verify snapshot |
 | AC-PLAN-002 | P0 | Given canonical output re-read and re-written | Second output equals the first byte-for-byte | Unit — idempotence property test |
 | AC-PLAN-003 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion + 1` | Fails with `SNR-PLAN-002` naming both versions | Unit — forward-incompatibility |
-| AC-PLAN-004 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` | Reads successfully via the registered upgrade; the on-disk file is unchanged | Unit — `N-1` window |
+| AC-PLAN-004 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` and every field's legacy `locators[]` has exactly two entries | Reads successfully via the registered upgrade; the on-disk file is unchanged | Unit — `N-1` window |
+| AC-PLAN-004a | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 1` but at least one field's legacy `locators[]` does not have exactly two entries (e.g. a single-locator field) | Fails as `PlanVersionUnsupported`, the same remediation as a plan below the `N-1` window, rather than fabricating a fallback or truncating extra candidates | Unit — legacy arity mismatch |
 | AC-PLAN-005 | P0 | Given a plan whose `planVersion` is `CurrentPlanVersion - 2` | Fails with `SNR-PLAN-002` | Unit — the exact lower boundary |
 | AC-PLAN-006 | P0 | Given an `Html`-tier plan containing a `Click` interaction | Validation fails with `SNR-PLAN-001` naming the tier/operation conflict | Unit — tier gating |
 | AC-PLAN-007 | P0 | Given a `Browser`-tier plan containing a `Click` interaction | Validation succeeds | Unit — positive counterpart |

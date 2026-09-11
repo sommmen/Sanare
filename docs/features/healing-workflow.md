@@ -87,8 +87,10 @@ flowchart TD
     C --> D[3 Classify deterministic pair recovery]
     D -- FallbackRecovered --> R[Queue replenishment after successful fallback]
     R --> Q{Deterministic replacement derived?}
-    Q -- yes --> J[5 Regression-validate]
+    Q -- yes --> S{Distinct from surviving fallback?}
     Q -- no --> H[4 Repair: agent returns minimal patch]
+    S -- yes --> J[5 Regression-validate]
+    S -- no --> H
     D -- ConsentWall --> E[Apply consent strategy - no LLM]
     D -- Challenge --> F[Report Blocked - no circumvention]
     D -- SourceNotFound --> G[Alert - not a code problem]
@@ -146,7 +148,7 @@ sibling `.pdp-price__amount` appeared at the same depth" is a far better prompt 
 | `ConsentWall` | consent-platform markers present, content absent | apply/refresh the source's consent strategy | no |
 | `Challenge` | interstitial/challenge markers, 403 pattern | report `Blocked`; do not escalate tiers or attempt circumvention | no |
 | `SourceNotFound` | 404 / not-found predicate matched | alert; the URL is gone, this is not a plan defect | no |
-| `FallbackRecovered` | primary candidate misses, fails a transform/operation, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if deterministic replacement cannot be derived |
+| `FallbackRecovered` | primary candidate misses, fails a transform/operation, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if a deterministic replacement cannot be derived, or if one is derived but fails the distinctness check below |
 | `LayoutChange` | selectors miss, DOM structure changed | minimal patch | yes |
 | `FormatChange` | selectors hit, coercion fails (e.g. `€ 1.299,00` → `1 299,00 EUR`) | minimal patch | yes |
 | `PaginationChange` | pagination terminates early or loops | minimal patch | yes |
@@ -157,6 +159,14 @@ A `FallbackRecovered` run is successful for the immediate caller and must not tr
 critical path. Repeated primary failure or fallback selection remains a measurable drift signal; healing
 replenishes or repairs the degraded candidate while preserving the valid candidate. Both candidates failing,
 or fallback output that remains invalid, follows the normal failure classifications and may reach LLM repair.
+
+Replenishment first attempts to derive a **deterministic replacement** primary locator directly from the
+structural diff (e.g. the diff already names the sibling selector the fallback matched). Before that
+replacement is auto-applied, it is checked against `extraction-plan-model`'s locator distinctness rule: the
+candidate that will become primary must not be structurally identical to the candidate that will remain the
+fallback. A derived replacement that would collide is discarded rather than promoted — the field is instead
+routed to Step 4 for an LLM-authored patch, so a heal never leaves a field with two locators that are really
+the same selector wearing a different index.
 
 Classifying before prompting is a cost and a correctness decision: roughly half of real-world "the scraper
 broke" incidents are consent walls or challenges, and paying for a model call to rediscover a cookie

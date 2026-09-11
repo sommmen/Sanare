@@ -141,12 +141,17 @@ locations, but both are intended to recover the same field value.
 
 1. Evaluate the primary candidate through the field's complete downstream pipeline: selection, transforms,
    type coercion, and field/schema constraints. It succeeds only when that pipeline succeeds; a non-empty
-   node set or raw text is not sufficient.
-2. On a primary miss, a transform/operation failure, an uncoercible result, or a failed constraint, evaluate
-   the fallback through that same pipeline. A successful fallback records `LocatorIndex = 1` and emits an
-   `Info` diagnostic with the primary failure reason (including a transform failure, not only selection or
-   coercion). The evaluator records this as a low-confidence drift signal; it is a cheap recovery, not
-   silent proof that the source remains healthy.
+   node set or raw text is not sufficient. Any sibling write a transform performs via `into` (for example
+   `stripCurrency` writing the extracted symbol to `/products/-/currency`) is staged against a candidate-local
+   buffer, not the output payload directly. A candidate's staged writes are committed to the payload only
+   once that candidate's entire pipeline succeeds; a failed primary's partial `into` writes are discarded
+   rather than left in place for the fallback attempt or the final result to inherit.
+2. On a primary miss, a transform/operation failure, an uncoercible result, or a failed constraint, discard
+   the primary candidate's staged writes and evaluate the fallback through that same pipeline, staged the
+   same way. A successful fallback records `LocatorIndex = 1`, commits only its own staged writes (including
+   any `into` sibling writes) to the payload, and emits an `Info` diagnostic with the primary failure reason
+   (including a transform failure, not only selection or coercion). The evaluator records this as a
+   low-confidence drift signal; it is a cheap recovery, not silent proof that the source remains healthy.
 3. If neither candidate yields a valid field value, the terminal status is derived from the fallback
    candidate's own failure reason, mirroring `schema-engine`'s structural codes (§ Validation,
    `schema-engine.md`): an absent value reports `Missing` for an optional field or `SNR-SCH-004`
