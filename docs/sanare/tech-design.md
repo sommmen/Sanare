@@ -1069,15 +1069,17 @@ boundaries next to the fixtures and plans they reference. Outputs leave the grap
    `LayoutChange`, `ContentRemoved`, `PaginationChange`, `FormatChange`, `SourceNotFound`,
    `FallbackRecovered`, `Unknown`. `ConsentWall` has a deterministic remediation (apply consent strategy)
    and can be resolved without any model call. `Challenge` has no remediation — it is reported as
-   `Blocked` with no circumvention attempted. `FallbackRecovered` covers the drift signal from step 1: when
-   a replacement primary locator can be derived deterministically from the structural diff (e.g. the
-   fallback's own selector, or a trivial rename of the broken primary), it is checked for structural
-   distinctness (`extraction-plan-model`'s locator distinctness rule) against the candidate that will
-   remain the fallback; if distinct, it is applied without an LLM call. A deterministic replacement is not
-   applied — and the field instead enters step 4's repair path — when either no such replacement can be
-   derived, or the derived replacement would be structurally identical to the surviving fallback.
+   `Blocked` with no circumvention attempted. `FallbackRecovered` covers the drift signal from step 1:
+   replenishment always **promotes the surviving fallback to primary** (index `0`) first, then attempts to
+   derive a **new, distinct** fallback (index `1`) deterministically from the structural diff (e.g. a
+   different sibling anchor, an ancestor-scoped selector, or an attribute-based locator the diff names near
+   the same value). The derived candidate is checked for structural distinctness (`extraction-plan-model`'s
+   locator distinctness rule) against the promoted primary; if distinct, the pair is applied without an LLM
+   call. A deterministic replenishment is not applied — and the field instead enters step 4's repair path —
+   when either no distinct new fallback can be derived, or the derived candidate would be structurally
+   identical to the promoted primary.
 4. **Repair** — for `LayoutChange`/`FormatChange`/`PaginationChange` and for `FallbackRecovered` cases
-   where no distinct deterministic replacement was derived, the healing agent receives the
+   where no distinct new fallback was derived, the healing agent receives the
    current plan, the failing fields, the structural diff, and the reduced new DOM, and returns a
    **minimal patch** to the plan (changed operations only), not a rewritten plan.
 5. **Regression-validate** — the patched plan must pass the new fixture **and every retained historical
@@ -1348,6 +1350,7 @@ services.AddSanare(options =>
     {
         evaluator.Interval = TimeSpan.FromHours(6);
         evaluator.NullRateDelta = 0.25;
+        evaluator.FallbackRateDelta = 0.10;
         evaluator.AutoPromoteHeals = false;
     });
 ```

@@ -139,17 +139,20 @@ Windowed rules require `observed ≥ MinObservations` (default 5) and any of:
 | `FallbackRecoveryRate` | `fallbackRate(f) > FallbackRateDelta` (default 0.10), where `fallbackRate(f) = count(LocatorIndex == 1) / observed(f)` | any field with a fallback candidate |
 
 `FallbackRecoveryRate` is the only rule that dispatches `DegradationDetected` with `Classification hint =
-FallbackRecovered` rather than `Unknown`; the healing workflow's classifier (§ Step 3, `healing-workflow.md`)
-still re-derives the classification independently from fresh evidence, but the hint lets the evaluator
-route straight to candidate replenishment instead of a full diff when the pattern is already this legible
-from telemetry alone.
+FallbackRecovered` rather than `Unknown`. The healing workflow still runs its full evidence sequence
+unconditionally — fresh capture, structural diff (§ Step 2), then the deterministic classifier (§ Step 3,
+`healing-workflow.md`) — because the hint alone is telemetry, not fresh proof that the source still matches
+it. The hint's effect is prioritization, not a shortcut around evidence: it lets the healing queue schedule
+this source's classification ahead of others when the pattern is already this legible from telemetry alone,
+and the classifier still independently re-derives `FallbackRecovered` (or a different classification) from
+the fresh diff before any replenishment is attempted.
 
 Immediate triggers fire on a **single** run, with no window and no `MinObservations` gate:
 
 | Rule | Condition |
 |------|-----------|
 | `EmptyResult` | zero items from a lister that previously returned items |
-| `SchemaValidationFailure` | run ended with `ScrapeStatus.SchemaValidationFailed` (`SNR-SCH-002` or `SNR-SCH-004`) |
+| `SchemaValidationFailure` | run ended with `ScrapeStatus.SchemaValidationFailed` (`SNR-SCH-002`, `SNR-SCH-004`, or `SNR-SCH-005`) |
 | `ConsentWallBlocked` | run ended in `ConsentWallBlocked` |
 | `BlockedStreak` | `Blocked` on 3 consecutive runs |
 

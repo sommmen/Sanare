@@ -129,6 +129,7 @@ services.AddSanare(options =>
     {
         evaluator.Interval = TimeSpan.FromHours(6);
         evaluator.NullRateDelta = 0.25;
+        evaluator.FallbackRateDelta = 0.10;
         evaluator.AutoPromoteHeals = false;
     });
 ```

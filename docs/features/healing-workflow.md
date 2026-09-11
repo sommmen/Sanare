@@ -86,8 +86,9 @@ flowchart TD
     B --> C[2 Structural diff vs validation fixture]
     C --> D[3 Classify deterministic pair recovery]
     D -- FallbackRecovered --> R[Queue replenishment after successful fallback]
-    R --> Q{Deterministic replacement derived?}
-    Q -- yes --> S{Distinct from surviving fallback?}
+    R --> P[Promote surviving fallback to primary]
+    P --> Q{Distinct new fallback derivable from diff?}
+    Q -- yes --> S{Distinct from promoted primary?}
     Q -- no --> H[4 Repair: agent returns minimal patch]
     S -- yes --> J[5 Regression-validate]
     S -- no --> H
@@ -148,7 +149,7 @@ sibling `.pdp-price__amount` appeared at the same depth" is a far better prompt 
 | `ConsentWall` | consent-platform markers present, content absent | apply/refresh the source's consent strategy | no |
 | `Challenge` | interstitial/challenge markers, 403 pattern | report `Blocked`; do not escalate tiers or attempt circumvention | no |
 | `SourceNotFound` | 404 / not-found predicate matched | alert; the URL is gone, this is not a plan defect | no |
-| `FallbackRecovered` | primary candidate misses, fails a transform/operation, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if a deterministic replacement cannot be derived, or if one is derived but fails the distinctness check below |
+| `FallbackRecovered` | primary candidate misses, fails a runtime transform, fails coercion, or fails a field constraint; fallback yields a valid value | use the run result immediately; queue a minimal patch to replenish the degraded candidate | no for recovery; yes only for the queued patch if a distinct new fallback cannot be derived, or if one is derived but fails the distinctness check below |
 | `LayoutChange` | selectors miss, DOM structure changed | minimal patch | yes |
 | `FormatChange` | selectors hit, coercion fails (e.g. `€ 1.299,00` → `1 299,00 EUR`) | minimal patch | yes |
 | `PaginationChange` | pagination terminates early or loops | minimal patch | yes |
@@ -160,13 +161,15 @@ critical path. Repeated primary failure or fallback selection remains a measurab
 replenishes or repairs the degraded candidate while preserving the valid candidate. Both candidates failing,
 or fallback output that remains invalid, follows the normal failure classifications and may reach LLM repair.
 
-Replenishment first attempts to derive a **deterministic replacement** primary locator directly from the
-structural diff (e.g. the diff already names the sibling selector the fallback matched). Before that
-replacement is auto-applied, it is checked against `extraction-plan-model`'s locator distinctness rule: the
-candidate that will become primary must not be structurally identical to the candidate that will remain the
-fallback. A derived replacement that would collide is discarded rather than promoted — the field is instead
-routed to Step 4 for an LLM-authored patch, so a heal never leaves a field with two locators that are really
-the same selector wearing a different index.
+Replenishment always **promotes the surviving fallback to primary** (index `0`) first — it is the candidate
+already proven against fresh evidence — and then attempts to derive a **new, distinct** fallback (index `1`)
+directly from the structural diff (e.g. a different sibling anchor, an ancestor scoped selector, or an
+attribute-based locator the diff names near the same value). Before that new fallback is auto-applied, it is
+checked against `extraction-plan-model`'s locator distinctness rule against the promoted primary. A derived
+candidate that would collide with the promoted primary is discarded — the field is instead routed to Step 4
+for an LLM-authored patch, so a heal never leaves a field with two locators that are really the same
+selector wearing a different index, and never asks the collision check to compare a candidate against
+itself.
 
 Classifying before prompting is a cost and a correctness decision: roughly half of real-world "the scraper
 broke" incidents are consent walls or challenges, and paying for a model call to rediscover a cookie
