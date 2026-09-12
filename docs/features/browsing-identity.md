@@ -182,19 +182,14 @@ suspicious traffic in production.
 ## Constraints
 
 - **Compliance by default** — absent an explicit source setting, use `AcquisitionMode.Compliance`, enforce robots, and identify Sanare in the User-Agent.
-- **No automatic escalation** — a block may record detection and reduce traffic, but cannot rotate a proxy, mutate a fingerprint, or invoke a solver.
+- **Honest identity, always** — the UA identifies this library and is never configurable to impersonate a named third-party crawler (DR-006).
+- **No randomisation** — determinism is a feature here; no per-request rotation and no per-run seed.
+- **No automatic escalation** — a block may record detection and reduce traffic, but cannot rotate a proxy, mutate a fingerprint, or invoke a solver. The blocked path terminates: identity never escalates to evasion when a site says no.
 - **Coherent and auditable stealth** — optional proxy rotation and TLS/JA3 or UA/fingerprint profiles are selected before a run, validated against the actual transport/browser context, and recorded without secrets.
 - **Public data only** — identity capabilities never authorize access-control bypass.
-- Cookies stay in the per-host jar and never in fixtures, logs, or telemetry.
-
-## Constraints
-
-- **Honest identity, always** — the UA identifies this library.
-- **No randomisation** — determinism is a feature here.
 - **Consent retry is capped at one** — no loops against a CMP.
 - **Cookies stay in memory and in the per-host jar**, never in fixtures, logs, or telemetry.
 - Profiles are validated at startup; an incoherent profile prevents the host from starting.
-- The blocked path terminates: identity never escalates to evasion when a site says no.
 
 ## Acceptance Criteria
 
@@ -266,3 +261,125 @@ Companion test files: `tests/Sanare.Http.Tests/Identity/ConsentPolicyTests.cs`,
 `tests/Sanare.Http.Tests/Identity/ProfileCoherenceValidatorTests.cs`,
 `tests/Sanare.Http.Tests/Identity/ComplianceReportTests.cs`,
 `tests/Sanare.Http.Tests/ApiSurfaceTests.cs`.
+
+## Implementation Plan
+
+> Planned: 2026-09-10. Milestone M2 (with `acquisition-pipeline`). This section is the build
+> order for this component; it does not restate the behaviour above, only how to land it.
+
+### Delivery decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Package | Create `src/Sanare.Http` + `tests/Sanare.Http.Tests`, register both in `Sanare.slnx` | Matches tech-design §6.3 package layout and this spec's File Structure. `Sanare.Http` references `Sanare.Core`. |
+| Existing acquirer | Leave `HttpContentAcquirer` in `Sanare.Core.Acquisition` for now; `Sanare.Http` consumes its types | Moving it is a separate, mechanical relocation that would bury this feature's diff. Tracked as follow-up below. |
+| Transport wiring | Identity is applied by an explicit caller-side step, not by an `HttpClient` `DelegatingHandler` | Header **order** is the contract (coherence rule 6); `HttpClient` re-orders and de-duplicates request headers, so composition must reach `HttpRequestMessage` directly. |
+| Stealth capabilities | Ship the `AcquisitionMode` enum, the capability-validation path, and the compliance report fields; ship **no** proxy or fingerprint implementation | AC-011 requires stealth to fail loudly when capabilities are unavailable. "Unavailable" is the correct and honest state for v0.1, and AC-028's API-surface guard depends on no such knob existing. |
+| CAPTCHA | Detection and challenge classification only; no solver seam at all | AC-ID-016 asserts absence of a solver. A solver interface would weaken that assertion. |
+| New dependencies | None in `src/`. Test project takes `PublicApiGenerator` only | WireMock and Playwright are deferred with the integration tests they serve (see Deferred scope). |
+
+### Task order
+
+Each task is independently buildable and testable; land them in order.
+
+**T1 — Project scaffold.** Add `src/Sanare.Http/Sanare.Http.csproj` (ProjectReference → `Sanare.Core`)
+and `tests/Sanare.Http.Tests/Sanare.Http.Tests.csproj` (xunit 2.9.2, xunit.runner.visualstudio 2.8.2,
+Microsoft.NET.Test.Sdk 17.12.0, `GlobalUsings.cs`, and the `<None Include="Data\**\*" CopyToOutputDirectory="PreserveNewest" />`
+item used by the other test projects). Register both under the `/src/` and `/tests/` folders of
+`Sanare.slnx`. Acceptance: `dotnet build Sanare.slnx` and `dotnet test Sanare.slnx` still pass.
+
+**T2 — Identity model types.** `NavigationContext` (`TopLevel`, `SameOriginSubResource`, `DetailFromLister`),
+`IdentityRequest`, `BrowsingIdentity`, `IBrowsingIdentityProvider`, and `AcquisitionMode`
+(`Compliance` default, `Stealth`). Headers are `IReadOnlyList<KeyValuePair<string, string>>` — never a
+dictionary — so order survives the type system. Depends on: T1.
+
+**T3 — Profiles and header composition.** `IdentityProfile` (abstract: profile id, Chromium lineage flag,
+fixed header order, UA major version), `AssistantBrowserProfile` (the header table above),
+`DesktopChromeProfile` (declared but browser-tier-only; not selectable by the HTTP tier). Compose
+`Accept-Language` from the request culture as `{culture},{lang};q=0.9,en;q=0.8`, collapsing the duplicate
+`en` entry when the culture is already English. Depends on: T2.
+
+**T4 — `ProfileCoherenceValidator`.** One method per rule 1–6, each returning a named failure rather than a
+bool, so `SNR-ID-001` messages can name the rule and the offending header. Rule 1 checks against
+`DecompressionMethods` actually enabled on the transport, so the validator takes the supported-encoding set
+as an argument rather than hard-coding `gzip, deflate, br`. Depends on: T3.
+
+**T5 — `BrowsingIdentityProvider.GetIdentity`.** Pure function of `(profile, culture, navigation context)`.
+Resolves the profile by name and throws `SNR-ID-002` for an unknown name; runs T4's validator on each
+configured profile once at construction and throws `SNR-ID-001` on failure, which is what makes the host
+fail to start. Referer is emitted only for `DetailFromLister`, only when the referring URL is same-origin,
+and only from a referrer the caller passes in — there is no synthesis path that can fabricate one.
+Depends on: T4.
+
+**T6 — `HostCookieJar`.** Per-host, in-memory, bounded, inspectable; keyed by registrable host with expiry
+honoured against an injected `TimeProvider` (matching `HttpContentAcquirer`'s clock convention). Exposes
+no serialization surface, which is what mechanically keeps cookies out of fixtures. Depends on: T2.
+
+**T7 — Consent detection and decision.** `ConsentSignatures` (TCF `__tcfapi`, OneTrust
+`#onetrust-banner-sdk`, Cookiebot `#CybotCookiebotDialog`, plus a per-source selector from `ConsentSpec`),
+`ConsentDecision`, `IConsentPolicy`/`ConsentPolicy`. Detection requires *both* a CMP marker *and* the
+absence of the expected content root — the second half is what stops the false positive on a product page
+that merely ships a CMP script. The retry counter lives in the decision, so "exactly once" is a value, not
+a loop invariant. Depends on: T6, T3. Uses `AngleSharp` via `Sanare.Core`.
+
+**T8 — Challenge and terminal-wall classification.** CAPTCHA signature set → challenge classification
+(AC-ID-016); login/paywall signatures → unavailable-public-content classification (AC-ID-017). Both are
+pure detectors returning a classification enum; neither has a remediation path. Depends on: T7.
+
+**T9 — `ComplianceReport` / `ComplianceReporter`.** Per source: acquisition mode, identity profile id,
+robots decision/status, request volume, and enabled capability identifiers. Model capability ids and the
+proxy-provider id as opaque strings with no credential-shaped fields anywhere in the record, so AC-ID-015's
+"without credentials" is a property of the type rather than of a redaction pass. Depends on: T5.
+
+**T10 — Acquisition integration.** Add an optional identity parameter to `AcquisitionRequest`
+(`BrowsingIdentity? Identity = null`) and apply it in `HttpContentAcquirer` by writing headers onto the
+`HttpRequestMessage` in list order, plus a `Cookie` header assembled from the jar. Record the profile id on
+`AcquiredContent` so it reaches `RunProvenance`. Existing `HttpContentAcquirer` tests must pass unchanged —
+the parameter is optional and the no-identity path is byte-identical to today's behaviour. Depends on: T5,
+T6.
+
+**T11 — API-surface guard.** `PublicApiGenerator` approval test over `Sanare.Http` with the baseline at
+`tests/Sanare.Http.Tests/ApprovedApi/Sanare.Http.approved.txt`. This is the mechanical half of AC-028: a
+future proxy or fingerprint knob cannot be added silently. Depends on: T1–T10.
+
+**T12 — Doc reconciliation.** Flip this component's status in `docs/features/overview.md` from `draft` to
+`implemented` or `partial` (partial if any deferred item below remains), update `README.md`'s project-structure
+table and status prose with the new `Sanare.Http` package, and replace the browsing-identity clause in the
+`DEVELOPMENT.md` acquisition todo. Depends on: T11.
+
+### Verification matrix
+
+| AC-ID | Covered by | Test kind |
+|---|---|---|
+| AC-028 | T5 default-mode resolution test + T11 approved-API baseline + T10 assertion that the composed UA reaches the wire | Unit |
+| AC-010 | T8 block/challenge classification asserting the identity and the jar are unchanged after a block | Unit |
+| AC-011 | T4/T5 stealth-with-unavailable-capabilities test asserting a thrown `SNR-ID-001`/`SNR-ID-002` and no fallback identity | Unit |
+| AC-ID-015 | T9 report-content test plus a reflection assertion that the report type exposes no credential-shaped member | Unit |
+| AC-ID-016 | T8 CAPTCHA-signature test plus an assertion that the assembly exposes no solver type | Unit |
+| AC-ID-017 | T8 login/paywall fixtures → terminal classification | Unit (integration deferred) |
+
+Determinism is verified in T5 by composing the same request 1 000 times and asserting a single distinct
+ordered header list. Golden header-order lists live beside the profile tests.
+
+Fixtures to author under `tests/Sanare.Http.Tests/Data/`: `consent-wall-onetrust.html`,
+`consent-wall-cookiebot.html`, `consent-wall-tcf.html`, `lenovo-tablet-product.html` (false-positive guard),
+`login-wall.html`, `captcha-challenge.html`. Keep each minimal and hand-authored — these are signature
+fixtures, not corpus captures, so they do not go through `fixture-corpus`.
+
+### Deferred scope
+
+These are deliberately out of this component's first landing and must be listed in the `overview.md` status
+note if it lands as `partial`:
+
+- **WireMock integration tests** (consent-wall clearing end to end, cookie persistence across two runs).
+  Deferred with the wider `acquisition-pipeline` integration-test harness so the dependency is added once.
+- **Playwright locale/UA coherence for `DesktopChrome`.** Belongs to `browser-tier` (#8), which is the first
+  component that can construct a real browser context to validate against.
+- **Relocating `HttpContentAcquirer` from `Sanare.Core.Acquisition` to `Sanare.Http`.** Mechanical namespace
+  move; do it as its own commit once `Sanare.Http` exists, before `browser-tier` starts.
+- **Runtime and provenance integration.** `FixtureScrapeRunner` still constructs `RunProvenance` directly from
+  fixtures rather than calling `HttpContentAcquirer`; wiring the acquirer into the runtime and persisting the
+  selected identity there remain part of the wider `acquisition-pipeline` integration increment.
+- **Stealth proxy rotation and TLS/JA3 fingerprint profiles.** Only the mode, the validation path, and the
+  report fields ship now; the capabilities themselves remain unimplemented and therefore correctly report as
+  unavailable.

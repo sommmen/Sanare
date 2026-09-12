@@ -127,6 +127,49 @@ public sealed class HttpContentAcquirerTests
         Assert.Equal("SNR-ACQ-007", exception.Code);
     }
 
+    [Fact]
+    public async Task AcquireAsync_applies_identity_headers_in_declared_order_and_assembles_cookies_on_the_wire()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var handler = new StubHandler(request =>
+        {
+            capturedRequest = request;
+            return CreateResponse(Encoding.UTF8.GetBytes("<main>ok</main>"), "text/html");
+        });
+        var acquirer = new HttpContentAcquirer(new HttpClient(handler), new TestFixtureCorpus());
+        var identity = new RequestIdentity(
+            "test-profile",
+            [new("Accept", "text/html"), new("User-Agent", "SanareTest/1.0"), new("X-Test", "first")],
+            [new System.Net.Cookie("a", "1"), new System.Net.Cookie("b", "two")]);
+
+        var content = await acquirer.AcquireAsync(new AcquisitionRequest(new Uri("https://example.test/product"), "source", Identity: identity));
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal("test-profile", content.IdentityProfileId);
+        Assert.Equal("a=1; b=two", capturedRequest.Headers.GetValues("Cookie").Single());
+        var headerNames = capturedRequest.Headers.Select(header => header.Key).ToList();
+        Assert.True(headerNames.IndexOf("Accept") < headerNames.IndexOf("User-Agent"));
+        Assert.True(headerNames.IndexOf("User-Agent") < headerNames.IndexOf("X-Test"));
+    }
+
+    [Fact]
+    public async Task AcquireAsync_sends_no_identity_headers_or_profile_id_when_identity_is_omitted()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var handler = new StubHandler(request =>
+        {
+            capturedRequest = request;
+            return CreateResponse(Encoding.UTF8.GetBytes("<main>ok</main>"), "text/html");
+        });
+        var acquirer = new HttpContentAcquirer(new HttpClient(handler), new TestFixtureCorpus());
+
+        var content = await acquirer.AcquireAsync(new AcquisitionRequest(new Uri("https://example.test/product"), "source"));
+
+        Assert.NotNull(capturedRequest);
+        Assert.Null(content.IdentityProfileId);
+        Assert.Empty(capturedRequest.Headers);
+    }
+
     private static HttpResponseMessage CreateResponse(byte[] body, string mediaType, string? charset = null)
     {
         var content = new ByteArrayContent(body);

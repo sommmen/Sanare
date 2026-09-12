@@ -14,7 +14,7 @@ The initial reference scenarios cover Lenovo tablet-list pagination and product/
 
 ## Current status: v0.1 foundation
 
-This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, a minimal deterministic offline execution path, a local Git-backed approved-plan storage slice, the on-disk fixture corpus, and a partial controlled HTTP acquisition boundary. The existing `FixtureScrapeRunner` remains fixture-backed; the independent acquirer is not yet wired into that execution path. Plan authoring/healing, browser automation, pagination, and the remainder of the designed acquisition pipeline remain unimplemented — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
+This repository currently implements a **v0.1 foundation**: the project skeleton, the core domain/engine contracts, a minimal deterministic offline execution path, a local Git-backed approved-plan storage slice, the on-disk fixture corpus, and a partial controlled HTTP acquisition boundary with deterministic browsing identity composition, consent-wall handling, and compliance reporting. The existing `FixtureScrapeRunner` remains fixture-backed; the independent acquirer is not yet wired into that execution path. Plan authoring/healing, browser automation, pagination, and the remainder of the designed acquisition pipeline remain unimplemented — see [What's intentionally unimplemented](#whats-intentionally-unimplemented).
 
 ### Project structure
 
@@ -22,8 +22,10 @@ This repository currently implements a **v0.1 foundation**: the project skeleton
 | --- | --- |
 | `src/Sanare.Abstractions` | Core domain and engine contracts: `ScrapeRequest`/`ScrapeResult`/`ScrapeStatus`, the `IScrapeRunner` execution interface, extraction-plan models, the closed `PlanOperation` vocabulary, schema attributes, diagnostics, and quality/provenance types. No infrastructure dependencies. |
 | `src/Sanare.Core` | The v0.1 engine and local infrastructure: schema derivation/coercion/materialization, an AngleSharp-backed HTML document adapter, a narrow `PlanExecutor`, `FixtureScrapeRunner`, local Git-backed approved-plan storage, and an on-disk fixture corpus with mandatory redaction and DR-011 retention. |
+| `src/Sanare.Http` | Controlled HTTP and browsing-identity components: deterministic profile headers, profile-coherence validation, host-scoped consent cookies, consent and wall classification, and credential-free compliance reports. |
 | `tests/Sanare.Abstractions.Tests` | Contract tests for request validation and the operation catalog. |
-| `tests/Sanare.Core.Tests` | Unit and integration-style tests for schema execution, fixture capture/redaction/normalization/retention, Git-backed plan storage, and deterministic zero-socket offline replay. |
+| `tests/Sanare.Core.Tests` | Unit and integration-style tests for schema execution, fixture capture/redaction/normalization/retention, Git-backed plan storage, deterministic zero-socket offline replay, and HTTP identity transmission. |
+| `tests/Sanare.Http.Tests` | Unit and API-surface approval tests for browsing identities, profile coherence, consent handling, wall classification, cookie scoping, and compliance reports. |
 
 ### Engine execution path (v0.1)
 
@@ -38,7 +40,7 @@ ScrapeRequest
   → ScrapeResult<TSchema>        (status, payload, diagnostics, provenance)
 ```
 
-The minimal runner example remains usable with hand-authored plans through `InMemoryExtractionPlanProvider` and deterministic content through `InMemoryFixtureContentProvider`. The repository also includes a partial local Git-backed approved-plan repository/resolver, an independent on-disk fixture corpus, and a partial `HttpContentAcquirer` foundation. The acquirer supports GET-only HTTPS requests by default, streamed 16 MiB response limits, response-header normalization, content-type validation, charset detection, fixture capture, and zero-socket fixture replay. The corpus captures redacted, size-capped responses, deduplicates normalized content, rewrites its manifest atomically, applies DR-011 pyramid retention, and supports bounded slicing and offline replay without network access.
+The minimal runner example remains usable with hand-authored plans through `InMemoryExtractionPlanProvider` and deterministic content through `InMemoryFixtureContentProvider`. The repository also includes a partial local Git-backed approved-plan repository/resolver, an independent on-disk fixture corpus, and a partial `HttpContentAcquirer` foundation. The acquirer supports GET-only HTTPS requests by default, streamed 16 MiB response limits, response-header normalization, content-type validation, charset detection, fixture capture, and zero-socket fixture replay. `Sanare.Http` supplies coherent, deterministic profile headers and host-scoped consent cookies to that acquirer through an explicit request-identity projection, detects supported consent walls and terminal CAPTCHA/login/paywall states, and accumulates credential-free compliance reports. The corpus captures redacted, size-capped responses, deduplicates normalized content, rewrites its manifest atomically, applies DR-011 pyramid retention, and supports bounded slicing and offline replay without network access.
 
 ### Requirements
 
@@ -69,7 +71,7 @@ All three commands are expected to run clean (0 warnings/errors) against the cur
 The following are explicitly out of scope for v0.1 or remain incomplete after the controlled HTTP acquisition foundation:
 
 - Integration of `HttpContentAcquirer` into `FixtureScrapeRunner` or the planned runtime path.
-- HTTP acquisition policy and resilience: default Compliance (robots enforcement and bot identity) plus audited Stealth capability gates, host pacing and concurrency, retries, circuit breaking and challenge detection, cache/conditional requests, redirect-hop limits, cookie handling, browsing identity, and acquisition diagnostics/telemetry. Both modes preserve the same request-volume safeguards.
+- HTTP acquisition policy and resilience: robots enforcement, host pacing and concurrency, retries, circuit breaking, cache/conditional requests, redirect-hop limits, full acquisition diagnostics/telemetry, and integration of the existing controlled HTTP and browsing-identity components into the runtime path. Both modes preserve the same request-volume safeguards.
 - Browser acquisition (Playwright) and structured-data acquisition.
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows.
 - The unimplemented remainder of Git-backed plan storage/resolution — advanced history/diff, heal branches, rollback, CLI-backed Git operation, and authoring integration remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md) and [docs/features/plan-resolver.md](docs/features/plan-resolver.md)).
@@ -80,4 +82,4 @@ The following are explicitly out of scope for v0.1 or remain incomplete after th
 
 ### Recommended next step
 
-The recommended next architecture increment is to complete the **persistent extraction-plan model and validation boundary**: wire `IPlanValidator` into the plan-authoring/repository pipeline, add plan version upgrades, and finish the remaining `plan-resolver`/`script-repository` operations before introducing LLM authoring and healing workflows.
+The recommended next architecture increment is to integrate the existing **controlled HTTP acquisition and browsing-identity boundary** into the runtime path: replace the fixture-only acquisition seam, persist the selected identity in run provenance, and add the deferred end-to-end consent-cookie integration tests. After that boundary is live, complete the persistent extraction-plan model and validation boundary before introducing LLM authoring and healing workflows.

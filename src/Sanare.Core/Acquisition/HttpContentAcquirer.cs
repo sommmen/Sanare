@@ -43,6 +43,7 @@ public sealed class HttpContentAcquirer(
         }
 
         using var message = new HttpRequestMessage(HttpMethod.Get, request.Url);
+        ApplyIdentity(message, request.Identity);
         using var response = await _client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         var finalUrl = response.RequestMessage?.RequestUri ?? request.Url;
         if (!_options.AllowInsecureTransport && !string.Equals(finalUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
@@ -58,7 +59,29 @@ public sealed class HttpContentAcquirer(
                 new MemoryStream(body, writable: false), headers, request.PageRole), ct).ConfigureAwait(false);
         ValidateContentType(contentType, request.EffectiveExpectedContentTypes);
         var charset = ResolveCharset(response.Content.Headers.ContentType, body);
-        return new AcquiredContent(request.Url, finalUrl, (int)response.StatusCode, contentType, charset, body, headers, ContentOrigin.Network, fixture?.Id, _clock.GetElapsedTime(started));
+        return new AcquiredContent(request.Url, finalUrl, (int)response.StatusCode, contentType, charset, body, headers, ContentOrigin.Network, fixture?.Id, _clock.GetElapsedTime(started), request.Identity?.ProfileId);
+    }
+
+    /// <summary>
+    /// Writes an identity's headers onto <paramref name="message"/> in list order, plus a
+    /// <c>Cookie</c> header assembled from its cookie contributions. When <paramref name="identity"/>
+    /// is <see langword="null"/> this is a no-op, so the no-identity path stays byte-identical to
+    /// behaviour before identity support existed.
+    /// </summary>
+    private static void ApplyIdentity(HttpRequestMessage message, RequestIdentity? identity)
+    {
+        if (identity is null) { return; }
+
+        foreach (var (name, value) in identity.Headers)
+        {
+            message.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        if (identity.Cookies.Count > 0)
+        {
+            var cookieHeader = string.Join("; ", identity.Cookies.Select(cookie => $"{cookie.Name}={cookie.Value}"));
+            message.Headers.TryAddWithoutValidation("Cookie", cookieHeader);
+        }
     }
 
     private async ValueTask<AcquiredContent> ReplayAsync(AcquisitionRequest request, long started, CancellationToken ct)
@@ -70,7 +93,7 @@ public sealed class HttpContentAcquirer(
         var fixture = await _fixtures.GetContentAsync(record.Id, ct).ConfigureAwait(false)
             ?? throw new AcquisitionException("SNR-FIX-001", "The matching fixture content is unavailable.");
         return new AcquiredContent(request.Url, request.Url, 200, fixture.ContentType, ResolveCharset(null, fixture.Bytes), fixture.Bytes,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), ContentOrigin.Fixture, record.Id, _clock.GetElapsedTime(started));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), ContentOrigin.Fixture, record.Id, _clock.GetElapsedTime(started), request.Identity?.ProfileId);
     }
     private async ValueTask<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken ct)
     {

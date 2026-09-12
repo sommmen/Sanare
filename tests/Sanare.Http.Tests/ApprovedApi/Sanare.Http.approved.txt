@@ -1,0 +1,193 @@
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace Sanare.Http.Identity
+{
+    public enum AcquisitionMode
+    {
+        Compliance = 0,
+        Stealth = 1,
+    }
+    public sealed class BrowsingIdentity : System.IEquatable<Sanare.Http.Identity.BrowsingIdentity>
+    {
+        public BrowsingIdentity(string ProfileId, System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> Headers, System.Collections.Generic.IReadOnlyList<System.Net.Cookie> Cookies) { }
+        public System.Collections.Generic.IReadOnlyList<System.Net.Cookie> Cookies { get; init; }
+        public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> Headers { get; init; }
+        public string ProfileId { get; init; }
+    }
+    public static class BrowsingIdentityExtensions
+    {
+        public static Sanare.Core.Acquisition.RequestIdentity ToRequestIdentity(this Sanare.Http.Identity.BrowsingIdentity identity) { }
+    }
+    public sealed class BrowsingIdentityProvider : Sanare.Http.Identity.IBrowsingIdentityProvider
+    {
+        public BrowsingIdentityProvider(Sanare.Http.Identity.IdentityOptions options, Sanare.Http.Identity.Consent.IConsentPolicy? consentPolicy = null, Sanare.Http.Identity.Consent.HostCookieJar? cookieJar = null, Sanare.Http.Identity.Compliance.ComplianceReporter? complianceReporter = null) { }
+        public Sanare.Http.Identity.Consent.ConsentDecision EvaluateConsent(Sanare.Core.Acquisition.AcquiredContent content, string sourceId) { }
+        public Sanare.Http.Identity.Compliance.ComplianceReport GetComplianceReport(string sourceId) { }
+        public Sanare.Http.Identity.BrowsingIdentity GetIdentity(Sanare.Http.Identity.IdentityRequest request) { }
+    }
+    public interface IBrowsingIdentityProvider
+    {
+        Sanare.Http.Identity.Consent.ConsentDecision EvaluateConsent(Sanare.Core.Acquisition.AcquiredContent content, string sourceId);
+        Sanare.Http.Identity.Compliance.ComplianceReport GetComplianceReport(string sourceId);
+        Sanare.Http.Identity.BrowsingIdentity GetIdentity(Sanare.Http.Identity.IdentityRequest request);
+    }
+    public sealed class IdentityConfigurationException : System.Exception
+    {
+        public IdentityConfigurationException(string code, string message) { }
+        public string Code { get; }
+    }
+    public sealed class IdentityOptions : System.IEquatable<Sanare.Http.Identity.IdentityOptions>
+    {
+        public IdentityOptions(System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.IdentityProfile> Profiles, string DefaultProfileId, System.Collections.Generic.IReadOnlySet<string> SupportedContentEncodings, System.Collections.Generic.IReadOnlyDictionary<string, Sanare.Http.Identity.SourceIdentityOverride>? SourceOverrides = null) { }
+        public string DefaultProfileId { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.IdentityProfile> Profiles { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, Sanare.Http.Identity.SourceIdentityOverride>? SourceOverrides { get; init; }
+        public System.Collections.Generic.IReadOnlySet<string> SupportedContentEncodings { get; init; }
+    }
+    public sealed class IdentityRequest : System.IEquatable<Sanare.Http.Identity.IdentityRequest>
+    {
+        public IdentityRequest(string SourceId, System.Uri TargetUri, System.Globalization.CultureInfo Culture, Sanare.Http.Identity.NavigationContext Navigation, Sanare.Abstractions.AcquisitionTier Tier = 2, System.Uri? ReferrerUri = null) { }
+        public System.Globalization.CultureInfo Culture { get; init; }
+        public Sanare.Http.Identity.NavigationContext Navigation { get; init; }
+        public System.Uri? ReferrerUri { get; init; }
+        public string SourceId { get; init; }
+        public System.Uri TargetUri { get; init; }
+        public Sanare.Abstractions.AcquisitionTier Tier { get; init; }
+    }
+    public enum NavigationContext
+    {
+        TopLevel = 0,
+        SameOriginSubResource = 1,
+        DetailFromLister = 2,
+    }
+    public sealed class SourceIdentityOverride : System.IEquatable<Sanare.Http.Identity.SourceIdentityOverride>
+    {
+        public SourceIdentityOverride(string? ProfileId = null, Sanare.Http.Identity.AcquisitionMode Mode = 0, string ExpectedContentRootSelector = "body", Sanare.Abstractions.Plans.ConsentSpec? ConsentSpec = null) { }
+        public Sanare.Abstractions.Plans.ConsentSpec? ConsentSpec { get; init; }
+        public string ExpectedContentRootSelector { get; init; }
+        public Sanare.Http.Identity.AcquisitionMode Mode { get; init; }
+        public string? ProfileId { get; init; }
+    }
+}
+namespace Sanare.Http.Identity.Compliance
+{
+    public sealed class ComplianceReport : System.IEquatable<Sanare.Http.Identity.Compliance.ComplianceReport>
+    {
+        public ComplianceReport(string SourceId, Sanare.Http.Identity.AcquisitionMode Mode, string IdentityProfileId, string? RobotsDecision, long RequestCount, System.Collections.Generic.IReadOnlyList<string> EnabledCapabilityIds, string? ProxyProviderId) { }
+        public System.Collections.Generic.IReadOnlyList<string> EnabledCapabilityIds { get; init; }
+        public string IdentityProfileId { get; init; }
+        public Sanare.Http.Identity.AcquisitionMode Mode { get; init; }
+        public string? ProxyProviderId { get; init; }
+        public long RequestCount { get; init; }
+        public string? RobotsDecision { get; init; }
+        public string SourceId { get; init; }
+    }
+    public sealed class ComplianceReporter
+    {
+        public ComplianceReporter() { }
+        public Sanare.Http.Identity.Compliance.ComplianceReport GetReport(string sourceId) { }
+        public void RecordRequest(string sourceId) { }
+        public void RecordResolution(string sourceId, Sanare.Http.Identity.AcquisitionMode mode, string identityProfileId, System.Collections.Generic.IReadOnlyList<string>? enabledCapabilityIds = null, string? proxyProviderId = null) { }
+        public void RecordRobotsDecision(string sourceId, string robotsDecision) { }
+    }
+}
+namespace Sanare.Http.Identity.Consent
+{
+    public sealed class ConsentDecision : System.IEquatable<Sanare.Http.Identity.Consent.ConsentDecision>
+    {
+        public static readonly Sanare.Http.Identity.Consent.ConsentDecision NotDetected;
+        public ConsentDecision(bool WallDetected, string? DetectedSignatureName = null, string? CookieName = null, string? CookieValue = null, bool RetryAttempted = false) { }
+        public string? CookieName { get; init; }
+        public string? CookieValue { get; init; }
+        public string? DetectedSignatureName { get; init; }
+        public bool RetryAttempted { get; init; }
+        public bool WallDetected { get; init; }
+    }
+    public sealed class ConsentPolicy : Sanare.Http.Identity.Consent.IConsentPolicy
+    {
+        public ConsentPolicy() { }
+        public Sanare.Http.Identity.Consent.ConsentDecision Evaluate(Sanare.Core.Acquisition.AcquiredContent content, string expectedContentRootSelector, Sanare.Abstractions.Plans.ConsentSpec? consentSpec, bool retryAttempted) { }
+    }
+    public sealed class ConsentSignature : System.IEquatable<Sanare.Http.Identity.Consent.ConsentSignature>
+    {
+        public static readonly Sanare.Http.Identity.Consent.ConsentSignature Cookiebot;
+        public static readonly System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Consent.ConsentSignature> Known;
+        public static readonly Sanare.Http.Identity.Consent.ConsentSignature OneTrust;
+        public static readonly Sanare.Http.Identity.Consent.ConsentSignature Tcf;
+        public ConsentSignature(string Name, string MarkerSelector, string CookieName, string CookieValue) { }
+        public string CookieName { get; init; }
+        public string CookieValue { get; init; }
+        public string MarkerSelector { get; init; }
+        public string Name { get; init; }
+        public bool MatchesMarker(AngleSharp.Dom.IDocument document) { }
+    }
+    public sealed class HostCookieJar
+    {
+        public HostCookieJar(System.TimeProvider? clock = null, int maxCookiesPerHost = 32) { }
+        public void Clear(string host) { }
+        public System.Collections.Generic.IReadOnlyList<System.Net.Cookie> Get(string host) { }
+        public void Set(string host, System.Net.Cookie cookie) { }
+    }
+    public interface IConsentPolicy
+    {
+        Sanare.Http.Identity.Consent.ConsentDecision Evaluate(Sanare.Core.Acquisition.AcquiredContent content, string expectedContentRootSelector, Sanare.Abstractions.Plans.ConsentSpec? consentSpec, bool retryAttempted);
+    }
+    public enum WallClassification
+    {
+        None = 0,
+        Challenge = 1,
+        UnavailablePublicContent = 2,
+    }
+    public sealed class WallClassifier
+    {
+        public WallClassifier() { }
+        public Sanare.Http.Identity.Consent.WallClassification Classify(Sanare.Core.Acquisition.AcquiredContent content) { }
+    }
+}
+namespace Sanare.Http.Identity.Profiles
+{
+    public sealed class AssistantBrowserProfile : Sanare.Http.Identity.Profiles.IdentityProfile
+    {
+        public const string UserAgent = "Mozilla/5.0 (compatible; Sanare/1.0; +https://github.com/sommmen/Sanare) Assistan" +
+            "tBrowser/1.0";
+        public AssistantBrowserProfile() { }
+        public override System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> ComposeHeaders(Sanare.Http.Identity.IdentityRequest request) { }
+    }
+    public sealed class DesktopChromeProfile : Sanare.Http.Identity.Profiles.IdentityProfile
+    {
+        public const int ChromeMajorVersion = 130;
+        public DesktopChromeProfile() { }
+        public override System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> ComposeHeaders(Sanare.Http.Identity.IdentityRequest request) { }
+    }
+    public abstract class IdentityProfile
+    {
+        protected IdentityProfile(string profileId, bool isChromiumLineage, int? userAgentMajorVersion, System.Collections.Generic.IReadOnlyList<string> headerOrder, System.Collections.Generic.IReadOnlyList<string> acceptEncodings) { }
+        public System.Collections.Generic.IReadOnlyList<string> AcceptEncodings { get; }
+        public System.Collections.Generic.IReadOnlyList<string> HeaderOrder { get; }
+        public bool IsChromiumLineage { get; }
+        public string ProfileId { get; }
+        public int? UserAgentMajorVersion { get; }
+        public abstract System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> ComposeHeaders(Sanare.Http.Identity.IdentityRequest request);
+        protected static string ComposeAcceptLanguage(System.Globalization.CultureInfo culture) { }
+        protected static string? ComposeReferer(Sanare.Http.Identity.IdentityRequest request) { }
+    }
+    public sealed class ProfileCoherenceFailure : System.IEquatable<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure>
+    {
+        public ProfileCoherenceFailure(int Rule, string ProfileId, string? Header, string Detail) { }
+        public string Detail { get; init; }
+        public string? Header { get; init; }
+        public string ProfileId { get; init; }
+        public int Rule { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class ProfileCoherenceValidator
+    {
+        public ProfileCoherenceValidator(System.Collections.Generic.IReadOnlySet<string> supportedContentEncodings) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> Validate(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateAcceptEncoding(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateAcceptLanguage(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateHeaderOrder(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateReferer(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateSecChUa(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateSecFetchUser(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+    }
+}
