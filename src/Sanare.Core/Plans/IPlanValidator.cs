@@ -19,5 +19,12 @@ public interface IPlanValidator
     /// The schema the plan targets, or <see langword="null"/> to skip the schema-dependent checks
     /// (rules 2's membership check, rule 3, and rule 10's hash-equality check).
     /// </param>
-    PlanValidationResult Validate(ExtractionPlan plan, SchemaDescriptor? schema = null);
+    /// <param name="requestParameters">
+    /// Bound request parameters. When supplied, every <c>{placeholder}</c> in the URL template must
+    /// have a corresponding key.
+    /// </param>
+    PlanValidationResult Validate(
+        ExtractionPlan plan,
+        SchemaDescriptor? schema = null,
+        IReadOnlyDictionary<string, string>? requestParameters = null);
 }

@@ -3,7 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
-> Implementation status: partial — the typed plan model, canonical serializer, and structural `IPlanValidator`/`PlanValidator` slice are implemented and covered by focused tests. Version upgrades, request-aware placeholder binding, `MaxItems` validation, and the regex backtracking policy remain deferred.
+> Implementation status: implemented — the version-2 typed plan model, version-1 read upgrade, canonical serializer, request-aware structural validator, and repository commit validation are implemented and covered by focused tests.
 
 | Field | Value |
 |-------|-------|
@@ -342,3 +342,132 @@ support are target-state structure; they are not separate production files in th
 **Deferred target-state test scope**: fixture-corpus validation, canonical-writer and version-upgrade suites,
 request-aware placeholder binding, `MaxItems`, and a non-backtracking-regex policy once their supporting
 models and runtime inputs exist.
+
+## Implementation Plan
+
+> Planned: 2026-09-12. Milestone M1 (`extraction-plan-model` remainder, before M3's `script-repository`
+> wiring and M2's `pagination-engine` depend on it). This section is the build order for the deferred
+> slice; it does not restate the behaviour above, only how to land it.
+
+### Delivery decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Version constants | Add `ExtractionPlan.CurrentPlanVersion = 2` and `ExtractionPlan.MinimumReadablePlanVersion = 1` as `public const int` on `ExtractionPlan` itself | The type's own XML doc already promises these names; keeping them on the model (not a separate `Versioning` type) means `PlanSerializer` and `PlanValidator` share one source of truth without a new cross-project dependency. |
+| Upgrade mechanism | A single internal `PlanVersionUpgrader.TryUpgrade(JsonElement root, out ExtractionPlan? upgraded, out string? failureReason)` called from `PlanSerializer.Read` before binding, rather than a registered-function table | Only one upgrade edge exists (`1 → 2`); a registry is speculative generality for a single case. If a third version is ever added, this method is the seam to promote into a table. |
+| Legacy field shape | Read version-1 `fields[].locators[]` (already the JSON shape `PlanSerializer` reads today) and require exactly two entries to synthesize `primaryLocator`/`fallbackLocator` | Matches tech-design §16's upgrade rule verbatim: index 0 → primary, index 1 → fallback, any other arity is unsupported rather than guessed. |
+| Placeholder binding validator | New `IPlanValidator.Validate(ExtractionPlan, SchemaDescriptor?, IReadOnlyDictionary<string, string>? requestParameters = null)` overload/optional parameter, not a second interface | `PlanValidator` already receives a plan-only call site (`GitScriptRepository`, tests) that must keep compiling; an optional parameter defaulting to `null` preserves both the existing no-request validation and the richer AC-PLAN-016 check without splitting validators. |
+| `MaxItems` | Add `PaginationSpec.MaxItems` (`int?`, default `null` = unbounded within `MaxPages`) validated to 1–1,000,000 when set | Optional and additive: existing plans/tests with no `maxItems` in JSON keep working; `PlanSerializer` treats a missing/null value as "not present" rather than defaulting it to a magic number. |
+| Regex barrier | Compile every `RegexCapture` pattern with `RegexOptions.NonBacktracking` and a 1-second `matchTimeout` inside `PlanValidator`, catching `NotSupportedException` (construct unsupported by the non-backtracking engine) and `RegexParseException` (malformed pattern) as the same defect | `RegexOptions.NonBacktracking` is the runtime's actual catastrophic-backtracking guard (.NET 7+); compiling it once at validation time is the cheapest way to guarantee every pattern that reaches `plan-runtime` is provably linear-time, with no separate regex-safety library. |
+| Pipeline wiring | `GitScriptRepository.CommitPlanAsync` calls `IPlanValidator.Validate` and throws `ScriptRepositoryException("SNR-PLAN-001", ...)` on any defect, before the existing size-limit check | Keeps the "plans can only ever reach git valid" invariant enforced at the one place all external plan writes funnel through; `GitScriptRepository` receives `IPlanValidator` by constructor injection. Schema-aware validation remains the responsibility of the caller that owns schema resolution. |
+| New dependencies | None. `RegexOptions.NonBacktracking` and `Regex.TryMatch` timeouts are part of the BCL already referenced (`System.Text.RegularExpressions`) | No new package needed for either the version upgrade or the regex barrier. |
+
+### Task order
+
+Each task is independently buildable and testable; land them in order.
+
+**T1 — Version constants and read-time gate.** Add `CurrentPlanVersion`/`MinimumReadablePlanVersion` consts
+to `ExtractionPlan`. In `PlanSerializer.Read`, after parsing `planVersion` but before binding the rest of
+the graph, reject any version `> CurrentPlanVersion` or `< MinimumReadablePlanVersion` with
+`PlanSerializationException` carrying `SNR-PLAN-002` and both versions in the message (AC-PLAN-003,
+AC-PLAN-005). A version equal to `CurrentPlanVersion` binds exactly as today. Depends on: none (pure
+addition to the existing type/serializer).
+
+**T2 — `PrimaryLocator`/`FallbackLocator` on `FieldPlan`.** Add `PrimaryLocator`/`FallbackLocator` (both
+`LocatorStep`, non-nullable) alongside the existing `Locators` list on `FieldPlan`, matching the
+`## Key Behaviors` object-model snippet above. `PlanSerializer.WriteCanonical` always writes the current
+(`v2`) `primaryLocator`/`fallbackLocator` object shape; `ReadField` binds those two properties directly for
+`planVersion == CurrentPlanVersion`. Update `PlanValidatorTests`' `SamplePlan()` and any other in-repo plan
+fixture to the new shape. This is a breaking change to the two-property surface but is scoped to this slice
+because nothing outside `Sanare.Core`/`Sanare.Core.Tests` constructs a `FieldPlan` literal yet (confirmed via
+a repo-wide reference search before starting). Depends on: T1.
+
+**T3 — `PlanVersionUpgrader` (the `N-1` path).** New internal `Sanare.Core.Plans.PlanVersionUpgrader` with
+`TryUpgrade(JsonElement root, out ExtractionPlan? plan, out PlanDefect? failure)`. Reads a `planVersion ==
+MinimumReadablePlanVersion` (`1`) document's legacy `fields[].locators[]` array; when every field has
+exactly two entries, binds index 0 to `PrimaryLocator` and index 1 to `FallbackLocator` and returns the
+upgraded in-memory `ExtractionPlan` at `CurrentPlanVersion` (AC-PLAN-004) — the on-disk bytes are untouched,
+only the in-memory graph is upgraded. When any field's `locators[]` has an arity other than two, returns a
+failure defect coded `SNR-PLAN-002` (AC-PLAN-004a) rather than truncating or fabricating a candidate. Wire
+this into `PlanSerializer.Read` as the branch taken when `planVersion == MinimumReadablePlanVersion`.
+Depends on: T2.
+
+**T4 — `PaginationSpec.MaxItems`.** Add `int? MaxItems` (default `null`) to `PaginationSpec`. In
+`PlanSerializer`, read/write `maxItems` as an optional JSON number (present in canonical output only when
+non-null, matching the existing `null`-field convention used for `Root`/`NotFound`/`Consent`). In
+`PlanValidator`, extend rule 6 to also check `MaxItems`, when set, is within 1–1,000,000 (AC-PLAN-012's
+sibling boundary), while continuing to enforce the existing `MaxPages` 1–10,000 bound unconditionally. Update
+the class-level `<remarks>` on `PlanValidator` to drop the `MaxItems` narrowing note. Depends on: T1 (shares
+the serializer read/write pass but is otherwise independent of T2/T3).
+
+**T5 — Non-backtracking regex barrier for `RegexCapture`.** In `PlanValidator`'s existing per-step operation
+validation, when `step.Operation == PlanOperation.RegexCapture`, attempt
+`new Regex(pattern, RegexOptions.NonBacktracking, TimeSpan.FromSeconds(1))` (pattern is the step's first
+argument, matching its existing arity contract). Catch `NotSupportedException` (the construct the
+non-backtracking engine rejects, e.g. backreferences or lookaround) and `RegexParseException` (malformed
+pattern) and report both as a single structural defect at the step's plan pointer naming the pattern
+(AC-PLAN-013). A pattern that compiles is discarded immediately — this call exists only to prove
+constructibility, not to run it. Depends on: none (independent validator-only addition; can land in
+parallel with T1–T4).
+
+**T6 — Request-aware placeholder binding.** Add an optional `IReadOnlyDictionary<string, string>?
+requestParameters = null` parameter to `IPlanValidator.Validate` (and `PlanValidator`'s implementation).
+When non-null, extract every `{placeholder}` token from `Acquisition.UrlTemplate` and fail with a rule-8
+defect at `/acquisition/urlTemplate` for any token absent from `requestParameters` (AC-PLAN-016); when
+`null` (the default), behaviour is unchanged from today — only the absolute-URL check runs. Update the
+class-level `<remarks>` on `PlanValidator` to drop the placeholder-binding narrowing note once this lands.
+Depends on: none (independent of T1–T5; touches only the validator's URL-rule method and its public
+signature).
+
+**T7 — Wire `IPlanValidator` into `GitScriptRepository`.** Add `IPlanValidator validator` as a constructor
+parameter on `GitScriptRepository` (alongside the existing `serializer`/`coordinator`). At the top of
+`CommitPlanAsync`, before the existing `MaxPlanSizeBytes` check, call
+`validator.Validate(request.Plan, schema: null)` (no schema is available at this call site yet — schema
+cross-checks remain a caller-side concern until `plan-resolver` passes one through) and throw
+`ScriptRepositoryException("SNR-PLAN-001", ...)` naming every defect when `!result.IsValid`, so a
+structurally invalid plan can never reach a commit. Update `GitScriptRepositoryTests`' constructor calls
+and add a negative test asserting a plan with a known defect (e.g. a forbidden header) is rejected before
+any git write. Depends on: T1–T6 (exercises the full validator surface, including the new rules).
+
+**T8 — Doc reconciliation.** Flip this component's status in `docs/features/overview.md` from `partial`
+to `implemented` (or leave `partial` and narrow the note if any item above is descoped during review),
+update this file's front-matter status line and the `## Validation` section's rule 6/8 prose to drop the
+"cannot yet be validated"/"deferred" language, remove the two satisfied bullets from `PlanValidator`'s
+class-level `<remarks>` (keep the regex-barrier note only if T5 is not landed), and check off the
+corresponding `DEVELOPMENT.md` item ("Implement plan version upgrades ... and wire `IPlanValidator` into
+the plan-authoring/repository pipeline"). Depends on: T1–T7.
+
+### Deferred scope
+
+These remain out of this slice and must stay noted in `overview.md`/this file's status line if anything
+above lands as partial:
+
+- **A registered multi-version upgrade table.** T1's single-edge `PlanVersionUpgrader` only handles
+  `1 → 2`. If a third plan version is ever introduced, promote it to a table keyed by source version —
+  not needed while only one upgrade edge exists.
+- **Schema cross-checks at the `GitScriptRepository` commit boundary (T7).** `CommitPlanAsync` validates
+  structurally but passes `schema: null`; wiring a real `SchemaDescriptor` lookup into that call site
+  belongs to `plan-resolver`/`script-repository`, which already own schema resolution by name/version.
+- **A configurable regex timeout or engine choice.** T5's 1-second `RegexOptions.NonBacktracking` timeout
+  is a fixed constant; making it configurable per-source is speculative until a real pattern is observed
+  timing out in practice.
+- **Non-`http`/`https`-template placeholder sources (query strings, headers).** T6 only extracts
+  placeholders from `Acquisition.UrlTemplate`; extending placeholder binding to `Acquisition.Headers`
+  values is `acquisition-pipeline` scope once headers are shown to need templating.
+
+### Verification matrix
+
+| AC-ID | Covered by | Test kind |
+|---|---|---|
+| AC-PLAN-003 | T1 forward-incompatibility test (`planVersion == CurrentPlanVersion + 1`) | Unit |
+| AC-PLAN-004 | T3 `N-1` upgrade test with well-formed legacy `locators[]` pairs | Unit |
+| AC-PLAN-004a | T3 legacy-arity-mismatch test (a single-locator field) asserting `SNR-PLAN-002`, not fabrication/truncation | Unit |
+| AC-PLAN-005 | T1 lower-boundary test (`planVersion == CurrentPlanVersion - 2`) | Unit |
+| AC-PLAN-012 | T4 `MaxItems` boundary test (1–1,000,000) alongside the existing `MaxPages` boundary test | Unit |
+| AC-PLAN-013 | T5 catastrophic-backtracking-pattern test (a construct `RegexOptions.NonBacktracking` rejects) plus a positive compiling-pattern test | Unit |
+| AC-PLAN-016 | T6 placeholder-binding test with an unbound `{token}` and a positive fully-bound counterpart | Unit |
+| (repository invariant) | T7 `GitScriptRepositoryTests` negative test: a plan with a known structural defect is rejected by `CommitPlanAsync` before any git write | Unit |
+
+`PlanSerializerTests` gains round-trip coverage for the new `primaryLocator`/`fallbackLocator` canonical
+shape (T2) and the optional `maxItems` field (T4), keeping the existing byte-stability/idempotence
+assertions (AC-PLAN-001, AC-PLAN-002) intact for the new shape.

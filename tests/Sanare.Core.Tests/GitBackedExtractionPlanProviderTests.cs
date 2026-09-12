@@ -95,11 +95,11 @@ public sealed class GitBackedExtractionPlanProviderTests : IDisposable
     }
 
     private static GitScriptRepository CreateRepository(ScriptRepositoryOptions options) =>
-        new(options, new PlanSerializer(), new FileLockRepositoryCoordinator(Path.Combine(options.RepositoryPath, ".sanare-lock")));
+        new(options, new PlanSerializer(), new PlanValidator(), new FileLockRepositoryCoordinator(Path.Combine(options.RepositoryPath, ".sanare-lock")));
 
     private static ExtractionPlan SamplePlan() => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = "Product",
         SchemaVersion = 1,

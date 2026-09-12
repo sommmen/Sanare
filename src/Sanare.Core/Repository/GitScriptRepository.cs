@@ -17,7 +17,11 @@ namespace Sanare.Core.Repository;
 /// commit, and monotonic approval tagging. The <c>git</c>-CLI backend, heal branches, rollback-by-name,
 /// history/diff, blame, and notes remain full <c>script-repository</c> scope.
 /// </remarks>
-public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSerializer serializer, IRepositoryCoordinator coordinator) : IScriptRepository
+public sealed class GitScriptRepository(
+    ScriptRepositoryOptions options,
+    IPlanSerializer serializer,
+    IPlanValidator validator,
+    IRepositoryCoordinator coordinator) : IScriptRepository
 {
     private const string CommitAuthorTrailerPrefix = "Reason: ";
 
@@ -89,6 +93,14 @@ public sealed class GitScriptRepository(ScriptRepositoryOptions options, IPlanSe
     {
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
+
+        var validation = validator.Validate(request.Plan);
+        if (!validation.IsValid)
+        {
+            var details = string.Join("; ", validation.Defects.Select(defect =>
+                $"{defect.PlanPointer}: {defect.Message}"));
+            throw new ScriptRepositoryException("SNR-PLAN-001", $"Plan validation failed: {details}");
+        }
 
         var json = serializer.WriteCanonical(request.Plan);
         var bytes = Encoding.UTF8.GetByteCount(json);

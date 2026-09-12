@@ -11,32 +11,17 @@ namespace Sanare.Core.Plans;
 /// docs/features/extraction-plan-model.md ("Validation") for the ten rules implemented here.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Two rules from the spec are intentionally narrowed for this slice, since the model this validator
-/// checks against has no representation for the missing piece:
-/// </para>
-/// <list type="bullet">
-/// <item>
-/// Rule 6's <c>MaxItems</c> (1–1,000,000) cap has no corresponding property on <see cref="PaginationSpec"/>
-/// — only <see cref="PaginationSpec.MaxPages"/> exists on the model, so only that bound is checked.
-/// </item>
-/// <item>
-/// Rule 8's placeholder-to-request-parameter binding check (AC-PLAN-016) needs the request's parameter
-/// set, which is <see cref="ScrapeRequest.Parameters"/> — a runtime-layer input this validator's
-/// plan-only signature does not receive. Only "absolute http/https URL" is checked here; full
-/// placeholder-binding validation belongs to the layer that has both the plan and the request.
-/// </item>
-/// </list>
-/// <para>
-/// Rule 13's non-backtracking-regex compilation barrier (AC-PLAN-013) is out of scope for this slice —
-/// it needs a dedicated non-backtracking regex engine decision that belongs to a later dependency slice.
-/// </para>
+/// When request parameters are provided, URL template placeholders are also checked for a matching
+/// parameter. Regular-expression locator patterns are compiled with the non-backtracking engine and a
+/// one-second timeout.
 /// </remarks>
 public sealed class PlanValidator : IPlanValidator
 {
     private const string StructuralDefectCode = "SNR-PLAN-001";
     private const int MinPages = 1;
     private const int MaxPages = 10_000;
+    private const int MinItems = 1;
+    private const int MaxItems = 1_000_000;
 
     /// <summary>The only consent strategy documented anywhere in the spec (docs/sanare/tech-design.md §10.1.1).</summary>
     private static readonly HashSet<string> KnownConsentStrategies = new(StringComparer.OrdinalIgnoreCase) { "cookie" };
@@ -44,14 +29,17 @@ public sealed class PlanValidator : IPlanValidator
     private static readonly HashSet<string> ForbiddenHeaders =
         new(StringComparer.OrdinalIgnoreCase) { "Cookie", "Authorization", "Set-Cookie" };
 
-    public PlanValidationResult Validate(ExtractionPlan plan, SchemaDescriptor? schema = null)
+    public PlanValidationResult Validate(
+        ExtractionPlan plan,
+        SchemaDescriptor? schema = null,
+        IReadOnlyDictionary<string, string>? requestParameters = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
 
         var defects = new List<PlanDefect>();
 
         ValidateFields(plan, schema, defects);
-        ValidateAcquisition(plan, defects);
+        ValidateAcquisition(plan, requestParameters, defects);
         ValidateNotFound(plan, defects);
         ValidateConsent(plan, defects);
         ValidatePagination(plan, defects);
@@ -120,7 +108,10 @@ public sealed class PlanValidator : IPlanValidator
     }
 
     // Rules 1 (interaction slice), 8, 9.
-    private static void ValidateAcquisition(ExtractionPlan plan, List<PlanDefect> defects)
+    private static void ValidateAcquisition(
+        ExtractionPlan plan,
+        IReadOnlyDictionary<string, string>? requestParameters,
+        List<PlanDefect> defects)
     {
         var acquisition = plan.Acquisition;
 
@@ -129,6 +120,19 @@ public sealed class PlanValidator : IPlanValidator
         {
             defects.Add(new PlanDefect("/acquisition/urlTemplate", StructuralDefectCode,
                 $"'{acquisition.UrlTemplate}' must be an absolute http or https URL."));
+        }
+
+        if (requestParameters is not null)
+        {
+            foreach (Match placeholder in Regex.Matches(acquisition.UrlTemplate, @"\{([^{}]+)\}"))
+            {
+                var name = placeholder.Groups[1].Value;
+                if (!requestParameters.ContainsKey(name))
+                {
+                    defects.Add(new PlanDefect("/acquisition/urlTemplate", StructuralDefectCode,
+                        $"URL template placeholder '{{{name}}}' has no corresponding request parameter."));
+                }
+            }
         }
 
         foreach (var header in acquisition.Headers.Keys.Where(key => ForbiddenHeaders.Contains(key)))
@@ -190,6 +194,12 @@ public sealed class PlanValidator : IPlanValidator
         {
             defects.Add(new PlanDefect("/pagination/maxPages", StructuralDefectCode,
                 $"MaxPages ({pagination.MaxPages}) must be between {MinPages} and {MaxPages}."));
+        }
+
+        if (pagination.MaxItems is { } maxItems && maxItems is < MinItems or > MaxItems)
+        {
+            defects.Add(new PlanDefect("/pagination/maxItems", StructuralDefectCode,
+                $"MaxItems ({maxItems}) must be between {MinItems} and {MaxItems}."));
         }
 
         var requiresBrowser = pagination.Strategy is PaginationStrategy.LoadMoreButton or PaginationStrategy.InfiniteScroll;
@@ -264,12 +274,12 @@ public sealed class PlanValidator : IPlanValidator
             case PlanArgumentKind.Pattern:
                 try
                 {
-                    _ = new Regex(argument);
+                    _ = new Regex(argument, RegexOptions.NonBacktracking, TimeSpan.FromSeconds(1));
                 }
-                catch (ArgumentException)
+                catch (Exception ex) when (ex is RegexParseException or NotSupportedException)
                 {
                     defects.Add(new PlanDefect(pointer, StructuralDefectCode,
-                        $"Operation '{operation}' expects a valid regular expression; '{argument}' does not compile."));
+                        $"Operation '{operation}' expects a valid non-backtracking regular expression; '{argument}' does not compile."));
                 }
 
                 break;

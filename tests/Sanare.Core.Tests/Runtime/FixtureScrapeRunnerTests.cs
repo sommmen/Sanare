@@ -206,7 +206,7 @@ public sealed class FixtureScrapeRunnerTests
 
     private static ExtractionPlan PlanFor<TSchema>() where TSchema : class => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = typeof(TSchema).Name,
         SchemaVersion = 1,

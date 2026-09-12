@@ -84,9 +84,76 @@ public sealed class PlanSerializerTests
         Assert.Contains("SNR-PLAN-001", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Read_rejects_versions_outside_the_readable_window(int version)
+    {
+        var serializer = new PlanSerializer();
+        var json = serializer.WriteCanonical(SamplePlan()).Replace("\"planVersion\": 2", $"\"planVersion\": {version}", StringComparison.Ordinal);
+
+        var exception = Assert.Throws<PlanSerializationException>(() => serializer.Read(json));
+
+        Assert.Contains("SNR-PLAN-002", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_upgrades_a_version_1_plan_with_primary_and_fallback_locators()
+    {
+        var serializer = new PlanSerializer();
+        var legacy = SamplePlan() with
+        {
+            PlanVersion = 1,
+            Fields =
+            [
+                new FieldPlan("/Name", true, "string", [
+                    new LocatorStep(PlanOperation.SelectFirst, [".name"]),
+                    new LocatorStep(PlanOperation.SelectFirst, [".title"]),
+                ], []),
+            ],
+        };
+        var upgraded = serializer.Read(serializer.WriteCanonical(legacy));
+
+        Assert.Equal(ExtractionPlan.CurrentPlanVersion, upgraded.PlanVersion);
+        Assert.Equal(".name", upgraded.Fields[0].PrimaryLocator.Arguments[0]);
+        Assert.Equal(".title", upgraded.Fields[0].FallbackLocator.Arguments[0]);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Read_rejects_a_version_1_plan_with_an_ambiguous_locator_count(int locatorCount)
+    {
+        var serializer = new PlanSerializer();
+        var locators = Enumerable.Range(0, locatorCount)
+            .Select(index => new LocatorStep(PlanOperation.SelectFirst, [$".value-{index}"]))
+            .ToArray();
+        var legacy = SamplePlan() with
+        {
+            PlanVersion = 1,
+            Fields = [new FieldPlan("/Name", true, "string", locators, [])],
+        };
+
+        var exception = Assert.Throws<PlanSerializationException>(() => serializer.Read(serializer.WriteCanonical(legacy)));
+
+        Assert.Contains("SNR-PLAN-002", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WriteCanonical_omits_null_maxItems_and_round_trips_a_non_null_value()
+    {
+        var serializer = new PlanSerializer();
+        var withoutCap = serializer.WriteCanonical(SamplePlan());
+        var withCap = SamplePlan() with { Pagination = new PaginationSpec(PaginationStrategy.NextLink, ".next", 10, MaxItems: 250) };
+
+        Assert.DoesNotContain("\"maxItems\"", withoutCap, StringComparison.Ordinal);
+        Assert.Contains("\"maxItems\": 250", serializer.WriteCanonical(withCap), StringComparison.Ordinal);
+        Assert.Equal(250, serializer.Read(serializer.WriteCanonical(withCap)).Pagination.MaxItems);
+    }
+
     private static ExtractionPlan SamplePlan() => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = "Product",
         SchemaVersion = 1,
