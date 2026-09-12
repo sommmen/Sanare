@@ -1,0 +1,436 @@
+[assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace Sanare.Abstractions
+{
+    public enum AcquisitionTier
+    {
+        JsonApi = 0,
+        StructuredData = 1,
+        Html = 2,
+        Browser = 3,
+    }
+    public sealed class FieldObservation : System.IEquatable<Sanare.Abstractions.FieldObservation>
+    {
+        public FieldObservation(string JsonPointer, bool Present, bool CoercionSucceeded) { }
+        public bool CoercionSucceeded { get; init; }
+        public string JsonPointer { get; init; }
+        public bool Present { get; init; }
+    }
+    public interface IScrapeRunner
+    {
+        System.Threading.Tasks.Task<Sanare.Abstractions.ScrapeResult<TSchema>> RunAsync<TSchema>(Sanare.Abstractions.ScrapeRequest request, System.Threading.CancellationToken cancellationToken = default)
+            where TSchema :  class;
+        System.Collections.Generic.IAsyncEnumerable<Sanare.Abstractions.ScrapeItem<TItem>> StreamAsync<TItem>(Sanare.Abstractions.ScrapeRequest request, System.Threading.CancellationToken cancellationToken = default)
+            where TItem :  class;
+    }
+    public sealed class PaginationPolicy : System.IEquatable<Sanare.Abstractions.PaginationPolicy>
+    {
+        public PaginationPolicy() { }
+        public System.TimeSpan InterPageDelay { get; init; }
+        public int MaxPages { get; init; }
+        public required Sanare.Abstractions.PaginationStrategy Strategy { get; init; }
+    }
+    public enum PaginationStrategy
+    {
+        None = 0,
+        NextLink = 1,
+        PageNumber = 2,
+        Offset = 3,
+        Cursor = 4,
+        LoadMoreButton = 5,
+        InfiniteScroll = 6,
+    }
+    public enum ResultOrigin
+    {
+        Network = 0,
+        HttpCache = 1,
+        ResultCache = 2,
+        Fixture = 3,
+        Browser = 4,
+    }
+    public sealed class ScrapeItem<T> : System.IEquatable<Sanare.Abstractions.ScrapeItem<T>>
+    {
+        public ScrapeItem(T Value, int PageNumber, string PageUrl, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.FieldObservation> Observations) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.FieldObservation> Observations { get; init; }
+        public int PageNumber { get; init; }
+        public string PageUrl { get; init; }
+        public T Value { get; init; }
+    }
+    public sealed class ScrapeRequest : System.IEquatable<Sanare.Abstractions.ScrapeRequest>
+    {
+        public ScrapeRequest() { }
+        public bool AllowAuthoring { get; init; }
+        public string? Culture { get; init; }
+        public System.TimeSpan? Freshness { get; init; }
+        public int? MaxItems { get; init; }
+        public Sanare.Abstractions.PaginationPolicy? Pagination { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? Parameters { get; init; }
+        public string? PlanCommitId { get; init; }
+        public string? SourceId { get; init; }
+        public required System.Uri Url { get; init; }
+    }
+    public sealed class ScrapeResult<T> : System.IEquatable<Sanare.Abstractions.ScrapeResult<T>>
+    {
+        public ScrapeResult() { }
+        public required System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> Diagnostics { get; init; }
+        public bool HasPayload { get; }
+        public bool IsSuccess { get; }
+        public T Payload { get; init; }
+        public required Sanare.Abstractions.Quality.RunProvenance Provenance { get; init; }
+        public required Sanare.Abstractions.Quality.QualityReport Quality { get; init; }
+        public required Sanare.Abstractions.ScrapeStatus Status { get; init; }
+    }
+    public enum ScrapeStatus
+    {
+        Succeeded = 0,
+        PartialExtraction = 1,
+        InvalidRequest = 2,
+        NoPlanAvailable = 3,
+        AwaitingApproval = 4,
+        AuthoringFailed = 5,
+        SchemaValidationFailed = 6,
+        PlanInvalid = 7,
+        ExtractionFailed = 8,
+        PaginationCapReached = 9,
+        PartialPagination = 10,
+        RateLimited = 11,
+        Blocked = 12,
+        DisallowedByRobots = 13,
+        ConsentWallBlocked = 14,
+        BrowserFailed = 15,
+        FixtureNotFound = 16,
+        SourceNotFound = 17,
+        Timeout = 18,
+        Cancelled = 19,
+    }
+    public static class ScrapeStatusCodes
+    {
+        public static System.Collections.Generic.IReadOnlyList<string> For(Sanare.Abstractions.ScrapeStatus status) { }
+    }
+    public sealed class ScrapeStreamException : System.Exception
+    {
+        public ScrapeStreamException(Sanare.Abstractions.ScrapeStatus status, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> diagnostics) { }
+        public ScrapeStreamException(Sanare.Abstractions.ScrapeStatus status, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> diagnostics, System.Exception innerException) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> Diagnostics { get; }
+        public Sanare.Abstractions.ScrapeStatus Status { get; }
+    }
+}
+namespace Sanare.Abstractions.Attributes
+{
+    [System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeCollectionAttribute : System.Attribute
+    {
+        public ScrapeCollectionAttribute() { }
+        public string? ItemName { get; init; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeCultureAttribute : System.Attribute
+    {
+        public ScrapeCultureAttribute(string culture) { }
+        public string Culture { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeFieldAttribute : System.Attribute
+    {
+        public ScrapeFieldAttribute() { }
+        public string? Description { get; init; }
+        public bool Required { get; init; }
+        public int Version { get; init; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeHintAttribute : System.Attribute
+    {
+        public ScrapeHintAttribute(string hint) { }
+        public string Hint { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeIgnoreAttribute : System.Attribute
+    {
+        public ScrapeIgnoreAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property, AllowMultiple=false, Inherited=false)]
+    public sealed class ScrapeUnitAttribute : System.Attribute
+    {
+        public ScrapeUnitAttribute(string unit) { }
+        public string Unit { get; }
+    }
+}
+namespace Sanare.Abstractions.Diagnostics
+{
+    public static class DiagnosticSanitizer
+    {
+        public static Sanare.Abstractions.Diagnostics.ScrapeDiagnostic Sanitize(Sanare.Abstractions.Diagnostics.ScrapeDiagnostic diagnostic, bool includeDetail) { }
+        public static string SanitizeUrl(System.Uri uri) { }
+    }
+    public enum DiagnosticSeverity
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+    }
+    public sealed class ScrapeDiagnostic : System.IEquatable<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic>
+    {
+        public ScrapeDiagnostic(string Code, Sanare.Abstractions.Diagnostics.DiagnosticSeverity Severity, string Message, string? JsonPointer = null, string? Detail = null) { }
+        public string Code { get; init; }
+        public string? Detail { get; init; }
+        public string? JsonPointer { get; init; }
+        public string Message { get; init; }
+        public Sanare.Abstractions.Diagnostics.DiagnosticSeverity Severity { get; init; }
+    }
+}
+namespace Sanare.Abstractions.Internal
+{
+    public static class RequestValidator
+    {
+        public static Sanare.Abstractions.Internal.ValidationOutcome Validate(Sanare.Abstractions.ScrapeRequest request) { }
+    }
+    public static class SourceIdDeriver
+    {
+        public static string Derive(System.Uri url) { }
+    }
+    public sealed class ValidationOutcome : System.IEquatable<Sanare.Abstractions.Internal.ValidationOutcome>
+    {
+        public ValidationOutcome(Sanare.Abstractions.ScrapeRequest? NormalizedRequest, Sanare.Abstractions.ScrapeStatus? FailureStatus, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> Diagnostics) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Diagnostics.ScrapeDiagnostic> Diagnostics { get; init; }
+        public Sanare.Abstractions.ScrapeStatus? FailureStatus { get; init; }
+        public Sanare.Abstractions.ScrapeRequest? NormalizedRequest { get; init; }
+    }
+}
+namespace Sanare.Abstractions.Plans
+{
+    public enum AcquisitionMethod
+    {
+        Get = 0,
+        Post = 1,
+    }
+    public sealed class AcquisitionSpec : System.IEquatable<Sanare.Abstractions.Plans.AcquisitionSpec>
+    {
+        public AcquisitionSpec(Sanare.Abstractions.Plans.AcquisitionMethod Method, string UrlTemplate, System.Collections.Generic.IReadOnlyDictionary<string, string> Headers, string? WaitFor, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.InteractionStep> Interactions) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Headers { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.InteractionStep> Interactions { get; init; }
+        public Sanare.Abstractions.Plans.AcquisitionMethod Method { get; init; }
+        public string UrlTemplate { get; init; }
+        public string? WaitFor { get; init; }
+    }
+    public sealed class ConsentSpec : System.IEquatable<Sanare.Abstractions.Plans.ConsentSpec>
+    {
+        public ConsentSpec(string Strategy, string? Name = null) { }
+        public string? Name { get; init; }
+        public string Strategy { get; init; }
+    }
+    public sealed class ExtractionPlan : System.IEquatable<Sanare.Abstractions.Plans.ExtractionPlan>
+    {
+        public const int CurrentPlanVersion = 2;
+        public const int MinimumReadablePlanVersion = 1;
+        public ExtractionPlan() { }
+        public required Sanare.Abstractions.Plans.AcquisitionSpec Acquisition { get; init; }
+        public Sanare.Abstractions.Plans.ConsentSpec? Consent { get; init; }
+        public required string Culture { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.FieldPlan> Fields { get; init; }
+        public Sanare.Abstractions.Plans.NotFoundSpec? NotFound { get; init; }
+        public Sanare.Abstractions.Plans.PaginationSpec Pagination { get; init; }
+        public required int PlanVersion { get; init; }
+        public required Sanare.Abstractions.Plans.PlanProvenance Provenance { get; init; }
+        public string? Root { get; init; }
+        public required string SchemaHash { get; init; }
+        public required string SchemaName { get; init; }
+        public required int SchemaVersion { get; init; }
+        public required string SourceId { get; init; }
+        public required Sanare.Abstractions.AcquisitionTier Tier { get; init; }
+    }
+    public sealed class FieldPlan : System.IEquatable<Sanare.Abstractions.Plans.FieldPlan>
+    {
+        [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+        public FieldPlan(string pointer, bool required, string type, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.LocatorStep> locators, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.TransformStep> transforms) { }
+        public required Sanare.Abstractions.Plans.LocatorStep FallbackLocator { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.LocatorStep> Locators { get; init; }
+        public string Pointer { get; init; }
+        public required Sanare.Abstractions.Plans.LocatorStep PrimaryLocator { get; init; }
+        public bool Required { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.TransformStep> Transforms { get; init; }
+        public string Type { get; init; }
+    }
+    public sealed class InteractionStep : System.IEquatable<Sanare.Abstractions.Plans.InteractionStep>
+    {
+        public InteractionStep(Sanare.Abstractions.Plans.PlanOperation Operation, System.Collections.Generic.IReadOnlyList<string> Arguments) { }
+        public System.Collections.Generic.IReadOnlyList<string> Arguments { get; init; }
+        public Sanare.Abstractions.Plans.PlanOperation Operation { get; init; }
+    }
+    public sealed class LocatorStep : System.IEquatable<Sanare.Abstractions.Plans.LocatorStep>
+    {
+        public LocatorStep(Sanare.Abstractions.Plans.PlanOperation Operation, System.Collections.Generic.IReadOnlyList<string> Arguments) { }
+        public System.Collections.Generic.IReadOnlyList<string> Arguments { get; init; }
+        public Sanare.Abstractions.Plans.PlanOperation Operation { get; init; }
+    }
+    public sealed class NotFoundSpec : System.IEquatable<Sanare.Abstractions.Plans.NotFoundSpec>
+    {
+        public NotFoundSpec(Sanare.Abstractions.Plans.PlanOperation Operation, string Selector) { }
+        public Sanare.Abstractions.Plans.PlanOperation Operation { get; init; }
+        public string Selector { get; init; }
+    }
+    public sealed class PaginationSpec : System.IEquatable<Sanare.Abstractions.Plans.PaginationSpec>
+    {
+        public PaginationSpec(Sanare.Abstractions.PaginationStrategy Strategy, string? NextSelector = null, int MaxPages = 1, string? ItemKey = null, int? MaxItems = default) { }
+        public string? ItemKey { get; init; }
+        public int? MaxItems { get; init; }
+        public int MaxPages { get; init; }
+        public string? NextSelector { get; init; }
+        public Sanare.Abstractions.PaginationStrategy Strategy { get; init; }
+        public static Sanare.Abstractions.Plans.PaginationSpec None { get; }
+    }
+    public enum PlanArgumentKind
+    {
+        Selector = 0,
+        Literal = 1,
+        Pattern = 2,
+        Unit = 3,
+        Culture = 4,
+        Pointer = 5,
+        Int = 6,
+    }
+    public enum PlanOperation
+    {
+        SelectFirst = 0,
+        SelectAll = 1,
+        XPath = 2,
+        JsonPath = 3,
+        RegexCapture = 4,
+        Attribute = 5,
+        Text = 6,
+        Html = 7,
+        Trim = 8,
+        CollapseWhitespace = 9,
+        StripCurrency = 10,
+        StripUnit = 11,
+        ParseInt = 12,
+        ParseDecimal = 13,
+        ParseBool = 14,
+        ParseDate = 15,
+        ResolveUrl = 16,
+        MapEnum = 17,
+        ConvertUnit = 18,
+        KeyValueTable = 19,
+        DefinitionList = 20,
+        Concat = 21,
+        Split = 22,
+        Index = 23,
+        Coalesce = 24,
+        Exists = 25,
+        NotFoundPredicate = 26,
+        Click = 27,
+        WaitForSelector = 28,
+        WaitForNetworkIdle = 29,
+        Scroll = 30,
+        SelectOption = 31,
+        Type = 32,
+    }
+    public static class PlanOperationCatalog
+    {
+        public static System.Collections.Generic.IReadOnlyCollection<Sanare.Abstractions.Plans.PlanOperationDescriptor> All { get; }
+        public static Sanare.Abstractions.Plans.PlanOperationDescriptor Get(Sanare.Abstractions.Plans.PlanOperation operation) { }
+    }
+    public enum PlanOperationCategory
+    {
+        Locator = 0,
+        TextTransform = 1,
+        Parser = 2,
+        SemanticTransform = 3,
+        Structural = 4,
+        Interaction = 5,
+    }
+    public sealed class PlanOperationDescriptor : System.IEquatable<Sanare.Abstractions.Plans.PlanOperationDescriptor>
+    {
+        public PlanOperationDescriptor(Sanare.Abstractions.Plans.PlanOperation Operation, Sanare.Abstractions.Plans.PlanOperationCategory Category, int MinArguments, int MaxArguments, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.PlanArgumentKind> ArgumentKinds, System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.AcquisitionTier> AllowedTiers) { }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.AcquisitionTier> AllowedTiers { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Plans.PlanArgumentKind> ArgumentKinds { get; init; }
+        public Sanare.Abstractions.Plans.PlanOperationCategory Category { get; init; }
+        public bool IsLocator { get; }
+        public int MaxArguments { get; init; }
+        public int MinArguments { get; init; }
+        public Sanare.Abstractions.Plans.PlanOperation Operation { get; init; }
+    }
+    public sealed class PlanProvenance : System.IEquatable<Sanare.Abstractions.Plans.PlanProvenance>
+    {
+        public PlanProvenance(string AuthoredBy, string Model, int Attempts, System.Collections.Generic.IReadOnlyList<string> FixtureIds, double Score, System.DateTimeOffset AuthoredAt) { }
+        public int Attempts { get; init; }
+        public System.DateTimeOffset AuthoredAt { get; init; }
+        public string AuthoredBy { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> FixtureIds { get; init; }
+        public string Model { get; init; }
+        public double Score { get; init; }
+    }
+    public sealed class TransformStep : System.IEquatable<Sanare.Abstractions.Plans.TransformStep>
+    {
+        public TransformStep(Sanare.Abstractions.Plans.PlanOperation Operation, System.Collections.Generic.IReadOnlyList<string> Arguments) { }
+        public System.Collections.Generic.IReadOnlyList<string> Arguments { get; init; }
+        public Sanare.Abstractions.Plans.PlanOperation Operation { get; init; }
+    }
+}
+namespace Sanare.Abstractions.Quality
+{
+    public sealed class FieldHealth : System.IEquatable<Sanare.Abstractions.Quality.FieldHealth>
+    {
+        public FieldHealth(string JsonPointer, bool Required, bool Present, bool CoercionSucceeded, double NullRate) { }
+        public bool CoercionSucceeded { get; init; }
+        public string JsonPointer { get; init; }
+        public double NullRate { get; init; }
+        public bool Present { get; init; }
+        public bool Required { get; init; }
+    }
+    public sealed class QualityReport : System.IEquatable<Sanare.Abstractions.Quality.QualityReport>
+    {
+        public QualityReport() { }
+        public required double Completeness { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<Sanare.Abstractions.Quality.FieldHealth> Fields { get; init; }
+        public required int ItemCount { get; init; }
+        public required bool MeetsThreshold { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> UnmappedFields { get; init; }
+    }
+    public sealed class RunProvenance : System.IEquatable<Sanare.Abstractions.Quality.RunProvenance>
+    {
+        public RunProvenance() { }
+        public required System.TimeSpan Duration { get; init; }
+        public required System.Collections.Generic.IReadOnlyList<string> FixtureIds { get; init; }
+        public string? IdentityProfileId { get; init; }
+        public required Sanare.Abstractions.ResultOrigin Origin { get; init; }
+        public required int PagesFetched { get; init; }
+        public string? PlanCommitId { get; init; }
+        public required int RequestsIssued { get; init; }
+        public required string RunId { get; init; }
+        public required string SchemaHash { get; init; }
+        public bool ServedFromCache { get; }
+        public bool ServedFromFixture { get; }
+        public required string SourceId { get; init; }
+        public required System.DateTimeOffset StartedAt { get; init; }
+        public required Sanare.Abstractions.AcquisitionTier Tier { get; init; }
+    }
+}
+namespace Sanare.Abstractions.Telemetry
+{
+    public sealed class AlertRaised : System.IEquatable<Sanare.Abstractions.Telemetry.AlertRaised>
+    {
+        public AlertRaised(string Name, Sanare.Abstractions.Telemetry.AlertSeverity Severity, string SourceId, System.DateTimeOffset Timestamp, string? Detail = null) { }
+        public string? Detail { get; init; }
+        public string Name { get; init; }
+        public Sanare.Abstractions.Telemetry.AlertSeverity Severity { get; init; }
+        public string SourceId { get; init; }
+        public System.DateTimeOffset Timestamp { get; init; }
+    }
+    public enum AlertSeverity
+    {
+        Low = 0,
+        Medium = 1,
+        High = 2,
+        Critical = 3,
+    }
+    public interface IAlertSink
+    {
+        System.Threading.Tasks.ValueTask RaiseAsync(Sanare.Abstractions.Telemetry.AlertRaised alert, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public static class ScraperTelemetry
+    {
+        public const string ActivitySourceName = "Sanare";
+        public const string AgentActivitySourceName = "Experimental.Microsoft.Agents.AI";
+        public const string ChatActivitySourceName = "Experimental.Microsoft.Extensions.AI";
+        public const string MeterName = "Sanare";
+    }
+}

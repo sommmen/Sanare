@@ -15,7 +15,7 @@ must not be used to renumber or reorder work.
 
 | # | Feature | Component | Layer | Depends on # | Priority | Status | Specification |
 |---:|---------|-----------|-------|--------------|----------|--------|---------------|
-| 1 | Scrape API Contracts | `scrape-api-contracts` | L0 | — | P0 | draft | [scrape-api-contracts.md](scrape-api-contracts.md) |
+| 1 | Scrape API Contracts | `scrape-api-contracts` | L0 | — | P0 | partial | [scrape-api-contracts.md](scrape-api-contracts.md) |
 | 2 | Schema Engine | `schema-engine` | L1 | 1 | P0 | implemented | [schema-engine.md](schema-engine.md) |
 | 3 | Extraction Plan Model | `extraction-plan-model` | L1 | 1, 2 | P0 | partial | [extraction-plan-model.md](extraction-plan-model.md) |
 | 4 | Script Repository | `script-repository` | L1 | 3 | P0 | partial | [script-repository.md](script-repository.md) |
