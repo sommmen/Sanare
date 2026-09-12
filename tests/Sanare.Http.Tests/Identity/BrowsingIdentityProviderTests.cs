@@ -187,6 +187,24 @@ public sealed class BrowsingIdentityProviderTests
     }
 
     [Fact]
+    public void EvaluateConsent_scopes_the_retry_flag_per_URL_not_per_host()
+    {
+        var provider = new BrowsingIdentityProvider(CreateOptions(ProductDetailOverride()));
+        var firstUrlContent = LoadFixture("consent-wall-onetrust.html", new Uri("https://example.test/first"));
+        var secondUrlContent = LoadFixture("consent-wall-onetrust.html", new Uri("https://example.test/second"));
+
+        // A retry already recorded for one URL on a host must not be attributed to a different,
+        // never-before-seen URL on the same host.
+        var firstUrlFirstDecision = provider.EvaluateConsent(firstUrlContent, "source-a");
+        Assert.False(firstUrlFirstDecision.RetryAttempted);
+        var firstUrlSecondDecision = provider.EvaluateConsent(firstUrlContent, "source-a");
+        Assert.True(firstUrlSecondDecision.RetryAttempted);
+
+        var secondUrlFirstDecision = provider.EvaluateConsent(secondUrlContent, "source-a");
+        Assert.False(secondUrlFirstDecision.RetryAttempted);
+    }
+
+    [Fact]
     public void GetComplianceReport_returns_the_report_for_the_given_source()
     {
         var provider = new BrowsingIdentityProvider(CreateOptions(new Dictionary<string, SourceIdentityOverride>(StringComparer.Ordinal)
@@ -200,12 +218,12 @@ public sealed class BrowsingIdentityProviderTests
         Assert.Equal(AcquisitionMode.Stealth, report.Mode);
     }
 
-    private static AcquiredContent LoadFixture(string fileName)
+    private static AcquiredContent LoadFixture(string fileName, Uri? url = null)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Data", fileName);
         var bytes = File.ReadAllBytes(path);
-        var url = new Uri("https://example.test/product");
-        return new AcquiredContent(url, url, 200, "text/html", Encoding.UTF8, bytes, new Dictionary<string, string>(), ContentOrigin.Network, null, TimeSpan.Zero);
+        var finalUrl = url ?? new Uri("https://example.test/product");
+        return new AcquiredContent(finalUrl, finalUrl, 200, "text/html", Encoding.UTF8, bytes, new Dictionary<string, string>(), ContentOrigin.Network, null, TimeSpan.Zero);
     }
 
     /// <summary>A profile that emits a header not present in its own declared header order, tripping rule 6.</summary>

@@ -101,7 +101,7 @@ public sealed class BrowsingIdentityProvider : IBrowsingIdentityProvider
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
 
         var sourceOverride = ResolveSourceOverride(sourceId);
-        var retryKey = $"{sourceId}|{content.FinalUrl.Host}";
+        var retryKey = $"{sourceId}|{content.FinalUrl.AbsoluteUri}";
         var alreadyRetried = _retriedKeys.ContainsKey(retryKey);
         var decision = _consentPolicy.Evaluate(content, sourceOverride.ExpectedContentRootSelector, sourceOverride.ConsentSpec, alreadyRetried);
 
