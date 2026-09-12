@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sanare.Http</RootNamespace>
+    <AssemblyName>Sanare.Http</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sanare.Core\Sanare.Core.csproj" />
+  </ItemGroup>
+
+</Project>

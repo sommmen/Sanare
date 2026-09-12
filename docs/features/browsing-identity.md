@@ -377,6 +377,9 @@ note if it lands as `partial`:
   component that can construct a real browser context to validate against.
 - **Relocating `HttpContentAcquirer` from `Sanare.Core.Acquisition` to `Sanare.Http`.** Mechanical namespace
   move; do it as its own commit once `Sanare.Http` exists, before `browser-tier` starts.
+- **Runtime and provenance integration.** `FixtureScrapeRunner` still constructs `RunProvenance` directly from
+  fixtures rather than calling `HttpContentAcquirer`; wiring the acquirer into the runtime and persisting the
+  selected identity there remain part of the wider `acquisition-pipeline` integration increment.
 - **Stealth proxy rotation and TLS/JA3 fingerprint profiles.** Only the mode, the validation path, and the
   report fields ship now; the capabilities themselves remain unimplemented and therefore correctly report as
   unavailable.
