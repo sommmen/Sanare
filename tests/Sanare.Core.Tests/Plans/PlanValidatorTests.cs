@@ -353,9 +353,75 @@ public sealed class PlanValidatorTests
             new FieldDescriptor("/Price", "Price", typeof(decimal), true, null, null, null, null),
         ]);
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(1_000_000, true)]
+    [InlineData(0, false)]
+    [InlineData(1_000_001, false)]
+    public void Validate_enforces_optional_maxItems_bounds(int maxItems, bool isValid)
+    {
+        var plan = SamplePlan() with
+        {
+            Pagination = SamplePlan().Pagination with { MaxItems = maxItems },
+        };
+
+        var result = new PlanValidator().Validate(plan);
+
+        Assert.Equal(isValid, result.IsValid);
+        if (!isValid)
+        {
+            Assert.Contains(result.Defects, defect => defect.PlanPointer == "/pagination/maxItems");
+        }
+    }
+
+    [Fact]
+    public void Validate_rejects_invalid_or_non_backtracking_incompatible_regex_capture_patterns()
+    {
+        var plan = SamplePlan() with
+        {
+            Fields =
+            [
+                new FieldPlan("/Name", true, "string", [
+                    new LocatorStep(PlanOperation.RegexCapture, ["(a)\\1"]),
+                ], []),
+            ],
+        };
+
+        var result = new PlanValidator().Validate(plan);
+
+        Assert.Contains(result.Defects, defect => defect.PlanPointer == "/fields/0/locators/0/arguments/0");
+    }
+
+    [Fact]
+    public void Validate_checks_url_template_placeholders_when_request_parameters_are_supplied()
+    {
+        var plan = SamplePlan() with
+        {
+            Acquisition = SamplePlan().Acquisition with { UrlTemplate = "https://example.test/products/{id}?region={region}" },
+        };
+
+        var result = new PlanValidator().Validate(plan, requestParameters: new Dictionary<string, string> { ["id"] = "1" });
+
+        Assert.Contains(result.Defects, defect =>
+            defect.PlanPointer == "/acquisition/urlTemplate" && defect.Message.Contains("{region}", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_accepts_a_fully_bound_url_template()
+    {
+        var plan = SamplePlan() with
+        {
+            Acquisition = SamplePlan().Acquisition with { UrlTemplate = "https://example.test/products/{id}" },
+        };
+
+        var result = new PlanValidator().Validate(plan, requestParameters: new Dictionary<string, string> { ["id"] = "1" });
+
+        Assert.True(result.IsValid);
+    }
+
     private static ExtractionPlan SamplePlan() => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = "Product",
         SchemaVersion = 1,

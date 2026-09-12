@@ -32,6 +32,13 @@ public sealed record RunProvenance
     /// <summary>Where the content ultimately came from.</summary>
     public required ResultOrigin Origin { get; init; }
 
+    /// <summary>
+    /// The browsing-identity profile that produced the request(s) behind this run, when acquisition
+    /// went through the browsing-identity boundary. <see langword="null"/> for fixture-only runs that
+    /// never composed an identity (docs/features/browsing-identity.md, "Interfaces" &gt; "Outputs").
+    /// </summary>
+    public string? IdentityProfileId { get; init; }
+
     /// <summary>Whether the run was served from either cache tier.</summary>
     public bool ServedFromCache => Origin is ResultOrigin.HttpCache or ResultOrigin.ResultCache;
 

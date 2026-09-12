@@ -44,6 +44,21 @@ public sealed class GitScriptRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitPlanAsync_rejects_structurally_invalid_plans_before_writing()
+    {
+        var repository = CreateRepository();
+        await repository.InitializeAsync();
+        var invalidPlan = SamplePlan() with { SchemaHash = string.Empty };
+
+        var exception = await Assert.ThrowsAsync<ScriptRepositoryException>(() =>
+            repository.CommitPlanAsync(new PlanCommitRequest(invalidPlan, "author", "invalid plan", "authoring")).AsTask());
+
+        Assert.Equal("SNR-PLAN-001", exception.Code);
+        Assert.Contains("/schemaHash", exception.Message, StringComparison.Ordinal);
+        Assert.Null(await repository.GetPlanAsync(invalidPlan.SourceId, invalidPlan.SchemaName, invalidPlan.SchemaVersion));
+    }
+
+    [Fact]
     public async Task GetPlanAsync_returns_null_when_plan_does_not_exist()
     {
         var repository = CreateRepository();
@@ -72,7 +87,7 @@ public sealed class GitScriptRepositoryTests : IDisposable
     {
         var options = new ScriptRepositoryOptions(_stateRoot, LockTimeout: TimeSpan.FromMilliseconds(100));
         var lockPath = Path.Combine(options.RepositoryPath, ".sanare-lock");
-        var repository = new GitScriptRepository(options, new PlanSerializer(), new FileLockRepositoryCoordinator(lockPath));
+        var repository = new GitScriptRepository(options, new PlanSerializer(), new PlanValidator(), new FileLockRepositoryCoordinator(lockPath));
         await repository.InitializeAsync();
 
         // Hold the lock file exclusively, as FileLockRepositoryCoordinator itself does, so the
@@ -257,12 +272,12 @@ public sealed class GitScriptRepositoryTests : IDisposable
     {
         options = new ScriptRepositoryOptions(_stateRoot);
         var lockPath = Path.Combine(options.RepositoryPath, ".sanare-lock");
-        return new GitScriptRepository(options, new PlanSerializer(), new FileLockRepositoryCoordinator(lockPath));
+        return new GitScriptRepository(options, new PlanSerializer(), new PlanValidator(), new FileLockRepositoryCoordinator(lockPath));
     }
 
     private static ExtractionPlan SamplePlan() => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = "Product",
         SchemaVersion = 1,

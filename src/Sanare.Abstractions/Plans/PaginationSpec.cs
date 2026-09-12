@@ -16,6 +16,10 @@ namespace Sanare.Abstractions.Plans;
 /// <param name="ItemKey">
 /// A JSON pointer/path identifying the field used to de-duplicate items across pages, e.g. <c>"$.products[*].sku"</c>.
 /// </param>
+/// <param name="MaxItems">
+/// Optional upper bound on total items collected across all pages; validated into 1–1,000,000 by
+/// <c>IPlanValidator</c> when set. <see langword="null"/> means no item-count cap.
+/// </param>
 /// <remarks>
 /// No behaviour lives here; interpreting a pagination spec against a live run is <c>pagination-engine</c>
 /// scope (M2) and not implemented in v0.1 — only the plan-time shape and its static
@@ -25,7 +29,8 @@ public sealed record PaginationSpec(
     PaginationStrategy Strategy,
     string? NextSelector = null,
     int MaxPages = 1,
-    string? ItemKey = null)
+    string? ItemKey = null,
+    int? MaxItems = null)
 {
     /// <summary>The default: only the first page is fetched.</summary>
     public static PaginationSpec None { get; } = new(PaginationStrategy.None);

@@ -75,7 +75,7 @@ The following are explicitly out of scope for v0.1 or remain incomplete after th
 - Browser acquisition (Playwright) and structured-data acquisition.
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows.
 - The unimplemented remainder of Git-backed plan storage/resolution — advanced history/diff, heal branches, rollback, CLI-backed Git operation, and authoring integration remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md) and [docs/features/plan-resolver.md](docs/features/plan-resolver.md)).
-- The deferred remainder of extraction-plan validation — plan version upgrades, request-aware placeholder binding, `MaxItems` pagination validation, and a regex backtracking policy, plus wiring `IPlanValidator` into the plan-authoring/repository pipeline (see [docs/features/extraction-plan-model.md](docs/features/extraction-plan-model.md)).
+- Schema-aware validation at the repository commit boundary and plan authoring integration; commits already run structural validation, including version-2 compatibility, URL-template placeholder binding when request parameters are available, `MaxItems` bounds, and non-backtracking regex validation (see [docs/features/extraction-plan-model.md](docs/features/extraction-plan-model.md)).
 - Pagination (`StreamAsync` throws `NotSupportedException` by design).
 - Browser-tier acquisition (Playwright) and JSON/structured-data (JSON-LD, microdata) extraction operations.
 - Observability/telemetry (OpenTelemetry/Aspire), caching, and request pacing.

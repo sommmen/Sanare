@@ -1,4 +1,16 @@
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
+namespace Sanare.Http
+{
+    public sealed class AcquisitionScrapeRunner : Sanare.Abstractions.IScrapeRunner
+    {
+        public AcquisitionScrapeRunner(Sanare.Core.IExtractionPlanProvider plans, Sanare.Core.Acquisition.IContentAcquirer acquirer, Sanare.Http.Identity.IBrowsingIdentityProvider identityProvider, Sanare.Core.Schema.ISchemaDeriver schemas, Sanare.Core.Runtime.IPlanExecutor executor, Sanare.Core.Schema.ISchemaValidator validator, Sanare.Core.Schema.Materialization.IDocumentMaterializer materializer) { }
+        public System.Threading.Tasks.Task<Sanare.Abstractions.ScrapeResult<TSchema>> RunAsync<TSchema>(Sanare.Abstractions.ScrapeRequest request, System.Threading.CancellationToken cancellationToken = default)
+            where TSchema :  class { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Sanare.Http.AcquisitionScrapeRunner.<StreamAsync>d__9<TItem>))]
+        public System.Collections.Generic.IAsyncEnumerable<Sanare.Abstractions.ScrapeItem<TItem>> StreamAsync<TItem>(Sanare.Abstractions.ScrapeRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
+            where TItem :  class { }
+    }
+}
 namespace Sanare.Http.Identity
 {
     public enum AcquisitionMode

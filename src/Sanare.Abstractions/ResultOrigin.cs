@@ -16,4 +16,7 @@ public enum ResultOrigin
 
     /// <summary>Served from a recorded fixture (no network access).</summary>
     Fixture,
+
+    /// <summary>Fetched via the browser tier (headless rendering).</summary>
+    Browser,
 }

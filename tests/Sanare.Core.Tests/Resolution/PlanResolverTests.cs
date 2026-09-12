@@ -104,7 +104,7 @@ public sealed class PlanResolverTests
 
     private static ExtractionPlan SamplePlan() => new()
     {
-        PlanVersion = 1,
+        PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "lenovo/tablets",
         SchemaName = "Product",
         SchemaVersion = 1,

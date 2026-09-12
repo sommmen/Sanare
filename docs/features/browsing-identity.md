@@ -29,6 +29,7 @@ This component makes the source's explicit acquisition mode mechanically visible
 - Culture-driven `Accept-Language` derived from the request's culture (e.g. `nl-NL,nl;q=0.9,en;q=0.8`).
 - Referer synthesis for detail pages reached from a lister within the same run.
 - Consent-wall detection (signatures) and the standard consent-cookie response, persisted per host.
+- A live acquisition runner that retries once with the persisted consent cookie and reports a persistent wall as `ConsentWallBlocked`.
 - Per-host cookie jar with a bounded, inspectable, non-persisted-to-fixture lifetime.
 - `ComplianceReport` per source: acquisition mode, robots decision/status, request volume, identity profile,
   and enabled capability identifiers (never credentials).

@@ -22,6 +22,20 @@ namespace Sanare.Abstractions.Plans;
 public sealed record ExtractionPlan
 {
     /// <summary>
+    /// The current plan vocabulary version. Version 2 replaced each field's <c>locators[]</c> array with
+    /// the named <see cref="FieldPlan.PrimaryLocator"/>/<see cref="FieldPlan.FallbackLocator"/> pair
+    /// (DR-002).
+    /// </summary>
+    public const int CurrentPlanVersion = 2;
+
+    /// <summary>
+    /// The oldest <see cref="PlanVersion"/> <c>Sanare.Core.Plans.PlanSerializer</c> can still read via its
+    /// in-memory upgrade path (DR-002's <c>N-1</c> window). A plan below this fails with
+    /// <c>SNR-PLAN-002</c>.
+    /// </summary>
+    public const int MinimumReadablePlanVersion = 1;
+
+    /// <summary>
     /// The plan vocabulary's major version. Runtime declares a <c>CurrentPlanVersion</c> and reads down to
     /// <c>CurrentPlanVersion - 1</c> via a registered upgrade function (DR-002); anything outside that
     /// window fails <c>SNR-PLAN-002</c>. Version handling itself is <c>Sanare.Core</c> scope.
