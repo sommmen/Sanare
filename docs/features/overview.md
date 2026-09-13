@@ -3,7 +3,7 @@
 > Implementation index for the Sanare technical design.
 > Canonical architecture: [Sanare Technical Design](../sanare/tech-design.md)
 > Status: active — implementation tracking
-> Updated: 2026-09-10
+> Updated: 2026-09-13
 
 ## Status
 
@@ -42,6 +42,14 @@ must not be used to renumber or reorder work.
 > `Retry-After`, the block/challenge breaker, conditional caching, and redirect policy, composed by
 > `GovernedContentAcquirer`. See the component's
 > [Implementation Plan](acquisition-pipeline.md#implementation-plan).
+
+> Row 4 stays `partial` only because the optional git CLI backend, blame, and merge/conflict resolution
+> are out. The whole local LibGit2Sharp surface now ships: bootstrap, read-at-ref, canonical commit under
+> a write lease, monotonic approval tags, plan history, diffs, heal branches, fast-forward promotion,
+> rollback-by-name, diagnosis notes, and heal-branch pruning. The CLI backend is deferred by decision
+> rather than pending — DR-003 makes it an environment accommodation, not a functional requirement. Remote
+> git operations are out of scope for this component. See the component's
+> [Implementation Plan](script-repository.md#implementation-plan).
 
 ## Execution-Order Rationale
 

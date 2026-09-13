@@ -1,8 +1,9 @@
 # Documentation Audit Report — Sanare
 
-**Latest full-repository pass**: 2026-09-10 (documentation/code alignment)
+**Latest full-repository pass**: 2026-09-13 (documentation/code alignment — see
+"Full-Repository Findings — 2026-09-13" at the end of this report)
 **Latest targeted pass**: 2026-09-13 (acquisition-pipeline docs vs. code — see
-"Acquisition-Pipeline Findings — 2026-09-13" at the end of this report)
+"Acquisition-Pipeline Findings — 2026-09-13")
 
 ## Latest Full-Repository Audit Pass
 
@@ -585,3 +586,170 @@ baseline at the start of the pass. No public API surface changed, so no
 approved-API regeneration was required.
 
 **Open findings from this pass**: none.
+
+## Full-Repository Findings — 2026-09-13
+
+**Scope**: All project documentation under `docs/`, root project guidance
+(`README.md`, `DEVELOPMENT.md`), and `docs/features/*.md`, cross-referenced
+against the `src/` and `tests/` trees as of commit `174bfd7`, the pre-fix audit baseline.
+The current branch includes `72771a1`, which subsequently modified `README.md`,
+`docs/audit-report.md`, and `docs/features/overview.md`; those changes are not
+part of the baseline findings below.
+**Method**: Code-grounded cross-reference. Code alignment was included using the
+recommended default when the user was unavailable for the workflow's optional
+confirmation, matching the precedent set by the 2026-09-10 pass. The commit
+timeline was used as the primary staleness detector: each document was compared
+against the feature commits that landed after it was last touched.
+
+### Findings Summary
+
+| Severity | Open | Resolved this pass | Category |
+|----------|-----:|--------------------:|----------|
+| Critical | 0 | 2 | Root README contradicted by shipped code |
+| Major | 0 | 1 | Stale "unimplemented" inventory |
+| Minor | 0 | 2 | Incomplete diagram, stale header date |
+| Info | 0 | 5 | Feature-spec cross-reference drift |
+
+**Root cause at the audit baseline**: `README.md` had last been modified at
+`38ebd36` (the pre-fix README baseline). Two feature commits landed after it —
+`987729d` (governed acquisition pipeline) and `174bfd7` (script-repository
+completion). The code cross-reference for this entry was likewise pinned to
+`174bfd7`, the pre-fix script-repository implementation baseline. `987729d`
+updated `DEVELOPMENT.md`, `docs/audit-report.md`,
+`docs/features/acquisition-pipeline.md`, `docs/features/overview.md`, and
+`docs/sanare/tech-design.md`, but **not `README.md`**. Every finding below was
+therefore downstream of that single omission in the baseline; the current
+branch's `72771a1` is the follow-up documentation fix and does modify
+`README.md`, `docs/audit-report.md`, and `docs/features/overview.md`.
+
+### RDM-001 (Critical, resolved) — README stated the acquirer was not wired into any runtime path
+
+The status section claimed "the independent acquirer is not yet wired into that
+execution path" and listed "integration of `HttpContentAcquirer` into
+`FixtureScrapeRunner` or the planned runtime path" as unimplemented.
+`src/Sanare.Http/AcquisitionScrapeRunner.cs` is a shipped `IScrapeRunner` that
+composes `IExtractionPlanProvider` → `IBrowsingIdentityProvider` →
+`IContentAcquirer` → `IPlanExecutor` → `ISchemaValidator` →
+`IDocumentMaterializer` with a one-shot consent-wall retry, and is covered by
+`tests/Sanare.Http.Tests/AcquisitionScrapeRunnerTests.cs`. Its own doc-comment
+cites the README section it obsoletes.
+
+**Resolution**: the status paragraph now names both runners and their division of
+labour; the false bullet was removed.
+
+### RDM-002 (Critical, resolved) — "Recommended next step" described already-shipped work
+
+The section recommended integrating "the existing controlled HTTP acquisition and
+browsing-identity boundary into the runtime path: replace the fixture-only
+acquisition seam, persist the selected identity in run provenance". That is
+precisely what `AcquisitionScrapeRunner` does, including threading
+`identityProfileId` into the result provenance. A reader following the README
+would have re-implemented shipped code.
+
+**Resolution**: rewritten to point at the browser tier (overview row 8) as the
+next increment, accurately describing the plan-runtime and browser-driven pagination
+modes it unblocks; runner instrumentation and the unconsulted redirect/discovery
+components are named as smaller independent follow-ups.
+
+### RDM-003 (Major, resolved) — Three "intentionally unimplemented" bullets were false
+
+- *HTTP acquisition policy and resilience* — `Robots/`, `Politeness/`,
+  `Resilience/`, `Caching/`, and `Redirects/` all ship in `Sanare.Http` and are
+  composed by `GovernedContentAcquirer` via `AcquisitionPipelineFactory`.
+- *Remainder of Git-backed plan storage/resolution* — history, diff, heal
+  branches, and rollback all shipped in `174bfd7`. Only the git CLI backend
+  remains, and DR-003 descopes it as an environment accommodation rather than
+  deferring it.
+- *Observability/telemetry, caching, and request pacing* —
+  `src/Sanare.Core/Observability/` shipped at `b6068b5` and `ScraperMetrics` is
+  threaded through `GovernedContentAcquirer`, `FileHttpResponseCache`,
+  `AdaptiveRateController`, `HostLimiterRegistry`, and `BlockCircuitBreaker`.
+
+**Resolution**: all three bullets rewritten to describe what is genuinely
+outstanding — browser-tier escalation, the authoring/healing workflow that drives
+the shipped repository primitives, the unconsulted `RedirectPolicy` and
+`DiscoveryDocumentResolver`, the DR-003 descope, and end-to-end runner
+instrumentation.
+
+### RDM-004 (Minor, resolved) — Execution-path diagram showed only the fixture path
+
+The single ASCII diagram remained accurate for `FixtureScrapeRunner` but was
+presented as *the* engine execution path, with no acquisition tier, identity
+composition, or consent-wall retry.
+
+**Resolution**: the diagram is now labelled as the fixture path and a second
+diagram documents the `AcquisitionScrapeRunner` path beside it.
+
+### RDM-005 (Minor, resolved) — `docs/features/overview.md` header date was stale
+
+The header read `Updated: 2026-09-10` although the row notes were edited at both
+`987729d` and `174bfd7` (2026-09-13). Corrected to `2026-09-13`; no row was
+renumbered.
+
+### Confirmed Non-Issues (checked, no gap found)
+
+- `StreamAsync` genuinely throws `NotSupportedException` — confirmed in
+  `FixtureScrapeRunner`. The README claim stands.
+- Browser-tier/Playwright and JSON-LD/microdata extraction are genuinely absent;
+  only an `AcquisitionTier` enum doc-comment mentions them.
+- The `IScriptRepository` interface block in
+  `docs/features/script-repository.md` matches the shipped 13-member interface
+  exactly, verified member by member. The surrounding specification wording was
+  separately corrected by the stage-4 documentation repair below.
+- `DEVELOPMENT.md` is accurate: all six completed todos are marked `[x]` with
+ correct scope and descope notes, including the precise statement that
+ `RedirectPolicy` and `DiscoveryDocumentResolver` are "implemented and tested but
+ not yet consulted by the governed acquirer or any runner".
+- `docs/sanare/tech-design.md` Status "Draft" / Version 1.5 is intentional; it is
+ the canonical design document, not a status board.
+
+### Validation
+
+Documentation-only pass; no `src/` or `tests/` code changed. Full suite re-run as
+a regression guard: **559 passed, 0 failed** (Sanare.Core.Tests 345,
+Sanare.Http.Tests 174, Sanare.Abstractions.Tests 40).
+
+**Open findings from this pass**: none.
+
+## Stage-4 Documentation Repair — 2026-09-13
+
+An independent stage-4 review verified five documentation mismatches against the
+shipped LibGit2Sharp backend and its tests. All five are resolved in
+`docs/features/script-repository.md` and this report; the historical baseline
+references above are retained as evidence and explicitly labeled as pre-fix facts.
+The 2026-09-13 full-repository summary above now includes these five additional
+resolved Info findings (10 total findings resolved in that pass: 2 Critical,
+1 Major, and 2 Minor from the original audit, plus 5 stage-4 Info repairs).
+
+### Findings Summary
+
+| Severity | Open | Resolved this repair | Category |
+|----------|-----:|---------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 0 | 0 | — |
+| Minor | 0 | 0 | — |
+| Info | 0 | 5 | Script-repository specification drift |
+
+### Resolved Findings
+
+1. **Heal-branch naming** — corrected the implemented-scope bullet and AC-GIT-013
+  wording to `heal/{source-id}/{yyyyMMdd}-{shortReason}`, including collision
+  suffixes.
+2. **Commit trailers** — expanded the plan-commit description to list all eight
+  emitted trailers: `Schema`, `Tier`, `Plan-Version`, `Score`, `Fixtures`,
+  `Model`, `Attempts`, and `Reason`.
+3. **CLI parity-test inventory** — removed the nonexistent
+  `ScriptRepositoryBackendParityTests.cs` entry. T10 remains explicitly deferred,
+  so parity testing is documented as future work rather than shipped coverage.
+4. **Interface member count** — corrected the deferred-backend discussion from
+  fourteen to thirteen `IScriptRepository` members.
+5. **Historical scope and interface claim** — clarified that `38ebd36` and
+  `174bfd7` describe the pre-fix README/code baselines and that `72771a1` is the
+  current README-modifying follow-up. Narrowed the confirmed non-issue to the
+  documented interface block, not the surrounding specification prose.
+
+### Validation
+
+The prescribed `auto-pr-validate.ps1` repair validation is the authoritative
+validation for this stage-4 repair and is recorded after it runs. No production
+or test code changed.

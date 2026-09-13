@@ -9,8 +9,7 @@ namespace Sanare.Core.Tests.Repository;
 
 public sealed class GitScriptRepositoryTests : IDisposable
 {
-    private static readonly Uri ProductUrl = new("https://example.test/products/1");
-    private readonly string _stateRoot = Path.Combine(Path.GetTempPath(), "sanare-tests", Guid.NewGuid().ToString("N"));
+    private readonly List<ScriptRepositoryFixture> _fixtures = [];
 
     [Fact]
     public async Task InitializeAsync_creates_repository_and_is_idempotent()
@@ -85,14 +84,14 @@ public sealed class GitScriptRepositoryTests : IDisposable
     [Fact]
     public async Task CommitPlanAsync_throws_retryable_SNR_GIT_004_when_the_write_lease_times_out()
     {
-        var options = new ScriptRepositoryOptions(_stateRoot, LockTimeout: TimeSpan.FromMilliseconds(100));
-        var lockPath = Path.Combine(options.RepositoryPath, ".sanare-lock");
-        var repository = new GitScriptRepository(options, new PlanSerializer(), new PlanValidator(), new FileLockRepositoryCoordinator(lockPath));
+        var fixture = new ScriptRepositoryFixture(lockTimeout: TimeSpan.FromMilliseconds(100));
+        _fixtures.Add(fixture);
+        var repository = fixture.Repository;
         await repository.InitializeAsync();
 
         // Hold the lock file exclusively, as FileLockRepositoryCoordinator itself does, so the
         // coordinator's retry loop exhausts options.EffectiveLockTimeout and raises SNR-GIT-004.
-        using var externalLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        using var externalLock = new FileStream(fixture.LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 
         var exception = await Assert.ThrowsAsync<ScriptRepositoryException>(
             () => repository.CommitPlanAsync(new PlanCommitRequest(SamplePlan(), "author", "should fail", "authoring")).AsTask());
@@ -270,43 +269,19 @@ public sealed class GitScriptRepositoryTests : IDisposable
 
     private GitScriptRepository CreateRepository(out ScriptRepositoryOptions options)
     {
-        options = new ScriptRepositoryOptions(_stateRoot);
-        var lockPath = Path.Combine(options.RepositoryPath, ".sanare-lock");
-        return new GitScriptRepository(options, new PlanSerializer(), new PlanValidator(), new FileLockRepositoryCoordinator(lockPath));
+        var fixture = new ScriptRepositoryFixture();
+        _fixtures.Add(fixture);
+        options = fixture.Options;
+        return fixture.Repository;
     }
 
-    private static ExtractionPlan SamplePlan() => new()
-    {
-        PlanVersion = ExtractionPlan.CurrentPlanVersion,
-        SourceId = "lenovo/tablets",
-        SchemaName = "Product",
-        SchemaVersion = 1,
-        SchemaHash = "abc123",
-        Culture = "en-US",
-        Tier = AcquisitionTier.Html,
-        Acquisition = new AcquisitionSpec(AcquisitionMethod.Get, ProductUrl.AbsoluteUri, new Dictionary<string, string>(), null, Array.Empty<InteractionStep>()),
-        Fields =
-        [
-            new FieldPlan("/Name", true, "string", [new LocatorStep(PlanOperation.SelectFirst, [".name"])], [new TransformStep(PlanOperation.Trim, Array.Empty<string>())]),
-            new FieldPlan("/Price", true, "decimal", [new LocatorStep(PlanOperation.SelectFirst, [".price"])], [new TransformStep(PlanOperation.StripCurrency, Array.Empty<string>()), new TransformStep(PlanOperation.Trim, Array.Empty<string>())]),
-        ],
-        Provenance = new PlanProvenance("test", "none", 1, Array.Empty<string>(), 0.9d, DateTimeOffset.UnixEpoch),
-    };
+    private static ExtractionPlan SamplePlan() => ScriptRepositoryFixture.SamplePlan();
 
     public void Dispose()
     {
-        if (Directory.Exists(_stateRoot))
+        foreach (var fixture in _fixtures)
         {
-            NormalizeAttributes(_stateRoot);
-            Directory.Delete(_stateRoot, recursive: true);
-        }
-    }
-
-    private static void NormalizeAttributes(string root)
-    {
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
-        {
-            File.SetAttributes(file, FileAttributes.Normal);
+            fixture.Dispose();
         }
     }
 }
