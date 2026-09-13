@@ -101,6 +101,7 @@ namespace Sanare.Abstractions
         SourceNotFound = 17,
         Timeout = 18,
         Cancelled = 19,
+        ChallengePaused = 20,
     }
     public static class ScrapeStatusCodes
     {

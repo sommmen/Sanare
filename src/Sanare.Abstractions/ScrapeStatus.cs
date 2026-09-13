@@ -65,4 +65,13 @@ public enum ScrapeStatus
 
     /// <summary>The run was cancelled via the supplied <see cref="System.Threading.CancellationToken"/>.</summary>
     Cancelled,
+
+    /// <summary>
+    /// Automated acquisition for the source is paused because a hard challenge or IP-block signature
+    /// opened the circuit breaker indefinitely. Unlike <see cref="Blocked"/> this state does not
+    /// auto-close on a timer; it clears only via a slow widening re-probe or an operator-invoked
+    /// manual hand-off (docs/sanare/tech-design.md AC-033, docs/features/acquisition-pipeline.md
+    /// AC-ACQ-022).
+    /// </summary>
+    ChallengePaused,
 }

@@ -321,6 +321,7 @@ DR-006/NG-1–NG-3 (never automate around a block):
 | `SNR-ACQ-011` | Hard challenge/IP-block signature circuit opens (DR-014) | Error | `ChallengePaused` | No (until a clean probe or manual hand-off clears it) |
 | `SNR-ACQ-012` | Request method is not `GET` | Error | `InvalidRequest` | No |
 | `SNR-ACQ-013` | A redirect hop lands on an insecure `http://` URL | Error | `ExtractionFailed` | No |
+| `SNR-ACQ-014` | No charset was declared anywhere and UTF-8 was assumed | Warning | n/a — non-fatal, decoding proceeds | No |
 
 A non-`https` *target* URL is rejected as `SNR-API-001` (`InvalidUrl`), whose catalog entry already covers
 unsupported schemes; `SNR-ACQ-013` covers only the mid-chain redirect case, which is a transport-policy

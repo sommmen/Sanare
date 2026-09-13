@@ -839,6 +839,9 @@ Analogue of DB-constraint translation, for this system's persistent stores:
 | SNR-ACQ-009 | DiscoveryDocumentUnavailable | "Referenced discovery document could not be used." | Referenced `llms.txt` is unavailable, malformed, disallowed, blocked, unsupported, or exceeds its limit | Inspect source guidance if needed; authoring continues without it | AC-030 |
 | SNR-ACQ-010 | DiscoveryDocumentTooLarge | "Discovery document exceeded the configured byte ceiling." | Referenced `llms.txt` response exceeds `MaxDiscoveryDocumentBytes` | Raise the limit deliberately only when justified; authoring continues without it | AC-030 |
 | SNR-ACQ-011 | ChallengePaused | "Host {host} presented a hard challenge; awaiting a manual hand-off." | Circuit breaker open on a challenge/IP-block signal | An operator may run the manual browser hand-off (DR-014) or wait for the breaker to close; not auto-bypassed | AC-010 |
+| SNR-ACQ-012 | UnsupportedRequestMethod | "Acquisition method {method} is not supported." | A request names a method other than `GET` | Correct the plan or caller; do not retry unchanged | — |
+| SNR-ACQ-013 | InsecureRedirect | "A redirect selected insecure HTTP transport." | A redirect hop resolved to `http://` while insecure transport is disabled | Correct the source URL or explicitly allow insecure transport | — |
+| SNR-ACQ-014 | CharsetAssumed | "No character encoding was declared by the response; assuming UTF-8." | Neither `Content-Type`, a BOM, nor a `<meta charset>` declared an encoding | Inspect the decoded text for mojibake; declare the charset at the source if it is wrong | — |
 | SNR-ID-001 | IdentityProfileIncoherent | "Browsing identity profile violates a coherence rule." | Contradictory browser headers or profile values | Fix the profile | AC-010 |
 | SNR-ID-002 | IdentityProfileNotFound | "Source references an unknown browsing identity profile." | Invalid source override | Register or correct the profile | AC-010 |
 | SNR-BRW-001 | BrowserDisabled | "Browser tier is required but is not authorized." | Global or per-source browser flag is off | Author a lower-tier plan or explicitly authorize browser use | AC-018 |
@@ -1368,7 +1371,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 
 | Status | Typical codes | Consumer action |
 |--------|--------------|-----------------|
-| `InvalidRequest` | SNR-API-001/002/004/005 | Correct the request; do not retry unchanged |
+| `InvalidRequest` | SNR-API-001/002/004/005, SNR-ACQ-012 | Correct the request; do not retry unchanged |
 | `PartialExtraction` | SNR-EXT-003 | Use partial data; a heal may already be queued |
 | `SchemaValidationFailed` | SNR-SCH-002/004/005 | Do not use the null payload; inspect diagnostics while healing runs |
 | `NoPlanAvailable` | status only | Enable authoring or supply a plan |
@@ -1377,6 +1380,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 | `Blocked` / `RateLimited` | SNR-ACQ-002/003 | Back off; do not retry aggressively |
 | `DisallowedByRobots` | SNR-ACQ-004 | Stop; reconfigure the source |
 | `ConsentWallBlocked` | SNR-ACQ-005 | Enable browser tier or supply a consent cookie |
+| `ChallengePaused` | SNR-ACQ-011 | Stop automated acquisition for the source; wait for the re-probe or invoke the manual hand-off |
 | `FixtureNotFound` | SNR-FIX-001 | Capture fixtures before running offline |
 
 ## 10. Storage Design
