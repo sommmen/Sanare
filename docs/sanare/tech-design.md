@@ -707,12 +707,20 @@ Degradation triggers when `observed ≥ MinObservations` (default 5) and any of:
 **Politeness delay.**
 
 ```
-delay = max(rateLimiterDelay, minHostDelay) + jitter
-jitter ~ U(0, JitterMs)                       (default 0…750 ms)
+delay = max(rateLimiterDelay, minHostDelay, robotsCrawlDelay) ± jitter
+jitter = delay * JitterFraction               (default ±20 %)
 minHostDelay = 1500 ms default, per host
-backoff(n) = min(BaseDelay * 2^(n-1), MaxDelay) + jitter    (Base 2 s, Max 5 min)
-Retry-After, when present and sane (≤ 1 h), overrides backoff(n) as a floor
+backoff(n) ~ U(0, min(BaseDelay * 2^n, MaxDelay))          (Base 500 ms, Max 30 s)
+Retry-After, when present and within the cap (≤ 120 s), replaces backoff(n);
+beyond the cap the attempt fails immediately with SNR-ACQ-002 rather than sleeping
 ```
+
+A `robots.txt` `Crawl-delay` participates in the `max` rather than overriding it, so a host asking for
+more patience is always honoured and one asking for less cannot lower our own floor.
+
+Backoff uses **full jitter** — the delay is drawn from `[0, base·2ⁿ]` rather than jittered around it.
+Jittering around a shared schedule leaves a fleet that all received a `503` in the same second still
+nearly synchronised; drawing from the whole interval actually spreads the retries out.
 
 **Result cache key.**
 
@@ -802,9 +810,11 @@ Analogue of DB-constraint translation, for this system's persistent stores:
 
 | Scenario | Strategy | Parameters |
 |----------|----------|------------|
-| Transient network (`5xx`, socket, timeout) | Exponential backoff + jitter | 3 attempts, base 2 s, cap 30 s |
-| `429` | Honour `Retry-After` as floor, then backoff | 4 attempts, cap 5 min |
-| `403` / challenge page | No immediate retry; counts toward circuit breaker | breaker: 5 failures / 5 min → open 30 min |
+| Transient network (`408`, `425`, `429`, `5xx`, socket, timeout) | Full-jitter exponential backoff | 3 retries, base 500 ms, cap 30 s |
+| `429` / any `Retry-After` | Honour `Retry-After` verbatim when it is within the cap | cap 120 s; beyond it, fail immediately with `SNR-ACQ-002` |
+| `403` / challenge page | No retry at any severity; counts toward the circuit breaker | breaker: 5 blocks / 5 min → open 30 min |
+| Hard challenge or IP-block signature | Circuit is *paused*, not time-boxed; no timer reopens it | `SNR-ACQ-011` until a clean probe or operator hand-off (DR-014) |
+| `404` / `410` | Returned intact as data, never retried | a plan's `notFound` predicate must be able to observe it |
 | Consent wall | 1 retry after applying consent strategy | then `ConsentWallBlocked` |
 | Browser launch/nav failure | Restart context, retry | 2 attempts |
 | LLM call failure | Provider-level retry then workflow-level attempt | 3 transport retries; attempt counts against the authoring/heal budget only on validation failure, not transport failure |

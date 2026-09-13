@@ -269,7 +269,7 @@ DR-006/NG-1–NG-3 (never automate around a block):
 
 | AC-ID | Priority | Criterion | Expected Result | Verification Method |
 |-------|----------|-----------|-----------------|---------------------|
-| AC-008 | P0 | Given a per-host limit of 20/min and 60 queued requests | Requests are paced; none are dropped; the observed rate never exceeds 20/min in any sliding minute | Integration — WireMock server with a request-timestamp log; assert windowed counts |
+| AC-008 | P0 | Given a per-host limit of 20/min and 60 queued requests | Requests are paced; none are dropped; the observed rate never exceeds 20/min in any sliding minute | Integration — scripted handler with a request-timestamp log; assert windowed counts |
 | AC-009 | P0 | Given a `429` with `Retry-After: 5` | The next attempt occurs no earlier than 5 s later; exactly one retry is issued | Integration — fake clock + stub server |
 | AC-009b | P0 | Given a `429` with `Retry-After: 600` (over the 120 s cap) | Fails immediately with `SNR-ACQ-002`; no sleep occurs | Unit — cap boundary |
 | AC-010 | P0 | Given 5 consecutive `403` responses within 5 minutes | The circuit opens; the 6th request fails with `SNR-ACQ-003` **without** a network call; it closes after 30 min | Integration — assert stub server receives exactly 5 requests |
@@ -347,10 +347,17 @@ src/
 │   └── Acquisition/
 │       ├── IContentAcquirer.cs          # contract
 │       ├── HttpContentAcquirer.cs       # transport only: guards, send, bounded read, capture, replay
-│       └── AcquisitionModels.cs         # AcquisitionRequest, AcquiredContent, ContentOrigin,
-│                                        # RequestIdentity, AcquisitionOptions, AcquisitionException
+│       ├── AcquisitionModels.cs         # AcquisitionRequest, AcquiredContent, ContentOrigin,
+│       │                                # RequestIdentity, AcquisitionOptions, AcquisitionException
+│       ├── AcquisitionPolicyOptions.cs  # RateLimitOptions, RobotsOptions, RetryOptions,
+│       │                                # BreakerOptions, CacheOptions, AcquisitionPolicyOverride
+│       └── Content/
+│           ├── CharsetDetector.cs       # in Core, not Http: the transport that consumes these
+│           ├── ContentTypeGate.cs       # lives here, and Sanare.Http → Sanare.Core is one-directional
+│           └── BoundedStreamReader.cs
 └── Sanare.Http/
     ├── GovernedContentAcquirer.cs       # IContentAcquirer decorator assembling everything below
+    ├── AcquisitionPipelineFactory.cs    # composition root: one clock and one limiter registry for all
     ├── Politeness/
     │   ├── IHostLimiterRegistry.cs
     │   ├── HostLimiterRegistry.cs
@@ -358,29 +365,30 @@ src/
     │   ├── HostBudget.cs
     │   └── AdaptiveRateController.cs
     ├── Robots/
-    │   ├── IRobotsPolicy.cs
+    │   ├── IRobotsPolicy.cs             # also declares RobotsDecision
     │   ├── RobotsPolicy.cs
     │   ├── RobotsTxtParser.cs
-    │   └── RobotsRuleSet.cs
+    │   └── RobotsRuleSet.cs             # also declares RobotsRule
     ├── Discovery/
-    │   ├── IDiscoveryDocumentResolver.cs
-    │   ├── DiscoveryDocumentResolver.cs
-    │   └── DiscoveryDocument.cs
+    │   └── DiscoveryDocumentResolver.cs # also declares DiscoveryDocument; no interface, as nothing
+    │                                    # substitutes it and it already composes IContentAcquirer
     ├── Resilience/
-    │   ├── AcquisitionResiliencePipeline.cs
+    │   ├── AcquisitionResiliencePipeline.cs  # also declares RetryDisposition, RetryDecision
     │   ├── RetryAfterPolicy.cs
-    │   ├── BlockCircuitBreaker.cs
-    │   ├── ChallengeDetector.cs
-    │   └── IChallengeHandoff.cs
+    │   ├── BlockCircuitBreaker.cs       # also declares BreakerState
+    │   ├── ChallengeDetector.cs         # also declares ChallengeSeverity
+    │   └── IChallengeHandoff.cs         # also declares ExecutionMode, ChallengeHandoffResult
     ├── Caching/
-    │   ├── IHttpResponseCache.cs
+    │   ├── IHttpResponseCache.cs        # also declares CachedResponse
     │   ├── FileHttpResponseCache.cs
     │   └── CachePolicy.cs
-    └── Content/
-        ├── CharsetDetector.cs
-        ├── ContentTypeGate.cs
-        └── BoundedStreamReader.cs
+    └── Redirects/
+        └── RedirectPolicy.cs            # also declares RedirectHop
 ```
+
+> As built, `Content/` sits under `Sanare.Core/Acquisition/` rather than under `Sanare.Http/`. Its only
+> consumer is `HttpContentAcquirer`, which lives in `Sanare.Core`; placing the helpers in `Sanare.Http`
+> would have inverted the one-directional assembly reference this section opens by stating.
 
 ## Test Module
 
@@ -395,13 +403,13 @@ src/
   (same host ⇒ same limiter instance); `AdaptiveRateController` additive-increase/multiplicative-decrease
   trajectory and ceiling clamp with a fake clock; `IChallengeHandoff` mode gate (throws outside interactive
   execution modes).
-- **Integration**: a real local stub server (WireMock.Net) exercising pacing windows, `Retry-After`,
+- **Integration**: an in-process scripted `HttpMessageHandler` exercising pacing windows, `Retry-After`,
   403 streaks, hard-challenge signatures (`ChallengePaused` open/clear), redirects, conditional requests,
   oversized bodies, and cross-host redirect policy; two-runner shared-limiter test; offline replay with a
   connect-throwing handler; discovery-document resolution against a stub `robots.txt`/`llms.txt` pair
   covering success, absence, oversize, and disallow; adaptive-mode end-to-end run against a stub server that
   intermittently returns `429` to assert the rate never climbs in response to a block.
-- **Fixtures / Mocks**: WireMock.Net stubs defined in code plus response bodies drawn from
+- **Fixtures / Mocks**: scripted-handler responses defined in code plus response bodies drawn from
   `tests/Sanare.Http.Tests/Data/` (`lenovo-tablets-page1.html`, `robots-allow.txt`,
   `robots-disallow-tablets.txt`, `challenge-interstitial.html`, `consent-wall.html`,
   `robots-with-llms-reference.txt`, `llms.txt`); a fake `TimeProvider` for all delay and window assertions
@@ -455,8 +463,8 @@ before the first line of governed-pipeline code, not discovered mid-build.
    `FixtureScrapeRunner` and `pagination-engine`'s planned `ContentAcquirerPageSource` both consume the
    Core types. `browsing-identity`'s plan deferred this explicitly; this plan closes it.
 7. **`Sanare.Http.Tests` cannot run an integration test yet.** It references only
-   `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio` and `PublicApiGenerator`. WireMock.Net is
-   referenced nowhere in the repository, there is no `FakeTimeProvider` in this project (two unrelated
+   `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio` and `PublicApiGenerator`. There is no
+   `FakeTimeProvider` in this project (two unrelated
    copies exist under `Sanare.Core.Tests`), and the existing acquirer tests live at
    `tests/Sanare.Core.Tests/Acquisition/HttpContentAcquirerTests.cs`, not where this spec's Test Module
    says. T14 builds the harness.
@@ -476,8 +484,29 @@ before the first line of governed-pipeline code, not discovered mid-build.
 | `sanare.acquisition.rate_limit_effective` tag | `host` | `ScraperMetrics.SetEffectiveRateLimit(double, string host)` already ships with `TagNames.Host`, tech-design's metric table agrees, and the limiter is partitioned by host. The `source` wording in §"Rate limiting and politeness" above is the outlier; correct the prose, not the code. |
 | Resilience implementation | Hand-rolled `AcquisitionResiliencePipeline` over `System.Threading.RateLimiting`; **no** Polly / `Microsoft.Extensions.Http.Resilience` package | `src/` currently carries zero third-party `PackageReference`s and `Sanare.Abstractions` asserts that in a test. The required policy set is small and unusual (a breaker with two open states, one of which never auto-closes), so a policy library would be configured around more than it saves. The Dependencies list above is revised accordingly. |
 | Robots cache location | In-memory 24 h + disk under the fixture-corpus root at `cache/http/robots/{host}.txt`; no new configuration root | The corpus root is the one path the library already owns and already writes to. |
-| Test harness | Add **WireMock.Net** as a test-only `PackageReference` in `Sanare.Http.Tests`, plus a local `FakeTimeProvider` in that project | `browsing-identity`'s plan deferred WireMock to "the wider acquisition integration harness"; this is that harness. A third `FakeTimeProvider` copy is cheaper than making `Sanare.Core.Tests` a referenced library. |
+| Test harness | ~~Add **WireMock.Net** as a test-only `PackageReference`~~ — **superseded, see below.** A scripted `HttpMessageHandler` plus a local `FakeTimeProvider` in `Sanare.Http.Tests` | `browsing-identity`'s plan deferred WireMock to "the wider acquisition integration harness"; this is that harness. A third `FakeTimeProvider` copy is cheaper than making `Sanare.Core.Tests` a referenced library. |
 | Test relocation | New tests land in `tests/Sanare.Http.Tests/` per the Test Module above; the existing `tests/Sanare.Core.Tests/Acquisition/HttpContentAcquirerTests.cs` **stays** and keeps covering the Core transport | The two layers are now two types. Moving the transport tests away from the transport would leave `Sanare.Core` untested for guards it still owns. |
+
+### Deviations recorded during implementation
+
+**WireMock.Net was not adopted.** The decision above and T14 both call for it; the delivered suites use a
+scripted `HttpMessageHandler` (`ScriptedHandler` in `tests/Sanare.Http.Tests/Acquisition/AcquisitionTestHarness.cs`)
+instead. The pattern already existed in `tests/Sanare.Core.Tests/Acquisition/HttpContentAcquirerTests.cs`, it
+adds no `PackageReference`, and it binds no ports — a real stub server would make the suite contend for a
+port in CI to test a handler that never leaves the process. The acceptance criteria that name a WireMock
+server (AC-008, AC-009) are satisfied by the same assertions against the scripted handler's request log.
+
+**`RedirectPolicy` is implemented and unit-tested but not yet wired.** `GovernedContentAcquirer` does not
+consult it; the Core transport still lets `HttpClientHandler` follow redirects and validates only the final
+URL's scheme. Consequently the per-hop request counter and the cross-host robots re-check described under
+"Key Behaviors" do not run yet, and `SNR-ACQ-008` / `SNR-ACQ-013` are raised only by direct callers of
+`RedirectPolicy`. Wiring the explicit hop walk into the governed acquirer is the outstanding gap.
+
+**`DiscoveryDocumentResolver` is caller-invoked only.** It is complete and tested but no runner calls it, so
+`llms.txt` evidence does not yet reach the authoring loop.
+
+**`IChallengeHandoff` has no implementation, by design.** Hand-off belongs to the browser tier; an
+architecture test asserts that no production type implements or consumes it until that tier lands.
 
 ### Task order
 
@@ -584,8 +613,9 @@ T3, T5, T6, T7, T8, T9, T10, T11.
 explicitly), and that `IChallengeHandoff` has zero call sites inside `src/`. Both are constraints this spec
 states as testable; without the tests they are prose. Depends on: T12.
 
-**T14 — Test harness and suites.** Add WireMock.Net and a local `FakeTimeProvider` to
-`Sanare.Http.Tests`; author `Data/` bodies (`lenovo-tablets-page1.html`, `robots-allow.txt`,
+**T14 — Test harness and suites.** Add a scripted `HttpMessageHandler` and a local `FakeTimeProvider` to
+`Sanare.Http.Tests` (see "Deviations recorded during implementation" — WireMock.Net was not adopted);
+author `Data/` bodies (`lenovo-tablets-page1.html`, `robots-allow.txt`,
 `robots-disallow-tablets.txt`, `challenge-interstitial.html`, `robots-with-llms-reference.txt`, `llms.txt`;
 `consent-wall.html` is already covered by the existing `consent-wall-*.html` files). Write
 `HttpContentAcquirerTests.cs` plus the five companion files named in the Test Module. No test sleeps in
@@ -594,14 +624,15 @@ real time; a fake `IFixtureCorpus` asserts capture calls. Depends on: T12.
 **T15 — Doc reconciliation.** Update this component's status note in `docs/features/overview.md` (it stays
 `partial` only if browser escalation remains out — otherwise flip it), replace the `DEVELOPMENT.md`
 acquisition todo's prose with a link to this plan, and fold the T1 catalog rows and the retry/politeness
-delta into `docs/sanare/tech-design.md` §7.4/§7.6/§7.7. Depends on: T14.
+delta into `docs/sanare/tech-design.md` §7.4/§7.6/§7.7. Also reconcile this document's own File Structure
+block with the as-built layout and record every deviation. Depends on: T14.
 
 ### Verification matrix
 
 | AC-ID | Covered by | Test kind |
 |---|---|---|
 | AC-008 | T4 sixty queued requests over a fake clock asserting a 20/min pacing envelope | Integration |
-| AC-009 | T7 WireMock stub returning `Retry-After: 5` then `200`, asserting exactly one retry and a 5 s virtual wait | Integration |
+| AC-009 | T7 scripted handler returning `Retry-After: 5` then `200`, asserting exactly one retry and a 5 s virtual wait | Integration |
 | AC-009b | T7 `Retry-After: 600` test asserting `SNR-ACQ-002` with zero elapsed virtual time | Unit |
 | AC-010 | T8 five `403`s opening the breaker, a sixth request touching no socket, and closure after 30 virtual minutes | Integration |
 | AC-010b | T8 four `403`s then a `200`, asserting the streak resets and the breaker stays closed | Unit |

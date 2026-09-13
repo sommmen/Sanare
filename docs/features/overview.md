@@ -37,6 +37,12 @@ must not be used to renumber or reorder work.
 > Row 12 depends on row 13 despite appearing first because the canonical technical design fixes this
 > numbering. Implement row 13's tool contracts before completing row 12; **do not renumber the rows**.
 
+> Row 6 stays `partial` only because browser-tier escalation (row 8) is still out. The HTTP half of the
+> pipeline is complete: policy model, per-host pacing, `robots.txt`, `llms.txt` discovery, retries and
+> `Retry-After`, the block/challenge breaker, conditional caching, and redirect policy, composed by
+> `GovernedContentAcquirer`. See the component's
+> [Implementation Plan](acquisition-pipeline.md#implementation-plan).
+
 ## Execution-Order Rationale
 
 The order follows the technical design's M1–M7 delivery sequence while keeping stable component numbers:
