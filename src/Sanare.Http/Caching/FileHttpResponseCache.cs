@@ -97,7 +97,14 @@ public sealed class FileHttpResponseCache : IHttpResponseCache
     {
         ArgumentNullException.ThrowIfNull(entry);
 
-        var path = ResolvePath(entry.Key);
+        // The path is derived from the URL rather than from entry.Key so that a caller-supplied key can
+        // never disagree with the one the readers compute, and can never escape the cache root.
+        if (!Uri.TryCreate(entry.Url, UriKind.Absolute, out var url))
+        {
+            return;
+        }
+
+        var path = ResolvePath(ComputeKey(url));
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -138,7 +145,8 @@ public sealed class FileHttpResponseCache : IHttpResponseCache
 
     private void PublishRatio() => _metrics?.SetCacheHitRatio(HitRatio, "http");
 
-    private string ResolvePath(string key) => Path.Combine(_root, key[..2], key.Substring(2, 2), key);
+    private string ResolvePath(string key) =>
+        Path.Combine(_root, key[..2], key[2..4], key);
 
     private sealed record Envelope(
         string Key,
