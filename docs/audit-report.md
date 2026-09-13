@@ -591,7 +591,10 @@ approved-API regeneration was required.
 
 **Scope**: All project documentation under `docs/`, root project guidance
 (`README.md`, `DEVELOPMENT.md`), and `docs/features/*.md`, cross-referenced
-against the `src/` and `tests/` trees as of `174bfd7`.
+against the `src/` and `tests/` trees as of commit `174bfd7`, the pre-fix audit baseline.
+The current branch includes `72771a1`, which subsequently modified `README.md`,
+`docs/audit-report.md`, and `docs/features/overview.md`; those changes are not
+part of the baseline findings below.
 **Method**: Code-grounded cross-reference. Code alignment was included using the
 recommended default when the user was unavailable for the workflow's optional
 confirmation, matching the precedent set by the 2026-09-10 pass. The commit
@@ -605,16 +608,19 @@ against the feature commits that landed after it was last touched.
 | Critical | 0 | 2 | Root README contradicted by shipped code |
 | Major | 0 | 1 | Stale "unimplemented" inventory |
 | Minor | 0 | 2 | Incomplete diagram, stale header date |
-| Info | 0 | 0 | — |
+| Info | 0 | 5 | Feature-spec cross-reference drift |
 
-**Root cause**: `README.md` was last modified at `38ebd36`. Two feature commits
-landed after it — `987729d` (governed acquisition pipeline) and `174bfd7`
-(script-repository completion). `987729d` updated `DEVELOPMENT.md`,
-`docs/audit-report.md`, `docs/features/acquisition-pipeline.md`,
-`docs/features/overview.md`, and `docs/sanare/tech-design.md`, but **not
-`README.md`**. Every finding below is downstream of that single omission, so the
-README is the only artifact that drifted; `DEVELOPMENT.md` and the feature specs
-were verified accurate and needed no changes.
+**Root cause at the audit baseline**: `README.md` had last been modified at
+`38ebd36` (the pre-fix README baseline). Two feature commits landed after it —
+`987729d` (governed acquisition pipeline) and `174bfd7` (script-repository
+completion). The code cross-reference for this entry was likewise pinned to
+`174bfd7`, the pre-fix script-repository implementation baseline. `987729d`
+updated `DEVELOPMENT.md`, `docs/audit-report.md`,
+`docs/features/acquisition-pipeline.md`, `docs/features/overview.md`, and
+`docs/sanare/tech-design.md`, but **not `README.md`**. Every finding below was
+therefore downstream of that single omission in the baseline; the current
+branch's `72771a1` is the follow-up documentation fix and does modify
+`README.md`, `docs/audit-report.md`, and `docs/features/overview.md`.
 
 ### RDM-001 (Critical, resolved) — README stated the acquirer was not wired into any runtime path
 
@@ -686,14 +692,16 @@ renumbered.
   `FixtureScrapeRunner`. The README claim stands.
 - Browser-tier/Playwright and JSON-LD/microdata extraction are genuinely absent;
   only an `AcquisitionTier` enum doc-comment mentions them.
-- `docs/features/script-repository.md`'s documented `IScriptRepository` block
-  matches the shipped 13-member interface exactly, verified member by member.
+- The `IScriptRepository` interface block in
+  `docs/features/script-repository.md` matches the shipped 13-member interface
+  exactly, verified member by member. The surrounding specification wording was
+  separately corrected by the stage-4 documentation repair below.
 - `DEVELOPMENT.md` is accurate: all six completed todos are marked `[x]` with
-  correct scope and descope notes, including the precise statement that
-  `RedirectPolicy` and `DiscoveryDocumentResolver` are "implemented and tested but
-  not yet consulted by the governed acquirer or any runner".
+ correct scope and descope notes, including the precise statement that
+ `RedirectPolicy` and `DiscoveryDocumentResolver` are "implemented and tested but
+ not yet consulted by the governed acquirer or any runner".
 - `docs/sanare/tech-design.md` Status "Draft" / Version 1.5 is intentional; it is
-  the canonical design document, not a status board.
+ the canonical design document, not a status board.
 
 ### Validation
 
@@ -702,3 +710,46 @@ a regression guard: **559 passed, 0 failed** (Sanare.Core.Tests 345,
 Sanare.Http.Tests 174, Sanare.Abstractions.Tests 40).
 
 **Open findings from this pass**: none.
+
+## Stage-4 Documentation Repair — 2026-09-13
+
+An independent stage-4 review verified five documentation mismatches against the
+shipped LibGit2Sharp backend and its tests. All five are resolved in
+`docs/features/script-repository.md` and this report; the historical baseline
+references above are retained as evidence and explicitly labeled as pre-fix facts.
+The 2026-09-13 full-repository summary above now includes these five additional
+resolved Info findings (10 total findings resolved in that pass: 2 Critical,
+1 Major, and 2 Minor from the original audit, plus 5 stage-4 Info repairs).
+
+### Findings Summary
+
+| Severity | Open | Resolved this repair | Category |
+|----------|-----:|---------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 0 | 0 | — |
+| Minor | 0 | 0 | — |
+| Info | 0 | 5 | Script-repository specification drift |
+
+### Resolved Findings
+
+1. **Heal-branch naming** — corrected the implemented-scope bullet and AC-GIT-013
+  wording to `heal/{source-id}/{yyyyMMdd}-{shortReason}`, including collision
+  suffixes.
+2. **Commit trailers** — expanded the plan-commit description to list all eight
+  emitted trailers: `Schema`, `Tier`, `Plan-Version`, `Score`, `Fixtures`,
+  `Model`, `Attempts`, and `Reason`.
+3. **CLI parity-test inventory** — removed the nonexistent
+  `ScriptRepositoryBackendParityTests.cs` entry. T10 remains explicitly deferred,
+  so parity testing is documented as future work rather than shipped coverage.
+4. **Interface member count** — corrected the deferred-backend discussion from
+  fourteen to thirteen `IScriptRepository` members.
+5. **Historical scope and interface claim** — clarified that `38ebd36` and
+  `174bfd7` describe the pre-fix README/code baselines and that `72771a1` is the
+  current README-modifying follow-up. Narrowed the confirmed non-issue to the
+  documented interface block, not the surrounding specification prose.
+
+### Validation
+
+The prescribed `auto-pr-validate.ps1` repair validation is the authoritative
+validation for this stage-4 repair and is recorded after it runs. No production
+or test code changed.

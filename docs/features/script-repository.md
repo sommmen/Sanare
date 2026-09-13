@@ -30,7 +30,7 @@ The script repository persists extraction plans as canonical JSON in a local git
 - Provide `IRepositoryCoordinator` with the default `FileLockRepositoryCoordinator` for inter-process write coordination.
 - Read a plan's commit history, with approval tags and provenance presence attached to each entry.
 - Diff the `plans/` tree between two refs, capping patch text at the plan size limit and flagging truncation.
-- Create `heal/{yyyyMMdd}-{source-id}-{reason}` branches from the current approved commit, de-duplicating colliding names.
+- Create `heal/{source-id}/{yyyyMMdd}-{shortReason}` branches from the current approved commit, de-duplicating colliding names.
 - Fast-forward promote a heal branch onto the default branch and approve the promoted tip in one operation.
 - Roll back to an earlier commit by creating a new approval tag, without deleting tags or rewriting history.
 - Commit human-readable diagnosis notes under `notes/{source-id}/`.
@@ -40,7 +40,7 @@ The script repository persists extraction plans as canonical JSON in a local git
 
 The optional `git` CLI backend, blame, and merge/conflict resolution are not implemented. Blame and merge/conflict resolution remain planned `script-repository` work; the CLI backend is deferred by decision, as described next. Remote git operations are out of scope for both the slice and the target component.
 
-The CLI backend is deliberately deferred rather than merely unbuilt. DR-003 accepts LibGit2Sharp as the default and describes the CLI backend as existing "for environments where [packaging LibGit2Sharp's native binaries per RID] is a problem" — an environment accommodation, not a functional requirement. Every behaviour in this spec is satisfied by the in-process backend, so the CLI backend is warranted only once a concrete deployment target rejects the native binaries. Reviving it means reimplementing all fourteen `IScriptRepository` members against `git` plumbing and proving parity by running the shared test harness against both backends.
+The CLI backend is deliberately deferred rather than merely unbuilt. DR-003 accepts LibGit2Sharp as the default and describes the CLI backend as existing "for environments where [packaging LibGit2Sharp's native binaries per RID] is a problem" — an environment accommodation, not a functional requirement. Every behaviour in this spec is satisfied by the in-process backend, so the CLI backend is warranted only once a concrete deployment target rejects the native binaries. Reviving it means reimplementing all thirteen `IScriptRepository` members against `git` plumbing and proving parity by running the shared test harness against both backends.
 
 The `IScraperAdministration` surface that exposes history and diffs to operators belongs to `plan-resolver`'s admin work, not here; this component supplies the repository-level primitives it will call.
 
@@ -148,7 +148,7 @@ public interface IScriptRepository
 
 ### Commit and bootstrap behavior
 
-- Plan commits use a stable message consisting of `{verb}({source-id}/{schema-name}): {summary}` followed by `Schema`, `Tier`, `Plan-Version`, and `Reason` trailers.
+- Plan commits use a stable message consisting of `{verb}({source-id}/{schema-name}): {summary}` followed by `Schema`, `Tier`, `Plan-Version`, `Score`, `Fixtures`, `Model`, `Attempts`, and `Reason` trailers.
 - Bootstrap writes `.gitattributes` for LF plan and Markdown files and `.gitignore` for the lock and temporary plan files, then commits `chore: initialize plan repository`.
 - Initialization is idempotent when the configured path already contains a valid git repository.
 
@@ -453,7 +453,7 @@ recorded as not delivered instead of being dropped from the matrix.
 | AC-GIT-010 | T3 `limit = 2` test asserting exactly the two newest entries and that the approval tag is populated on the tagged entry and null on the others | Unit |
 | AC-GIT-011 | T4 diff test between two plan revisions asserting the changed-line counts and that an unknown commit id throws `SNR-GIT-002` | Unit |
 | AC-GIT-012 | T4 oversize-patch test asserting `Truncated` is set and the emitted text is at the cap | Unit |
-| AC-GIT-013 | T5 branch-naming test asserting `heal/{source}/{date}-{reason}`, that it branches from the approved commit rather than `HEAD`, and that `../` in the reason is rejected | Unit |
+| AC-GIT-013 | T5 branch-naming test asserting `heal/{source-id}/{yyyyMMdd}-{shortReason}`, that it branches from the approved commit rather than `HEAD`, and that `../` in the reason is rejected | Unit |
 | AC-GIT-014 | T6 promotion test asserting the default branch fast-forwards and a new approval tag appears; plus a diverged-branch test asserting `SNR-GIT-005` and that no ref moved | Integration |
 | AC-GIT-015 / AC-015 | T7 rollback test asserting a new higher-numbered tag at the older commit, that the previous tag still exists, and that `PlanResolver` resolves the rolled-back plan after invalidation | Integration |
 | AC-GIT-016 | T7 guard tests: non-ancestor target → `SNR-GIT-005`; missing plan file at target → `SNR-GIT-002`; already-approved target → idempotent no-op | Unit |
@@ -465,8 +465,9 @@ recorded as not delivered instead of being dropped from the matrix.
 
 New tests live in `tests/Sanare.Core.Tests/Repository/`: `ScriptRepositoryHistoryTests.cs`,
 `ScriptRepositoryDiffTests.cs`, `ScriptRepositoryHealBranchTests.cs`,
-`ScriptRepositoryPromotionTests.cs`, `ScriptRepositoryRollbackTests.cs`, and
-`ScriptRepositoryBackendParityTests.cs`, all over the T2 fixture.
+`ScriptRepositoryPromotionTests.cs`, and `ScriptRepositoryRollbackTests.cs`, all over the T2
+fixture. CLI-backend parity tests are not shipped because T10 was descoped; they remain future work if
+that backend is revived.
 
 ### Deferred scope
 
@@ -474,7 +475,7 @@ New tests live in `tests/Sanare.Core.Tests/Repository/`: `ScriptRepositoryHistor
   the default and positions the CLI backend as an accommodation "for environments where [packaging the
   native binaries per RID] is a problem". No acceptance criterion depends on it, and the in-process
   backend satisfies every behaviour in this spec, so the backend buys portability insurance rather than
-  function. Against that, `IScriptRepository` now has fourteen members, each of which would need a second
+  function. Against that, `IScriptRepository` now has thirteen members, each of which would need a second
   implementation against `git` plumbing plus a parity theory across the whole harness — a cost
   disproportionate to speculative insurance. Revisit when a concrete deployment target actually rejects
   the native binaries; AC-GIT-018 is reserved for that work and deliberately unallocated.
