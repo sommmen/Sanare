@@ -102,14 +102,16 @@ public sealed record AcquisitionOptions(
     /// override over the root policy, so the most specific configured value wins per member.
     /// </summary>
     /// <param name="host">The target host. Matched case-insensitively.</param>
-    /// <param name="sourceId">The source id the request belongs to.</param>
-    public ResolvedAcquisitionPolicy ResolveFor(string host, string sourceId)
+    /// <param name="sourceId">
+    /// The source id the request belongs to, or <see langword="null"/> for host-scoped callers such as the
+    /// shared limiter registry, which paces a host across every source that targets it.
+    /// </param>
+    public ResolvedAcquisitionPolicy ResolveFor(string host, string? sourceId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
 
         var hostOverride = Lookup(HostOverrides, host);
-        var sourceOverride = Lookup(SourceOverrides, sourceId);
+        var sourceOverride = sourceId is null ? null : Lookup(SourceOverrides, sourceId);
 
         return new ResolvedAcquisitionPolicy(
             sourceOverride?.RateLimit ?? hostOverride?.RateLimit ?? EffectiveRateLimit,
