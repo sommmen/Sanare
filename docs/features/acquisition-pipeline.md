@@ -416,12 +416,13 @@ src/
   handler. `DiscoveryDocumentResolverTests` resolves a stub `robots.txt`/`llms.txt` pair across success,
   absence, transport failure, and disallow.
 
-> Pacing windows, `Retry-After`, the `403` streak breaker, challenge signatures, redirect classification,
-> conditional requests, and body-size ceilings are verified at the **unit** level against their owning types
-> rather than through the scripted handler. The integration clock is a frozen `FakeTimeProvider`, so any
-> non-zero politeness delay would park an integration test forever; time-dependent behaviour is therefore
-> asserted where the clock can be driven directly. Discovery-document oversize is likewise a unit assertion
-> (`SNR-ACQ-010` via `BoundedStreamReader`).
+  > Pacing windows, `Retry-After`, the `403` streak breaker, challenge signatures, redirect classification,
+  > conditional requests, and body-size ceilings are verified at the **unit** level against their owning types
+  > rather than through the scripted handler. The integration clock is a frozen `FakeTimeProvider`, so any
+  > non-zero politeness delay would park an integration test forever; time-dependent behaviour is therefore
+  > asserted where the clock can be driven directly. Discovery-document oversize is likewise a unit assertion
+  > (`SNR-ACQ-010` via `BoundedStreamReader`).
+
 - **Fixtures / Mocks**: scripted-handler responses and `robots.txt`/`llms.txt` bodies are declared inline
   in each test rather than as files on disk, so a body and the assertion about it stay readable together;
   the existing `tests/Sanare.Http.Tests/Data/` HTML files remain the identity suite's, not this one's. A
