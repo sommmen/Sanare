@@ -9,4 +9,13 @@
     <ProjectReference Include="..\Sanare.Core\Sanare.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Token-bucket and concurrency limiters for the per-host acquisition budget. This is a Microsoft
+      runtime library, not a third-party resilience framework; see
+      docs/features/acquisition-pipeline.md, "Implementation Plan" > "Delivery decisions" (DR-010).
+    -->
+    <PackageReference Include="System.Threading.RateLimiting" Version="10.0.0" />
+  </ItemGroup>
+
 </Project>

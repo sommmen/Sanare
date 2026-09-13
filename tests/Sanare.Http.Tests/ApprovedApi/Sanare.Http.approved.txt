@@ -1,6 +1,10 @@
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace Sanare.Http
 {
+    public static class AcquisitionPipelineFactory
+    {
+        public static Sanare.Core.Acquisition.IContentAcquirer Create(System.Net.Http.HttpClient client, Sanare.Core.Fixtures.IFixtureCorpus fixtures, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Identity.AcquisitionMode mode = 0, Sanare.Http.Identity.Compliance.ComplianceReporter? compliance = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+    }
     public sealed class AcquisitionScrapeRunner : Sanare.Abstractions.IScrapeRunner
     {
         public AcquisitionScrapeRunner(Sanare.Core.IExtractionPlanProvider plans, Sanare.Core.Acquisition.IContentAcquirer acquirer, Sanare.Http.Identity.IBrowsingIdentityProvider identityProvider, Sanare.Core.Schema.ISchemaDeriver schemas, Sanare.Core.Runtime.IPlanExecutor executor, Sanare.Core.Schema.ISchemaValidator validator, Sanare.Core.Schema.Materialization.IDocumentMaterializer materializer) { }
@@ -9,6 +13,72 @@ namespace Sanare.Http
         [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Sanare.Http.AcquisitionScrapeRunner.<StreamAsync>d__9<TItem>))]
         public System.Collections.Generic.IAsyncEnumerable<Sanare.Abstractions.ScrapeItem<TItem>> StreamAsync<TItem>(Sanare.Abstractions.ScrapeRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
             where TItem :  class { }
+    }
+    public sealed class GovernedContentAcquirer : Sanare.Core.Acquisition.IContentAcquirer
+    {
+        public GovernedContentAcquirer(Sanare.Core.Acquisition.IContentAcquirer transport, Sanare.Http.Politeness.IHostLimiterRegistry limiters, Sanare.Http.Robots.IRobotsPolicy robots, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Identity.AcquisitionMode mode = 0, Sanare.Http.Caching.IHttpResponseCache? cache = null, Sanare.Http.Resilience.BlockCircuitBreaker? breaker = null, Sanare.Http.Resilience.ChallengeDetector? challenges = null, Sanare.Http.Politeness.AdaptiveRateController? adaptive = null, Sanare.Http.Identity.Compliance.ComplianceReporter? compliance = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null, Microsoft.Extensions.Logging.ILogger<Sanare.Http.GovernedContentAcquirer>? logger = null) { }
+        public System.Threading.Tasks.ValueTask<Sanare.Core.Acquisition.AcquiredContent> AcquireAsync(Sanare.Core.Acquisition.AcquisitionRequest request, System.Threading.CancellationToken ct = default) { }
+    }
+}
+namespace Sanare.Http.Caching
+{
+    public sealed class CachePolicy
+    {
+        public CachePolicy(Sanare.Core.Acquisition.CacheOptions? options = null) { }
+        public bool Enabled { get; }
+        public bool CanStore(int statusCode, System.Net.Http.Headers.CacheControlHeaderValue? cacheControl) { }
+        public System.DateTimeOffset ComputeExpiry(System.DateTimeOffset now, System.Net.Http.Headers.CacheControlHeaderValue? cacheControl, System.DateTimeOffset? expires) { }
+        public static void ApplyConditionalHeaders(System.Net.Http.HttpRequestMessage message, Sanare.Http.Caching.CachedResponse entry) { }
+        public static string? ReadETag(System.Collections.Generic.IReadOnlyDictionary<string, string> headers) { }
+        public static System.DateTimeOffset? ReadLastModified(System.Collections.Generic.IReadOnlyDictionary<string, string> headers) { }
+        public static System.Collections.Generic.IReadOnlyDictionary<string, string> Sanitize(System.Collections.Generic.IReadOnlyDictionary<string, string> headers) { }
+    }
+    public sealed class CachedResponse : System.IEquatable<Sanare.Http.Caching.CachedResponse>
+    {
+        public CachedResponse(string Key, string Url, int StatusCode, string ContentType, System.ReadOnlyMemory<byte> Body, System.Collections.Generic.IReadOnlyDictionary<string, string> Headers, System.DateTimeOffset StoredUtc, System.DateTimeOffset ExpiresUtc, string? ETag, System.DateTimeOffset? LastModified) { }
+        public System.ReadOnlyMemory<byte> Body { get; init; }
+        public bool CanRevalidate { get; }
+        public string ContentType { get; init; }
+        public string? ETag { get; init; }
+        public System.DateTimeOffset ExpiresUtc { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Headers { get; init; }
+        public string Key { get; init; }
+        public System.DateTimeOffset? LastModified { get; init; }
+        public int StatusCode { get; init; }
+        public System.DateTimeOffset StoredUtc { get; init; }
+        public string Url { get; init; }
+        public bool IsFresh(System.DateTimeOffset now) { }
+    }
+    public sealed class FileHttpResponseCache : Sanare.Http.Caching.IHttpResponseCache
+    {
+        public FileHttpResponseCache(string root, Sanare.Core.Observability.ScraperMetrics? metrics = null) { }
+        public double HitRatio { get; }
+        public System.Threading.Tasks.ValueTask<Sanare.Http.Caching.CachedResponse?> GetAsync(System.Uri url, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.ValueTask RemoveAsync(System.Uri url, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.ValueTask SetAsync(Sanare.Http.Caching.CachedResponse entry, System.Threading.CancellationToken ct = default) { }
+        public static string ComputeKey(System.Uri url) { }
+    }
+    public interface IHttpResponseCache
+    {
+        System.Threading.Tasks.ValueTask<Sanare.Http.Caching.CachedResponse?> GetAsync(System.Uri url, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.ValueTask RemoveAsync(System.Uri url, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.ValueTask SetAsync(Sanare.Http.Caching.CachedResponse entry, System.Threading.CancellationToken ct = default);
+    }
+}
+namespace Sanare.Http.Discovery
+{
+    public sealed class DiscoveryDocument : System.IEquatable<Sanare.Http.Discovery.DiscoveryDocument>
+    {
+        public DiscoveryDocument(System.Uri Url, string Text) { }
+        public string Text { get; init; }
+        public System.Uri Url { get; init; }
+    }
+    public sealed class DiscoveryDocumentResolver
+    {
+        public DiscoveryDocumentResolver(Sanare.Core.Acquisition.IContentAcquirer acquirer, Sanare.Http.Robots.IRobotsPolicy robots, Microsoft.Extensions.Logging.ILogger<Sanare.Http.Discovery.DiscoveryDocumentResolver>? logger = null) { }
+        public static System.Collections.Generic.IReadOnlySet<string> ExpectedContentTypes { get; }
+        public System.Threading.Tasks.ValueTask<Sanare.Http.Discovery.DiscoveryDocument?> FetchAsync(System.Uri host, string sourceId, Sanare.Http.Identity.AcquisitionMode mode = 0, System.Threading.CancellationToken ct = default) { }
+        public static System.Uri? Resolve(System.Uri host, Sanare.Http.Robots.RobotsRuleSet? ruleSet) { }
     }
 }
 namespace Sanare.Http.Identity
@@ -201,5 +271,191 @@ namespace Sanare.Http.Identity.Profiles
         public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateReferer(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
         public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateSecChUa(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
         public System.Collections.Generic.IReadOnlyList<Sanare.Http.Identity.Profiles.ProfileCoherenceFailure> ValidateSecFetchUser(Sanare.Http.Identity.Profiles.IdentityProfile profile) { }
+    }
+}
+namespace Sanare.Http.Politeness
+{
+    public sealed class AdaptiveRateController
+    {
+        public AdaptiveRateController(Sanare.Http.Politeness.IHostLimiterRegistry registry, Sanare.Core.Observability.ScraperMetrics? metrics = null) { }
+        public double GetEffectiveRate(string host) { }
+        public void Observe(string host, int statusCode, bool challengeDetected = false) { }
+    }
+    public sealed class HostBudget : System.IEquatable<Sanare.Http.Politeness.HostBudget>
+    {
+        public HostBudget(string Host, Sanare.Core.Acquisition.RateLimitOptions RateLimit, System.TimeSpan? CrawlDelay = default) { }
+        public System.TimeSpan? CrawlDelay { get; init; }
+        public string Host { get; init; }
+        public System.TimeSpan MinimumDelay { get; }
+        public Sanare.Core.Acquisition.RateLimitOptions RateLimit { get; init; }
+        public Sanare.Http.Politeness.HostBudget WithCrawlDelay(System.TimeSpan? crawlDelay) { }
+    }
+    public sealed class HostLimiterRegistry : Sanare.Http.Politeness.IHostLimiterRegistry, System.IAsyncDisposable
+    {
+        public HostLimiterRegistry(Sanare.Core.Acquisition.AcquisitionOptions options, System.TimeProvider? clock = null, System.Random? random = null, Sanare.Core.Observability.ScraperMetrics? metrics = null) { }
+        public static Sanare.Http.Politeness.HostLimiterRegistry Shared { get; }
+        public System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireAsync(string host, System.Threading.CancellationToken ct = default) { }
+        public void ApplyCrawlDelay(string host, System.TimeSpan? crawlDelay) { }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public Sanare.Http.Politeness.HostBudget GetBudget(string host) { }
+        public System.Threading.Tasks.ValueTask WaitForPolitenessAsync(string host, System.Threading.CancellationToken ct = default) { }
+    }
+    public interface IHostLimiterRegistry
+    {
+        System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireAsync(string host, System.Threading.CancellationToken ct = default);
+        void ApplyCrawlDelay(string host, System.TimeSpan? crawlDelay);
+        Sanare.Http.Politeness.HostBudget GetBudget(string host);
+        System.Threading.Tasks.ValueTask WaitForPolitenessAsync(string host, System.Threading.CancellationToken ct = default);
+    }
+    public sealed class PolitenessDelay
+    {
+        public PolitenessDelay(System.Random? random = null) { }
+        public System.TimeSpan Compute(Sanare.Http.Politeness.HostBudget budget) { }
+    }
+}
+namespace Sanare.Http.Redirects
+{
+    public readonly struct RedirectHop : System.IEquatable<Sanare.Http.Redirects.RedirectHop>
+    {
+        public RedirectHop(System.Uri From, System.Uri To, int StatusCode, bool CrossHost) { }
+        public bool CrossHost { get; init; }
+        public System.Uri From { get; init; }
+        public int StatusCode { get; init; }
+        public System.Uri To { get; init; }
+    }
+    public sealed class RedirectPolicy
+    {
+        public RedirectPolicy(int maximumHops = 10, bool allowInsecureTransport = false) { }
+        public int MaximumHops { get; }
+        public Sanare.Http.Redirects.RedirectHop ShouldFollow(System.Uri from, string? location, int statusCode, int hopsSoFar) { }
+        public static bool IsRedirect(int statusCode) { }
+    }
+}
+namespace Sanare.Http.Resilience
+{
+    public sealed class AcquisitionResiliencePipeline
+    {
+        public AcquisitionResiliencePipeline(Sanare.Core.Acquisition.RetryOptions? retry = null, System.TimeProvider? clock = null, System.Random? random = null) { }
+        public int MaxAttempts { get; }
+        public Sanare.Http.Resilience.RetryDecision Classify(int statusCode, int attempt, string? retryAfterHeader = null, Sanare.Http.Resilience.ChallengeSeverity severity = 0) { }
+        public Sanare.Http.Resilience.RetryDecision ClassifyTransportFailure(int attempt) { }
+        public System.Threading.Tasks.ValueTask WaitAsync(Sanare.Http.Resilience.RetryDecision decision, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class BlockCircuitBreaker
+    {
+        public BlockCircuitBreaker(Sanare.Core.Acquisition.AcquisitionOptions? options = null, System.TimeProvider? clock = null, Sanare.Core.Observability.ScraperMetrics? metrics = null) { }
+        public Sanare.Http.Resilience.BreakerState GetState(string host) { }
+        public Sanare.Http.Resilience.BreakerState RecordBlock(string host, Sanare.Http.Resilience.ChallengeSeverity severity) { }
+        public void RecordSuccess(string host) { }
+        public void ThrowIfOpen(string host) { }
+    }
+    public enum BreakerState
+    {
+        Closed = 0,
+        Blocked = 1,
+        ChallengePaused = 2,
+    }
+    public sealed class ChallengeDetector
+    {
+        public ChallengeDetector(Sanare.Http.Identity.Consent.WallClassifier? walls = null) { }
+        public Sanare.Http.Resilience.ChallengeSeverity Classify(Sanare.Core.Acquisition.AcquiredContent content) { }
+        public Sanare.Http.Resilience.ChallengeSeverity Classify(int statusCode, System.Collections.Generic.IReadOnlyDictionary<string, string> headers, System.ReadOnlySpan<byte> body) { }
+    }
+    public sealed class ChallengeHandoffResult : System.IEquatable<Sanare.Http.Resilience.ChallengeHandoffResult>
+    {
+        public ChallengeHandoffResult(bool Resolved, string Reason) { }
+        public string Reason { get; init; }
+        public bool Resolved { get; init; }
+    }
+    public enum ChallengeSeverity
+    {
+        None = 0,
+        Generic = 1,
+        Hard = 2,
+    }
+    public enum ExecutionMode
+    {
+        Live = 0,
+        OfflineFixture = 1,
+        Unattended = 2,
+    }
+    public interface IChallengeHandoff
+    {
+        System.Threading.Tasks.ValueTask<Sanare.Http.Resilience.ChallengeHandoffResult> OpenAsync(string sourceId, System.Threading.CancellationToken ct = default);
+    }
+    public static class RetryAfterPolicy
+    {
+        public static Sanare.Http.Resilience.RetryAfterPolicy.RetryAfterResult Read(System.Net.Http.Headers.HttpResponseHeaders? headers, System.DateTimeOffset now, System.TimeSpan cap) { }
+        public static Sanare.Http.Resilience.RetryAfterPolicy.RetryAfterResult Read(string? headerValue, System.DateTimeOffset now, System.TimeSpan cap) { }
+        public readonly struct RetryAfterResult : System.IEquatable<Sanare.Http.Resilience.RetryAfterPolicy.RetryAfterResult>
+        {
+            public RetryAfterResult(bool HasValue, System.TimeSpan Delay, bool ExceedsCap) { }
+            public System.TimeSpan Delay { get; init; }
+            public bool ExceedsCap { get; init; }
+            public bool HasValue { get; init; }
+        }
+    }
+    public readonly struct RetryDecision : System.IEquatable<Sanare.Http.Resilience.RetryDecision>
+    {
+        public RetryDecision(Sanare.Http.Resilience.RetryDisposition Disposition, System.TimeSpan Delay, string Reason) { }
+        public System.TimeSpan Delay { get; init; }
+        public Sanare.Http.Resilience.RetryDisposition Disposition { get; init; }
+        public string Reason { get; init; }
+    }
+    public enum RetryDisposition
+    {
+        Accept = 0,
+        Retry = 1,
+        Block = 2,
+        NotFound = 3,
+    }
+}
+namespace Sanare.Http.Robots
+{
+    public interface IRobotsPolicy
+    {
+        System.Threading.Tasks.ValueTask<Sanare.Http.Robots.RobotsDecision> EvaluateAsync(System.Uri url, Sanare.Http.Identity.AcquisitionMode mode, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.ValueTask<Sanare.Http.Robots.RobotsRuleSet> GetRuleSetAsync(string host, System.Threading.CancellationToken ct = default);
+    }
+    public sealed class RobotsDecision : System.IEquatable<Sanare.Http.Robots.RobotsDecision>
+    {
+        public RobotsDecision(bool Allowed, string MatchedUserAgent, System.TimeSpan? CrawlDelay, string Reason) { }
+        public bool Allowed { get; init; }
+        public System.TimeSpan? CrawlDelay { get; init; }
+        public string MatchedUserAgent { get; init; }
+        public string Reason { get; init; }
+    }
+    public sealed class RobotsPolicy : Sanare.Http.Robots.IRobotsPolicy
+    {
+        public RobotsPolicy(System.Net.Http.HttpClient client, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Politeness.IHostLimiterRegistry? limiters = null, System.TimeProvider? clock = null, string userAgentToken = "Sanare", string? diskRoot = null) { }
+        public System.Threading.Tasks.ValueTask<Sanare.Http.Robots.RobotsDecision> EvaluateAsync(System.Uri url, Sanare.Http.Identity.AcquisitionMode mode, System.Threading.CancellationToken ct = default) { }
+        public System.Threading.Tasks.ValueTask<Sanare.Http.Robots.RobotsRuleSet> GetRuleSetAsync(string host, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class RobotsRule : System.IEquatable<Sanare.Http.Robots.RobotsRule>
+    {
+        public RobotsRule(Sanare.Http.Robots.RobotsRuleKind Kind, string Pattern) { }
+        public Sanare.Http.Robots.RobotsRuleKind Kind { get; init; }
+        public string Pattern { get; init; }
+        public int Specificity { get; }
+        public bool Matches(string path) { }
+    }
+    public enum RobotsRuleKind
+    {
+        Disallow = 0,
+        Allow = 1,
+    }
+    public sealed class RobotsRuleSet : System.IEquatable<Sanare.Http.Robots.RobotsRuleSet>
+    {
+        public RobotsRuleSet(System.Collections.Generic.IReadOnlyList<Sanare.Http.Robots.RobotsRule> Rules, System.TimeSpan? CrawlDelay, System.Collections.Generic.IReadOnlyList<string> Sitemaps, string MatchedUserAgent) { }
+        public System.TimeSpan? CrawlDelay { get; init; }
+        public string MatchedUserAgent { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Sanare.Http.Robots.RobotsRule> Rules { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Sitemaps { get; init; }
+        public static Sanare.Http.Robots.RobotsRuleSet Unrestricted { get; }
+        public bool IsAllowed(string path) { }
+    }
+    public static class RobotsTxtParser
+    {
+        public static Sanare.Http.Robots.RobotsRuleSet Parse(string content, string userAgentToken) { }
     }
 }

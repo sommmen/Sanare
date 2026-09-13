@@ -707,12 +707,20 @@ Degradation triggers when `observed ≥ MinObservations` (default 5) and any of:
 **Politeness delay.**
 
 ```
-delay = max(rateLimiterDelay, minHostDelay) + jitter
-jitter ~ U(0, JitterMs)                       (default 0…750 ms)
+delay = max(rateLimiterDelay, minHostDelay, robotsCrawlDelay) ± jitter
+jitter = delay * JitterFraction               (default ±20 %)
 minHostDelay = 1500 ms default, per host
-backoff(n) = min(BaseDelay * 2^(n-1), MaxDelay) + jitter    (Base 2 s, Max 5 min)
-Retry-After, when present and sane (≤ 1 h), overrides backoff(n) as a floor
+backoff(n) ~ U(0, min(BaseDelay * 2^n, MaxDelay))          (Base 500 ms, Max 30 s)
+Retry-After, when present and within the cap (≤ 120 s), replaces backoff(n);
+beyond the cap the attempt fails immediately with SNR-ACQ-002 rather than sleeping
 ```
+
+A `robots.txt` `Crawl-delay` participates in the `max` rather than overriding it, so a host asking for
+more patience is always honoured and one asking for less cannot lower our own floor.
+
+Backoff uses **full jitter** — the delay is drawn from `[0, base·2ⁿ]` rather than jittered around it.
+Jittering around a shared schedule leaves a fleet that all received a `503` in the same second still
+nearly synchronised; drawing from the whole interval actually spreads the retries out.
 
 **Result cache key.**
 
@@ -802,9 +810,11 @@ Analogue of DB-constraint translation, for this system's persistent stores:
 
 | Scenario | Strategy | Parameters |
 |----------|----------|------------|
-| Transient network (`5xx`, socket, timeout) | Exponential backoff + jitter | 3 attempts, base 2 s, cap 30 s |
-| `429` | Honour `Retry-After` as floor, then backoff | 4 attempts, cap 5 min |
-| `403` / challenge page | No immediate retry; counts toward circuit breaker | breaker: 5 failures / 5 min → open 30 min |
+| Transient network (`408`, `425`, `429`, `5xx`, socket, timeout) | Full-jitter exponential backoff | 3 retries, base 500 ms, cap 30 s |
+| `429` / any `Retry-After` | Honour `Retry-After` verbatim when it is within the cap | cap 120 s; beyond it, fail immediately with `SNR-ACQ-002` |
+| `403` / challenge page | No retry at any severity; counts toward the circuit breaker | breaker: 5 blocks / 5 min → open 30 min |
+| Hard challenge or IP-block signature | Circuit is *paused*, not time-boxed; no timer reopens it | `SNR-ACQ-011` until a clean probe or operator hand-off (DR-014) |
+| `404` / `410` | Returned intact as data, never retried | a plan's `notFound` predicate must be able to observe it |
 | Consent wall | 1 retry after applying consent strategy | then `ConsentWallBlocked` |
 | Browser launch/nav failure | Restart context, retry | 2 attempts |
 | LLM call failure | Provider-level retry then workflow-level attempt | 3 transport retries; attempt counts against the authoring/heal budget only on validation failure, not transport failure |
@@ -839,6 +849,9 @@ Analogue of DB-constraint translation, for this system's persistent stores:
 | SNR-ACQ-009 | DiscoveryDocumentUnavailable | "Referenced discovery document could not be used." | Referenced `llms.txt` is unavailable, malformed, disallowed, blocked, unsupported, or exceeds its limit | Inspect source guidance if needed; authoring continues without it | AC-030 |
 | SNR-ACQ-010 | DiscoveryDocumentTooLarge | "Discovery document exceeded the configured byte ceiling." | Referenced `llms.txt` response exceeds `MaxDiscoveryDocumentBytes` | Raise the limit deliberately only when justified; authoring continues without it | AC-030 |
 | SNR-ACQ-011 | ChallengePaused | "Host {host} presented a hard challenge; awaiting a manual hand-off." | Circuit breaker open on a challenge/IP-block signal | An operator may run the manual browser hand-off (DR-014) or wait for the breaker to close; not auto-bypassed | AC-010 |
+| SNR-ACQ-012 | UnsupportedRequestMethod | "Acquisition method {method} is not supported." | A request names a method other than `GET` | Correct the plan or caller; do not retry unchanged | — |
+| SNR-ACQ-013 | InsecureRedirect | "A redirect selected insecure HTTP transport." | A redirect hop resolved to `http://` while insecure transport is disabled | Correct the source URL or explicitly allow insecure transport | — |
+| SNR-ACQ-014 | CharsetAssumed | "No character encoding was declared by the response; assuming UTF-8." | Neither `Content-Type`, a BOM, nor a `<meta charset>` declared an encoding | Inspect the decoded text for mojibake; declare the charset at the source if it is wrong | — |
 | SNR-ID-001 | IdentityProfileIncoherent | "Browsing identity profile violates a coherence rule." | Contradictory browser headers or profile values | Fix the profile | AC-010 |
 | SNR-ID-002 | IdentityProfileNotFound | "Source references an unknown browsing identity profile." | Invalid source override | Register or correct the profile | AC-010 |
 | SNR-BRW-001 | BrowserDisabled | "Browser tier is required but is not authorized." | Global or per-source browser flag is off | Author a lower-tier plan or explicitly authorize browser use | AC-018 |
@@ -1368,7 +1381,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 
 | Status | Typical codes | Consumer action |
 |--------|--------------|-----------------|
-| `InvalidRequest` | SNR-API-001/002/004/005 | Correct the request; do not retry unchanged |
+| `InvalidRequest` | SNR-API-001/002/004/005, SNR-ACQ-012 | Correct the request; do not retry unchanged |
 | `PartialExtraction` | SNR-EXT-003 | Use partial data; a heal may already be queued |
 | `SchemaValidationFailed` | SNR-SCH-002/004/005 | Do not use the null payload; inspect diagnostics while healing runs |
 | `NoPlanAvailable` | status only | Enable authoring or supply a plan |
@@ -1377,6 +1390,7 @@ Full catalog in §7.7. Mapping from status to the codes a consumer will see:
 | `Blocked` / `RateLimited` | SNR-ACQ-002/003 | Back off; do not retry aggressively |
 | `DisallowedByRobots` | SNR-ACQ-004 | Stop; reconfigure the source |
 | `ConsentWallBlocked` | SNR-ACQ-005 | Enable browser tier or supply a consent cookie |
+| `ChallengePaused` | SNR-ACQ-011 | Stop automated acquisition for the source; wait for the re-probe or invoke the manual hand-off |
 | `FixtureNotFound` | SNR-FIX-001 | Capture fixtures before running offline |
 
 ## 10. Storage Design

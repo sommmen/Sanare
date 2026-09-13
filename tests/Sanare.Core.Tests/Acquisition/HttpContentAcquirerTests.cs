@@ -109,7 +109,7 @@ public sealed class HttpContentAcquirerTests
 
         var exception = await Assert.ThrowsAsync<AcquisitionException>(() => acquirer.AcquireAsync(new AcquisitionRequest(new Uri(url), "source")).AsTask());
 
-        Assert.Equal("SNR-ACQ-009", exception.Code);
+        Assert.Equal("SNR-API-001", exception.Code);
         Assert.Equal(0, handler.SendCount);
     }
 

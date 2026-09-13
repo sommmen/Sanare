@@ -26,6 +26,7 @@ public static class ScrapeStatusCodes
         ScrapeStatus.PartialPagination => ["SNR-PAG-005"],
         ScrapeStatus.RateLimited => ["SNR-ACQ-002"],
         ScrapeStatus.Blocked => ["SNR-ACQ-003"],
+        ScrapeStatus.ChallengePaused => ["SNR-ACQ-011"],
         ScrapeStatus.DisallowedByRobots => ["SNR-ACQ-004"],
         ScrapeStatus.ConsentWallBlocked => ["SNR-ACQ-005"],
         ScrapeStatus.BrowserFailed => ["SNR-BRW-003", "SNR-BRW-004", "SNR-BRW-005"],

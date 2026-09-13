@@ -148,12 +148,21 @@ public sealed class AcquisitionScrapeRunner(
         _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, "Unmapped content origin."),
     };
 
+    /// <summary>
+    /// Maps an <see cref="AcquisitionException.Code"/> onto the terminal status a consumer sees. Mirrors
+    /// the Error Handling table in docs/features/acquisition-pipeline.md exactly; <c>SNR-ACQ-009</c> is
+    /// deliberately absent because a discovery-document failure is a non-fatal warning that never
+    /// terminates a run.
+    /// </summary>
     private static ScrapeStatus MapAcquisitionStatus(string code) => code switch
     {
         "SNR-FIX-001" => ScrapeStatus.FixtureNotFound,
-        "SNR-ACQ-007" => ScrapeStatus.ExtractionFailed,
-        "SNR-ACQ-006" => ScrapeStatus.PlanInvalid,
-        "SNR-ACQ-009" => ScrapeStatus.InvalidRequest,
+        "SNR-API-001" => ScrapeStatus.InvalidRequest,
+        "SNR-ACQ-012" => ScrapeStatus.InvalidRequest,
+        "SNR-ACQ-002" => ScrapeStatus.RateLimited,
+        "SNR-ACQ-003" => ScrapeStatus.Blocked,
+        "SNR-ACQ-004" => ScrapeStatus.DisallowedByRobots,
+        "SNR-ACQ-011" => ScrapeStatus.ChallengePaused,
         _ => ScrapeStatus.ExtractionFailed,
     };
 

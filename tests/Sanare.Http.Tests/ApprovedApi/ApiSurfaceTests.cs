@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using PublicApiGenerator;
 using Sanare.Http.Identity;
 
@@ -38,8 +39,13 @@ public sealed class ApiSurfaceTests
     [Fact]
     public void Assembly_exposes_no_captcha_solver_type()
     {
+        // "solver" must not be matched as a bare substring: it also occurs inside "Resolver", which is
+        // ordinary naming for types that look something up (DiscoveryDocumentResolver). The negative
+        // lookbehind keeps CaptchaSolver, ChallengeSolver, and friends caught while letting Resolver pass.
+        var solverName = new Regex("(?<!re)solver", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         Assert.DoesNotContain(typeof(BrowsingIdentity).Assembly.GetExportedTypes(), type =>
-            type.Name.Contains("solver", StringComparison.OrdinalIgnoreCase));
+            solverName.IsMatch(type.Name));
     }
 
     private static string NormalizeLineEndings(string value) => value.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
