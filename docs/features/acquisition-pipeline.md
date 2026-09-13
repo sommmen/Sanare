@@ -392,7 +392,11 @@ src/
 
 ## Test Module
 
-**Test file**: `tests/Sanare.Http.Tests/HttpContentAcquirerTests.cs`
+**Test file**: `tests/Sanare.Http.Tests/Acquisition/GovernedContentAcquirerTests.cs`
+
+> As built, the governed pipeline's tests live under `tests/Sanare.Http.Tests/Acquisition/` and the Core
+> transport keeps its own suite at `tests/Sanare.Core.Tests/Acquisition/`. The single-file Test Module this
+> section originally proposed was split along the same seam as the production code, for the same reason.
 
 **Test scope**:
 
@@ -401,25 +405,47 @@ src/
   with a fake clock, including the `ChallengePaused` (no auto-close) branch; `CharsetDetector` precedence;
   `ContentTypeGate`; `BoundedStreamReader` at the exact ceiling; `HostLimiterRegistry` partition identity
   (same host ⇒ same limiter instance); `AdaptiveRateController` additive-increase/multiplicative-decrease
-  trajectory and ceiling clamp with a fake clock; `IChallengeHandoff` mode gate (throws outside interactive
-  execution modes).
-- **Integration**: an in-process scripted `HttpMessageHandler` exercising pacing windows, `Retry-After`,
-  403 streaks, hard-challenge signatures (`ChallengePaused` open/clear), redirects, conditional requests,
-  oversized bodies, and cross-host redirect policy; two-runner shared-limiter test; offline replay with a
-  connect-throwing handler; discovery-document resolution against a stub `robots.txt`/`llms.txt` pair
-  covering success, absence, oversize, and disallow; adaptive-mode end-to-end run against a stub server that
-  intermittently returns `429` to assert the rate never climbs in response to a block.
-- **Fixtures / Mocks**: scripted-handler responses defined in code plus response bodies drawn from
-  `tests/Sanare.Http.Tests/Data/` (`lenovo-tablets-page1.html`, `robots-allow.txt`,
-  `robots-disallow-tablets.txt`, `challenge-interstitial.html`, `consent-wall.html`,
-  `robots-with-llms-reference.txt`, `llms.txt`); a fake `TimeProvider` for all delay and window assertions
-  so no test sleeps in real time; a fake `IFixtureCorpus` to assert capture calls.
+  trajectory and ceiling clamp. `IChallengeHandoff`'s mode gate is **not** unit-tested: the interface has no
+  implementation until the browser tier lands, so `AcquisitionArchitectureTests` asserts that absence
+  instead. See "Deviations recorded during implementation".
+- **Integration**: an in-process scripted `HttpMessageHandler` (`ScriptedHandler`) drives
+  `GovernedContentAcquirer` end to end through the robots gate (disallow, allow, missing `robots.txt`,
+  stealth-mode override), the no-retry rule for `403`, corpus recording of error bodies, and the shared-limiter
+  guarantee behind AC-027 — a `Crawl-delay` one acquirer learns binds every acquirer over the same
+  `HostLimiterRegistry`. `Offline_mode_opens_no_socket` proves the offline path with a connect-throwing
+  handler. `DiscoveryDocumentResolverTests` resolves a stub `robots.txt`/`llms.txt` pair across success,
+  absence, transport failure, and disallow.
 
-Companion test files: `tests/Sanare.Http.Tests/RobotsPolicyTests.cs`,
-`tests/Sanare.Http.Tests/PolitenessTests.cs`,
-`tests/Sanare.Http.Tests/ResilienceTests.cs`,
-`tests/Sanare.Http.Tests/HttpResponseCacheTests.cs`,
-`tests/Sanare.Http.Tests/DiscoveryDocumentResolverTests.cs`.
+> Pacing windows, `Retry-After`, the `403` streak breaker, challenge signatures, redirect classification,
+> conditional requests, and body-size ceilings are verified at the **unit** level against their owning types
+> rather than through the scripted handler. The integration clock is a frozen `FakeTimeProvider`, so any
+> non-zero politeness delay would park an integration test forever; time-dependent behaviour is therefore
+> asserted where the clock can be driven directly. Discovery-document oversize is likewise a unit assertion
+> (`SNR-ACQ-010` via `BoundedStreamReader`).
+- **Fixtures / Mocks**: scripted-handler responses and `robots.txt`/`llms.txt` bodies are declared inline
+  in each test rather than as files on disk, so a body and the assertion about it stay readable together;
+  the existing `tests/Sanare.Http.Tests/Data/` HTML files remain the identity suite's, not this one's. A
+  local `FakeTimeProvider` backs every delay and window assertion so no test sleeps in real time, and a
+  `RecordingFixtureCorpus` asserts capture calls. Both live in `AcquisitionTestHarness.cs`.
+
+As-built test files, all under `tests/Sanare.Http.Tests/Acquisition/`:
+
+| File | Covers |
+|---|---|
+| `AcquisitionTestHarness.cs` | `FakeTimeProvider`, `ScriptedHandler`, `RecordingFixtureCorpus` — no tests of its own |
+| `GovernedContentAcquirerTests.cs` | End-to-end composition: gate order, cache bypass, capture, error codes |
+| `PolitenessTests.cs` | `HostLimiterRegistry` partition identity, `HostBudget` floor, `PolitenessDelay` jitter bounds, `AdaptiveRateController` AIMD, `RetryAfterPolicy` both wire forms and the cap |
+| `RobotsTests.cs` | `RobotsTxtParser` longest-match, wildcards, `Crawl-delay`, malformed input; `RobotsPolicy` decisions |
+| `AcquisitionResiliencePipelineTests.cs` | Retry classification, full-jitter backoff growth and ceiling |
+| `BlockCircuitBreakerTests.cs` | Streak/threshold/reset windows and the `ChallengePaused` no-auto-close branch |
+| `HttpResponseCacheTests.cs` | Store/read round-trip, freshness, revalidation, key derivation |
+| `RedirectPolicyTests.cs` | Hop ceiling, cross-host detection, scheme downgrade |
+| `DiscoveryDocumentResolverTests.cs` | `llms.txt` success, absence, oversize, and robots-disallow |
+| `AcquisitionArchitectureTests.cs` | Layering guards (see "Constraints") |
+
+`tests/Sanare.Core.Tests/Acquisition/` keeps `HttpContentAcquirerTests.cs` (transport guards, bounded read,
+capture, replay) and `ContentHelperTests.cs` (`CharsetDetector` precedence, `ContentTypeGate`,
+`BoundedStreamReader` at the exact ceiling).
 
 ## Implementation Plan
 

@@ -1,6 +1,8 @@
 # Documentation Audit Report — Sanare
 
 **Latest full-repository pass**: 2026-09-10 (documentation/code alignment)
+**Latest targeted pass**: 2026-09-13 (acquisition-pipeline docs vs. code — see
+"Acquisition-Pipeline Findings — 2026-09-13" at the end of this report)
 
 ## Latest Full-Repository Audit Pass
 
@@ -486,3 +488,100 @@ same pass.
 7. **Re-run this audit after the owners update their specs or implementations**
    to verify that the status table, test inventory, and implementation scope
    remain aligned.
+
+## Acquisition-Pipeline Findings — 2026-09-13
+
+**Scope**: `docs/features/acquisition-pipeline.md` cross-referenced against the
+acquisition code and tests added by the T1–T15 implementation commits
+(`6d32a93`, `d34bad0`, `f57203d`, `34b458c`). The spec's File Structure block,
+Test Module block, and acceptance-criteria verification claims were each checked
+against the real `src/` and `tests/` trees.
+**Method**: Code-grounded cross-reference — every claimed test target was
+resolved to a concrete test method or declared absent. The user asked to *bring
+docs and implementation up to date*, so findings were **fixed in place** rather
+than left open: where a claim named real, valuable behaviour, the missing test
+was written; where a claim was untestable by design, the claim was corrected.
+
+### Findings Summary
+
+| Severity | Open | Resolved this pass | Category |
+|----------|-----:|--------------------:|----------|
+| Critical | 0 | 0 | — |
+| Major | 0 | 1 | Claimed-but-absent test coverage |
+| Minor | 0 | 3 | Stale test paths, fixtures, and scope claims |
+| Info | 0 | 0 | — |
+
+### ACQ-001 (Major, resolved) — Test Module claimed coverage that did not exist
+
+The Test Module section listed five production types as unit-tested that had
+**zero** test references: `RetryAfterPolicy`, `CharsetDetector`, `ContentTypeGate`,
+`BoundedStreamReader`, and the politeness types (`HostLimiterRegistry`,
+`PolitenessDelay`, `AdaptiveRateController`, `HostBudget` — referenced only
+incidentally from other suites, never directly asserted). The section had been
+written aspirationally during planning; T15 reconciled the File Structure block
+but not this one.
+
+**Resolution**: coverage was written rather than the claim weakened, because
+each named behaviour was a real guarantee worth pinning.
+
+- `tests/Sanare.Core.Tests/Acquisition/ContentHelperTests.cs` (12 tests) —
+  charset precedence (header > BOM > `<meta>` > UTF-8 fallback), the 8 KiB
+  `<meta>` scan window, `SNR-ACQ-014` fallback warning, content-type gating with
+  `SNR-ACQ-006`, and the inclusive body ceiling with a caller-chosen overflow code.
+- `tests/Sanare.Http.Tests/Acquisition/PolitenessTests.cs` (17 tests) — limiter
+  partition identity, crawl-delay floor semantics, ±20 % jitter bounds, AIMD
+  trajectory and ceiling clamp, `Fixed`-mode inertness, and `RetryAfterPolicy`
+  across both wire forms plus the cap.
+- `tests/Sanare.Http.Tests/Acquisition/GovernedContentAcquirerTests.cs` — added
+  the AC-027 shared-limiter integration test: a `Crawl-delay` one acquirer learns
+  binds every acquirer sharing the registry.
+
+No production bug was found: all 30 new tests passed against existing behaviour
+on first green run.
+
+### ACQ-002 (Minor, resolved) — Stale test file paths
+
+The spec named `tests/Sanare.Http.Tests/HttpContentAcquirerTests.cs` and five
+companion files at the `Sanare.Http.Tests/` root. The suite had been split along
+the same seam as the production code: the governed tests live under
+`tests/Sanare.Http.Tests/Acquisition/` and the Core transport keeps its own suite
+at `tests/Sanare.Core.Tests/Acquisition/`. Two files also differ in name
+(`AcquisitionResiliencePipelineTests.cs`, `RobotsTests.cs`).
+
+**Resolution**: replaced with an as-built table mapping each real test file to
+what it covers.
+
+### ACQ-003 (Minor, resolved) — Seven named fixture files do not exist
+
+The Fixtures/Mocks paragraph named `lenovo-tablets-page1.html`, `robots-allow.txt`,
+`robots-disallow-tablets.txt`, `challenge-interstitial.html`, `consent-wall.html`,
+`robots-with-llms-reference.txt`, and `llms.txt`. None exist; the `Data/` directory
+holds the **identity** suite's fixtures only. Scripted-handler bodies are declared
+inline in each test.
+
+**Resolution**: paragraph corrected to describe the inline convention and to
+attribute `Data/` to the identity suite.
+
+### ACQ-004 (Minor, resolved) — Integration scope overstated
+
+The Integration bullet claimed scripted-handler coverage of pacing windows,
+`Retry-After`, 403 streaks, challenge signatures, redirects, conditional requests,
+oversized bodies, cross-host redirect policy, "offline replay", and an
+adaptive-mode end-to-end `429` run. Most of these are verified at the **unit**
+level against their owning types instead. The structural reason is worth
+recording: the integration harness uses a frozen `FakeTimeProvider`, so any
+non-zero politeness delay parks an integration test indefinitely — a hang
+reproduced and then designed around during this pass. Time-dependent behaviour
+therefore belongs where the clock can be driven directly.
+
+**Resolution**: the bullet now describes what the scripted handler actually
+drives, with a note explaining why the remaining behaviours are unit-level.
+
+### Validation
+
+Full suite after changes: **524 passed, 0 failed** (Sanare.Http.Tests 174,
+Sanare.Core.Tests 310, Sanare.Abstractions.Tests 40) — 30 more than the 494-test
+baseline at the start of the pass. No public API surface changed, so no
+approved-API regeneration was required.
+
+**Open findings from this pass**: none.
