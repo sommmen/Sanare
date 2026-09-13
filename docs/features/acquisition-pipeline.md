@@ -85,8 +85,9 @@ Everything that touches the network goes through one pipeline, so acquisition-mo
 
 - **`fixture-corpus`** — capture and offline replay.
 - **`browsing-identity`** — header profile per request.
-- **`Microsoft.Extensions.Http.Resilience` / Polly** — retry and circuit-breaker pipelines.
 - **`System.Threading.RateLimiting`** — token-bucket and concurrency limiters.
+- Retry and circuit breaking are implemented in-repo rather than on
+  `Microsoft.Extensions.Http.Resilience`/Polly; see "Implementation Plan" → "Delivery decisions".
 
 ## Data Flow
 
@@ -148,7 +149,8 @@ public enum ContentOrigin { Network, Cache, Fixture, Browser }
      "1000/min gets blocked, 60/min never does" — reached automatically and conservatively rather than
      hard-coded per source.
    - The AIMD state (current effective rate, last adjustment reason/timestamp) is exposed on
-     `sanare.acquisition.rate_limit_effective` (tag `source`) so operators can see the controller converge.
+     `sanare.acquisition.rate_limit_effective` (tag `host`, matching the limiter's own partition key and the
+     shipped `ScraperMetrics.SetEffectiveRateLimit` signature) so operators can see the controller converge.
 2. One `SemaphoreSlim`-backed concurrency limiter per host, default 2.
 3. Both limiters are **process-wide singletons**, so two concurrent `RunAsync` calls against the same host
    share one budget (AC-027) — this is asserted directly, because it is the difference between polite and
@@ -317,6 +319,12 @@ DR-006/NG-1–NG-3 (never automate around a block):
 | `SNR-ACQ-009` | Discovery document unavailable, malformed, disallowed, or unresolved | Warning | n/a — non-fatal, caller proceeds | No |
 | `SNR-ACQ-010` | Discovery document body exceeds 512 KiB | Warning | n/a — non-fatal, caller proceeds | No |
 | `SNR-ACQ-011` | Hard challenge/IP-block signature circuit opens (DR-014) | Error | `ChallengePaused` | No (until a clean probe or manual hand-off clears it) |
+| `SNR-ACQ-012` | Request method is not `GET` | Error | `InvalidRequest` | No |
+| `SNR-ACQ-013` | A redirect hop lands on an insecure `http://` URL | Error | `ExtractionFailed` | No |
+
+A non-`https` *target* URL is rejected as `SNR-API-001` (`InvalidUrl`), whose catalog entry already covers
+unsupported schemes; `SNR-ACQ-013` covers only the mid-chain redirect case, which is a transport-policy
+violation rather than a malformed request.
 
 Every acquisition diagnostic carries the host, the final URL, the status code, the attempt number, and the
 origin, so a failed run explains itself without a debugger. `SNR-ACQ-009`/`SNR-ACQ-010` are logged at
@@ -327,15 +335,21 @@ operator-invoked manual hand-off (DR-014) to resolve.
 
 ## File Structure
 
+The acquisition *contracts* live in `Sanare.Core` so that `RequestIdentity` stays below `Sanare.Http` and
+the assembly reference remains one-directional (`Sanare.Http → Sanare.Core`); the *governed machinery*
+lives in `Sanare.Http` beside the identity and compliance boundary it consults on every request. See
+"Implementation Plan" → "Delivery decisions" for the reasoning.
+
 ```
 src/
+├── Sanare.Core/
+│   └── Acquisition/
+│       ├── IContentAcquirer.cs          # contract
+│       ├── HttpContentAcquirer.cs       # transport only: guards, send, bounded read, capture, replay
+│       └── AcquisitionModels.cs         # AcquisitionRequest, AcquiredContent, ContentOrigin,
+│                                        # RequestIdentity, AcquisitionOptions, AcquisitionException
 └── Sanare.Http/
-    ├── IContentAcquirer.cs
-    ├── HttpContentAcquirer.cs
-    ├── AcquisitionRequest.cs
-    ├── AcquiredContent.cs
-    ├── ContentOrigin.cs
-    ├── AcquisitionOptions.cs
+    ├── GovernedContentAcquirer.cs       # IContentAcquirer decorator assembling everything below
     ├── Politeness/
     │   ├── IHostLimiterRegistry.cs
     │   ├── HostLimiterRegistry.cs
@@ -397,3 +411,243 @@ Companion test files: `tests/Sanare.Http.Tests/RobotsPolicyTests.cs`,
 `tests/Sanare.Http.Tests/ResilienceTests.cs`,
 `tests/Sanare.Http.Tests/HttpResponseCacheTests.cs`,
 `tests/Sanare.Http.Tests/DiscoveryDocumentResolverTests.cs`.
+
+## Implementation Plan
+
+> Planned: 2026-09-13. Milestone M2 (with `browsing-identity`). This section is the build order for this
+> component; it does not restate the behaviour above, only how to land it.
+
+### Preconditions
+
+Seven things this spec assumes are already true are not true yet. Each is a decision that must be made
+before the first line of governed-pipeline code, not discovered mid-build.
+
+1. **`AcquisitionOptions` has no policy surface.** `Sanare.Core.Acquisition.AcquisitionOptions` is
+   `(bool Offline, bool AllowInsecureTransport, long MaximumResponseBytes)` — three members. Every knob this
+   spec names (per-host rate, burst, concurrency, politeness delay, jitter, robots policy, retry budget,
+   breaker thresholds, cache freshness bounds, redirect limit, discovery ceiling) has nowhere to live. T2
+   adds the policy model.
+2. **`HttpContentAcquirer` is a transport, not a pipeline.** It implements the GET-only guard, the
+   HTTPS-by-default guard, offline replay, one `SendAsync`, identity application, the 16 MiB bounded read,
+   the content-type gate, charset resolution, and fixture capture. There is no limiter, no robots lookup,
+   no cache, no retry, no breaker, and no telemetry. Everything from §"Rate limiting and politeness"
+   onward is greenfield.
+3. **`ScrapeStatus` has no `ChallengePaused` member, and the enum is API-frozen.** `SNR-ACQ-011`,
+   AC-033 and AC-ACQ-022 all require it. `Sanare.Abstractions` is guarded by a PublicApiGenerator approval
+   test (`tests/Sanare.Abstractions.Tests/ApprovedApi/`), so appending the member is a deliberate,
+   approved surface change rather than an incidental edit. T1 does it.
+4. **`SNR-ACQ-001` and `SNR-ACQ-009` are each assigned twice.** This spec's Error Handling table says
+   `-001` is "transport failure after retries" and `-009` is "discovery document unavailable"; the shipped
+   `HttpContentAcquirer` raises `-001` for a non-`GET` method and `-009` for insecure transport, and
+   `AcquisitionScrapeRunner.MapAcquisitionStatus` maps `-009` to `InvalidRequest`. Both documented meanings
+   are needed by this component, so the code's two squatters must move. The same switch also maps
+   `SNR-ACQ-006` to `PlanInvalid` where the table above says `ExtractionFailed`, and lets `-001` fall
+   through to the `ExtractionFailed` default. T1 resolves all three.
+5. **There is no home for per-source `RateLimit` configuration.** `AcquisitionSpec` (the plan-side request
+   shape) has `Method`, `UrlTemplate`, `Headers`, `WaitFor`, `Interactions` and an explicit remark that
+   issuing the request is this component's scope. DR-014's `RateLimit.Mode` / `RateLimit.MaxRequestsPerMinute`
+   are not on it and must not be added to it — see the delivery decision below.
+6. **The spec's File Structure block predates the assembly split.** It places `IContentAcquirer`,
+   `AcquisitionRequest`, `AcquiredContent`, `ContentOrigin` and `AcquisitionOptions` under
+   `src/Sanare.Http/`; they live in `src/Sanare.Core/Acquisition/` because `RequestIdentity` must sit below
+   `Sanare.Http` to keep the reference one-directional (`Sanare.Http → Sanare.Core`), and because
+   `FixtureScrapeRunner` and `pagination-engine`'s planned `ContentAcquirerPageSource` both consume the
+   Core types. `browsing-identity`'s plan deferred this explicitly; this plan closes it.
+7. **`Sanare.Http.Tests` cannot run an integration test yet.** It references only
+   `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio` and `PublicApiGenerator`. WireMock.Net is
+   referenced nowhere in the repository, there is no `FakeTimeProvider` in this project (two unrelated
+   copies exist under `Sanare.Core.Tests`), and the existing acquirer tests live at
+   `tests/Sanare.Core.Tests/Acquisition/HttpContentAcquirerTests.cs`, not where this spec's Test Module
+   says. T14 builds the harness.
+
+### Delivery decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Assembly split | Contract types (`IContentAcquirer`, `AcquisitionRequest`, `AcquiredContent`, `ContentOrigin`, `RequestIdentity`, `AcquisitionOptions`, `AcquisitionException`) **stay** in `src/Sanare.Core/Acquisition/`; all new governed machinery (`Politeness/`, `Robots/`, `Discovery/`, `Resilience/`, `Caching/`, `Content/`) lands in `src/Sanare.Http/` | The File Structure block above predates the split. Moving the contracts up would force `Sanare.Core` to reference `Sanare.Http` for `FixtureScrapeRunner` and the pagination page source, inverting the one-directional reference. The machinery has no such pull and belongs next to identity/compliance, which it consults on every request. |
+| Where the pipeline is assembled | A new `Sanare.Http.GovernedContentAcquirer` decorator implementing `IContentAcquirer` and wrapping the Core `HttpContentAcquirer`; `HttpContentAcquirer` keeps only transport concerns | Keeps the single choke point (callers still depend on one interface), keeps the Core transport testable without a limiter, and means the governed layer can consult `IBrowsingIdentityProvider`/`ComplianceReporter` — types that only exist in `Sanare.Http`. |
+| `SNR-ACQ-001` collision | Return `-001` to "transport failure after retries". The non-`GET` guard moves to a new catalog code **`SNR-ACQ-012 UnsupportedRequestMethod`** (status `InvalidRequest`, non-retryable) | The catalog meaning is load-bearing for AC-009 and for `ScrapeStatus.Timeout`'s existing `["SNR-ACQ-001"]` mapping. A rejected method is a caller/plan defect, not a transport failure, and deserves its own code rather than borrowing one. |
+| `SNR-ACQ-009` collision | Return `-009` to "discovery document unavailable" (Warning, non-fatal). A request-time non-`https` target URL raises the existing **`SNR-API-001 InvalidUrl`**, whose catalog text already covers "unsupported-scheme" and whose status is `InvalidRequest`; a redirect that lands on `http://` mid-chain raises a new **`SNR-ACQ-013 InsecureRedirect`** (status `ExtractionFailed`) | `-009` must be non-fatal, and the current insecure-transport use is fatal — they cannot share a code. `SNR-API-001` preserves today's observable `InvalidRequest` status without inventing a code, and the redirect case is a transport-policy violation that sits naturally beside `SNR-ACQ-008`. |
+| `ScrapeStatus.ChallengePaused` | Append to the enum (additive-only, as documented), regenerate `Sanare.Abstractions.approved.txt`, and add `ChallengePaused => ["SNR-ACQ-011"]` to `ScrapeStatusCodes.For` | The enum is explicitly "closed, additive-only; new values only ever appended". `ScrapeStatusCodes` throws `ArgumentOutOfRangeException` on unmapped members, so the mapping is not optional. |
+| Per-source `RateLimit` home | `AcquisitionOptions.RateLimit` (global defaults) plus an `AcquisitionOptions.SourceOverrides` / `HostOverrides` dictionary — **not** `AcquisitionSpec` | Extraction plans are git-committed, credential-free, authored artefacts; how fast an operator is willing to hit a host is deployment configuration, not plan vocabulary. Mirrors `IdentityOptions.SourceOverrides`, which already solved the same problem. |
+| Retry/back-off constants | This spec's numbers win: ≤3 retries, exponential base 500 ms, full jitter, cap 30 s, `Retry-After` honoured exactly up to a 120 s cap | Tech-design §7.4's block gives `Base 2 s / Max 5 min / Retry-After ≤ 1 h`. Those are the *outer* run-level figures; a per-request retry that can sleep five minutes cannot coexist with the 30-minute run wall-clock. Recorded here as a known delta to reconcile in `tech-design.md` when §7.4 is next revised. |
+| Politeness constants | `max(configuredDelay, robotsCrawlDelay)` with ±20 % jitter (this spec), defaulting `configuredDelay` to tech-design's 1500 ms `minHostDelay` | Reconciles both documents without changing either's intent: the formula is this spec's, the default value is §7.4's. |
+| `sanare.acquisition.rate_limit_effective` tag | `host` | `ScraperMetrics.SetEffectiveRateLimit(double, string host)` already ships with `TagNames.Host`, tech-design's metric table agrees, and the limiter is partitioned by host. The `source` wording in §"Rate limiting and politeness" above is the outlier; correct the prose, not the code. |
+| Resilience implementation | Hand-rolled `AcquisitionResiliencePipeline` over `System.Threading.RateLimiting`; **no** Polly / `Microsoft.Extensions.Http.Resilience` package | `src/` currently carries zero third-party `PackageReference`s and `Sanare.Abstractions` asserts that in a test. The required policy set is small and unusual (a breaker with two open states, one of which never auto-closes), so a policy library would be configured around more than it saves. The Dependencies list above is revised accordingly. |
+| Robots cache location | In-memory 24 h + disk under the fixture-corpus root at `cache/http/robots/{host}.txt`; no new configuration root | The corpus root is the one path the library already owns and already writes to. |
+| Test harness | Add **WireMock.Net** as a test-only `PackageReference` in `Sanare.Http.Tests`, plus a local `FakeTimeProvider` in that project | `browsing-identity`'s plan deferred WireMock to "the wider acquisition integration harness"; this is that harness. A third `FakeTimeProvider` copy is cheaper than making `Sanare.Core.Tests` a referenced library. |
+| Test relocation | New tests land in `tests/Sanare.Http.Tests/` per the Test Module above; the existing `tests/Sanare.Core.Tests/Acquisition/HttpContentAcquirerTests.cs` **stays** and keeps covering the Core transport | The two layers are now two types. Moving the transport tests away from the transport would leave `Sanare.Core` untested for guards it still owns. |
+
+### Task order
+
+**T1 — Error-code and status reconciliation.** Append `ChallengePaused` to `Sanare.Abstractions.ScrapeStatus`,
+add `ScrapeStatus.ChallengePaused => ["SNR-ACQ-011"]` to `ScrapeStatusCodes.For`, and regenerate
+`tests/Sanare.Abstractions.Tests/ApprovedApi/Sanare.Abstractions.approved.txt`. Re-point
+`HttpContentAcquirer`'s two squatting codes: non-`GET` → `SNR-ACQ-012`, request-time non-`https` →
+`SNR-API-001`. Rewrite `AcquisitionScrapeRunner.MapAcquisitionStatus` to match the Error Handling table
+exactly: `SNR-ACQ-012`/`SNR-API-001` → `InvalidRequest` (preserving today's observable behaviour),
+`SNR-ACQ-006` → `ExtractionFailed` (it currently returns `PlanInvalid`), `SNR-ACQ-001`/`-008`/`-013` →
+`ExtractionFailed`, `-002` → `RateLimited`, `-003` → `Blocked`, `-004` → `DisallowedByRobots`,
+`-011` → `ChallengePaused`, freeing `SNR-ACQ-009` entirely. Add the `SNR-ACQ-012`, `SNR-ACQ-013` and
+`ChallengePaused` rows to `docs/sanare/tech-design.md` §7.7 and §9.2.5, and correct the `source`→`host`
+tag wording in this spec's §"Rate limiting and politeness". Depends on: —
+
+**T2 — Policy model.** Extend `AcquisitionOptions` with `RateLimitOptions` (`Mode`,
+`RequestsPerMinute` = 20, `Burst` = 5, `MaxRequestsPerMinute`, `MaxConcurrencyPerHost` = 2,
+`MinHostDelay` = 1500 ms, `JitterFraction` = 0.20), `RobotsOptions` (`Enabled`, `CacheLifetime` = 24 h,
+`FetchRetryBudget`), `RetryOptions` (`MaxAttempts` = 3, `BaseDelay` = 500 ms, `MaxDelay` = 30 s,
+`RetryAfterCap` = 120 s), `BreakerOptions` (`BlockThreshold` = 5, `BlockWindow` = 5 min,
+`OpenDuration` = 30 min, `ChallengeThreshold` = 5), `CacheOptions` (`Enabled`, `MinFreshness` = 5 min,
+`MaxFreshness` = 7 days, `Root`), `MaxRedirects` = 10, and `MaxDiscoveryDocumentBytes` = 512 KiB. Add
+`HostOverrides`/`SourceOverrides` dictionaries. All records with validating constructors so a nonsensical
+configuration fails at composition, not on the first request. Depends on: —
+
+**T3 — `Content/` extraction.** Lift `ReadBoundedAsync`, `ValidateContentType` and `ResolveCharset` out of
+`HttpContentAcquirer` into `Sanare.Http/Content/BoundedStreamReader.cs`, `ContentTypeGate.cs` and
+`CharsetDetector.cs` as pure, independently testable types, preserving the existing precedence
+(Content-Type → BOM → `<meta charset>` over the first 8 KiB → UTF-8) and adding the missing warning
+diagnostic on the UTF-8 fallback. `HttpContentAcquirer` delegates to them so the Core transport keeps
+working unchanged. Depends on: T2.
+
+**T4 — `Politeness/` core.** `HostLimiterRegistry` (implementing `IHostLimiterRegistry`) holding one
+`PartitionedRateLimiter<string>` token bucket and one `SemaphoreSlim` per host, exposed as a process-wide
+singleton so two concurrent runs share a budget. `HostBudget` carries the resolved per-host settings;
+`PolitenessDelay` computes `max(configuredDelay, robotsCrawlDelay)` ± 20 % jitter from an injected
+`Random` (seeded in tests) and an injected `TimeProvider`. Leases are acquired in a `using` so cancellation
+during a delay releases them; requests queue rather than fail. Emit `sanare.acquisition.delay`. Depends
+on: T2.
+
+**T5 — `AdaptiveRateController`.** AIMD over the T4 bucket: additive increase per clean window, immediate
+halving on `429`/`503`/`403`/challenge, clamped to `RateLimit.MaxRequestsPerMinute`, never increasing in
+response to a block. Publish the effective rate through `ScraperMetrics.SetEffectiveRateLimit(value, host)`.
+Inert unless `RateLimit.Mode == Adaptive`. Depends on: T4.
+
+**T6 — `Robots/`.** `RobotsTxtParser` (`User-agent`, `Disallow`, `Allow` with longest-match-wins,
+`Crawl-delay`, `Sitemap`; identity token first, `*` fallback; malformed lines skipped, not fatal);
+`RobotsRuleSet`; `RobotsPolicy` implementing `IRobotsPolicy` with the 24 h in-memory + on-disk
+`cache/http/robots/` cache, a short retry budget, and fail-open on unreachable (404 ⇒ no restrictions).
+Evaluation happens **before a socket is opened for the target**: in `Compliance`, an applicable `Disallow`
+throws `SNR-ACQ-004`; in `Stealth`, it proceeds down the normal governed path and records the decision via
+`ComplianceReporter` (`ComplianceReport.RobotsDecision` already exists). `Crawl-delay` feeds T4's floor in
+both modes. Robots fetches use a dedicated minimal path, not the target pipeline, to avoid recursion.
+Depends on: T4, T2.
+
+**T7 — `Resilience/` retry.** `AcquisitionResiliencePipeline` classifying responses into
+retry / no-retry / block-signal / not-found, with ≤3 retries on `408`/`425`/`429`/`500`/`502`/`503`/`504`
+and socket/timeout, exponential base 500 ms with full jitter capped at 30 s. `RetryAfterPolicy` parses both
+the delta-seconds and HTTP-date forms and fails `SNR-ACQ-002` immediately — without sleeping — beyond the
+120 s cap. `403` and `404`/`410` never retry; `404`/`410` are returned to the caller intact. Transport
+failure after the budget is exhausted raises `SNR-ACQ-001`. All waits go through the injected
+`TimeProvider`. Depends on: T2, T4.
+
+**T8 — `BlockCircuitBreaker`, `ChallengeDetector`, `IChallengeHandoff`.** Per-host streak state with two
+distinct open states: a generic 403 streak (5 within 5 min) opens for 30 min, fails fast with
+`SNR-ACQ-003`/`Blocked`, and auto-closes; a hard challenge/IP-block signature opens indefinitely into
+`SNR-ACQ-011`/`ChallengePaused` with no auto-close, exiting only via a slow widening re-probe (never faster
+than the 30-min baseline) or an operator hand-off. `ChallengeDetector` is signature-based (interstitial
+markers in a small body, `cf-mitigated`-style headers) and reuses `WallClassifier`'s
+`WallClassification.Challenge` rather than duplicating detection. `IChallengeHandoff.OpenAsync(sourceId)`
+is declared with **zero in-pipeline callers**, throws immediately under `ExecutionMode.OfflineFixture` or a
+CI profile, runs exactly one supervised clean probe on success, closes the breaker, and logs
+`ManualChallengeHandoffResolved`. Emit `sanare.acquisition.blocked` and
+`sanare.acquisition.challenge_paused`. Depends on: T7, T1.
+
+**T9 — `Caching/`.** `IHttpResponseCache` + `FileHttpResponseCache` over two-level hash directories
+`cache/http/ab/cd/{key}`, storing body plus a header subset with `Set-Cookie` removed. `CachePolicy`
+computes freshness from `Cache-Control`/`Expires` clamped to [5 min, 7 days], never writes on `no-store`
+(fixture capture still proceeds), and issues `If-None-Match`/`If-Modified-Since` when `ETag`/`Last-Modified`
+are present. A `304` returns the cached body with `Origin = ContentOrigin.Cache`. Publish
+`sanare.cache.hit_ratio`. Depends on: T2.
+
+**T10 — Redirect policy.** Disable `HttpClientHandler` auto-redirect and walk the chain explicitly: ≤10 hops
+then `SNR-ACQ-008`; a hop landing on `http://` raises `SNR-ACQ-013`; every cross-host hop re-enters T6's
+robots check and T4's limiter for the destination host before being followed. Depends on: T6, T4.
+
+**T11 — `Discovery/`.** `DiscoveryDocumentResolver` reads the `llms.txt` reference out of the parsed
+robots document, requires a same-host `https://` target, and fetches it **through the normal
+`IContentAcquirer` path** so identity, limiter, cache, retry, breaker and redaction all apply unchanged.
+512 KiB streaming abort ⇒ `SNR-ACQ-010`. Every resolve/fetch/parse failure ⇒ `SNR-ACQ-009` at warning
+severity: non-fatal, no retry escalation, no shared breaker trip, no browser fallback. Success is captured
+to the fixture corpus with page role `discovery-llms`. Depends on: T6, T7, T9.
+
+**T12 — Assemble `GovernedContentAcquirer` and wire the runner.** Compose, in order: robots gate →
+limiter/politeness lease → cache lookup → resilience pipeline around the Core transport → redirect walk →
+breaker accounting → adaptive feedback → fixture capture. Every response, including error bodies, is
+offered to the corpus. Inject it into `AcquisitionScrapeRunner` in place of the bare `HttpContentAcquirer`,
+preserving the existing single capped consent retry and `SNR-ACQ-005` behaviour. Offline short-circuits
+before any of it. Emit `sanare.acquisition.requests` and the `sanare.acquisition.fetch` span. Depends on:
+T3, T5, T6, T7, T8, T9, T10, T11.
+
+**T13 — Architecture tests.** Assert that no type outside the acquisition boundary constructs an
+`HttpClient` for target traffic (reflection over `src/` assemblies, with the browser-tier exemption named
+explicitly), and that `IChallengeHandoff` has zero call sites inside `src/`. Both are constraints this spec
+states as testable; without the tests they are prose. Depends on: T12.
+
+**T14 — Test harness and suites.** Add WireMock.Net and a local `FakeTimeProvider` to
+`Sanare.Http.Tests`; author `Data/` bodies (`lenovo-tablets-page1.html`, `robots-allow.txt`,
+`robots-disallow-tablets.txt`, `challenge-interstitial.html`, `robots-with-llms-reference.txt`, `llms.txt`;
+`consent-wall.html` is already covered by the existing `consent-wall-*.html` files). Write
+`HttpContentAcquirerTests.cs` plus the five companion files named in the Test Module. No test sleeps in
+real time; a fake `IFixtureCorpus` asserts capture calls. Depends on: T12.
+
+**T15 — Doc reconciliation.** Update this component's status note in `docs/features/overview.md` (it stays
+`partial` only if browser escalation remains out — otherwise flip it), replace the `DEVELOPMENT.md`
+acquisition todo's prose with a link to this plan, and fold the T1 catalog rows and the retry/politeness
+delta into `docs/sanare/tech-design.md` §7.4/§7.6/§7.7. Depends on: T14.
+
+### Verification matrix
+
+| AC-ID | Covered by | Test kind |
+|---|---|---|
+| AC-008 | T4 sixty queued requests over a fake clock asserting a 20/min pacing envelope | Integration |
+| AC-009 | T7 WireMock stub returning `Retry-After: 5` then `200`, asserting exactly one retry and a 5 s virtual wait | Integration |
+| AC-009b | T7 `Retry-After: 600` test asserting `SNR-ACQ-002` with zero elapsed virtual time | Unit |
+| AC-010 | T8 five `403`s opening the breaker, a sixth request touching no socket, and closure after 30 virtual minutes | Integration |
+| AC-010b | T8 four `403`s then a `200`, asserting the streak resets and the breaker stays closed | Unit |
+| AC-011 | T6 `Compliance` disallow test asserting `SNR-ACQ-004` and zero requests to the target host | Integration |
+| AC-011a | T6 `Stealth` disallow test asserting the request proceeds through the governed path and `ComplianceReport.RobotsDecision` records it | Integration |
+| AC-011b | T6 robots `404` test asserting both modes proceed unrestricted | Unit |
+| AC-012 | T12 offline test with a connect-throwing handler asserting a fixture-origin result and no socket | Integration |
+| AC-027 | T4 two concurrent `RunAsync` calls against one host asserting a single shared limiter instance and a combined budget | Integration |
+| AC-ACQ-001 | T6 `Crawl-delay: 10` against a configured 2 s delay, asserting the 10 s floor wins | Unit |
+| AC-ACQ-002 | T9 `ETag` + `304` test asserting `Origin = Cache` and no body transfer | Integration |
+| AC-ACQ-003 | T9 `no-store` test asserting nothing under `cache/http/` and a fixture capture still offered | Unit |
+| AC-ACQ-004 | T3 32 MiB stub asserting `SNR-ACQ-007` and bounded peak memory | Integration |
+| AC-ACQ-005 | T3 exactly-16 MiB body accepted | Unit |
+| AC-ACQ-006 | T10 eleven-hop chain failing `SNR-ACQ-008` paired with a ten-hop chain succeeding | Integration |
+| AC-ACQ-007 | T1 `http://` target asserting `SNR-API-001` before any connection attempt | Unit |
+| AC-ACQ-008 | T3 `application/pdf` response asserting `SNR-ACQ-006` | Unit |
+| AC-ACQ-009 | T7 `503` then `200`, asserting one retry and success | Integration |
+| AC-ACQ-010 | T7 `403` asserting no retry and exactly one request | Unit |
+| AC-ACQ-011 | T4 cancellation during a politeness delay asserting a sub-100 ms `OperationCanceledException` and a released lease | Unit |
+| AC-ACQ-012 | T12 successful fetch asserting the fake corpus received the correct source id, page role and tier | Integration |
+| AC-ACQ-013 | T3 `charset=ISO-8859-1` Dutch body asserting no mojibake | Unit |
+| AC-ACQ-014 | T3 charset-less body asserting UTF-8 and a warning diagnostic | Unit |
+| AC-ACQ-015 | T6 robots unreachable on three attempts, asserting the request proceeds, a warning is emitted, and the compliance report records the decision | Integration |
+| AC-ACQ-016 | T10 cross-host redirect asserting the destination's robots, crawl-delay and limiter are applied | Integration |
+| AC-ACQ-017 | T11 `llms.txt` fetched via the normal path, captured with page role `discovery-llms` | Integration |
+| AC-ACQ-018 | T11 discovery failure asserting a non-fatal `SNR-ACQ-009`, unaffected page acquisition, and no browser fallback | Integration |
+| AC-ACQ-019 | T11 600 KiB discovery body asserting a streaming `SNR-ACQ-010` abort | Integration |
+| AC-ACQ-020 | T5 clean-run trajectory asserting a monotonic climb bounded by the configured ceiling | Unit |
+| AC-ACQ-021 | T5 `429`/`403`/challenge trajectory asserting immediate halving, a restarted climb, and no increase on a block | Unit |
+| AC-033 | T8 five hard-challenge signatures asserting `ChallengePaused`/`SNR-ACQ-011`, no auto-close, and no requests during the pause | Integration |
+| AC-ACQ-022 | T8 hand-off followed by one clean probe, asserting closure and a `ManualChallengeHandoffResolved` log | Integration |
+| AC-ACQ-023 | T8 `OpenAsync` under `ExecutionMode.OfflineFixture` / a CI profile asserting an immediate throw and no browser launch | Unit |
+
+### Deferred scope
+
+These are deliberately out of this component's landing and belong in the `overview.md` status note:
+
+- **Browser-tier escalation.** `AcquisitionTier.Browser` requests still fail at the transport; driving a
+  page belongs to `browser-tier` (#8), which owns the only other permitted `HttpClient`.
+- **Audited Stealth capability implementations.** The mode gate, the robots audit record and the compliance
+  report land here; proxy rotation and validated TLS/JA3 or fingerprint profiles are provider-backed
+  capabilities (DR-006) with no provider yet.
+- **Streaming responses.** `AcquiredContent` remains a fully-buffered `byte[]` bounded at 16 MiB; a
+  streaming surface would change the contract for every consumer and is not required by any AC here.
+- **Bindable configuration.** `AcquisitionOptions` is constructed in code. `IOptions`/`IConfiguration`
+  binding, validation-on-startup and the DI extension methods belong to `hosting-configuration` (#17).
+- **Telemetry export.** Instruments are emitted through the existing `ScraperMetrics` catalog; exporters,
+  dashboards and the alerting rules belong to `observability` (#16).
+- **HTTP-tier pagination end to end.** `GovernedContentAcquirer` satisfies the `IPageSource` seam
+  `pagination-engine` (#10) defines, but wiring a live multi-page crawl is that component's work.
