@@ -115,6 +115,49 @@ public sealed class GovernedContentAcquirerTests
         Assert.False(handler.WasContacted);
     }
 
+    [Fact]
+    public async Task A_crawl_delay_one_acquirer_learns_binds_every_acquirer_sharing_the_registry()
+    {
+        // AC-027: concurrent runs against one host share a single budget, so they cannot
+        // collectively exceed the pace the operator (or the site) asked for.
+        var options = new AcquisitionOptions(
+            RateLimit: new RateLimitOptions(MinHostDelay: TimeSpan.Zero),
+            Cache: new CacheOptions(Enabled: false));
+
+        var clock = new FakeTimeProvider();
+        await using var limiters = new HostLimiterRegistry(options, clock);
+
+        Assert.Equal(TimeSpan.Zero, limiters.GetBudget("example.test").MinimumDelay);
+
+        // The page is disallowed, so this run stops at robots.txt: the crawl delay is
+        // recorded without any paced fetch that a frozen clock could never release.
+        var first = BuildOver(limiters, options, clock, new ScriptedHandler()
+            .Enqueue(RobotsUrl, body: "User-agent: *\nCrawl-delay: 7\nDisallow: /tablets\n", contentType: "text/plain"));
+
+        await Assert.ThrowsAsync<AcquisitionException>(
+            () => first.AcquireAsync(new AcquisitionRequest(new Uri(Page), "lenovo")).AsTask());
+
+        // A second acquirer that never fetched robots.txt is bound by what the first one learned,
+        // because both resolve the very same budget instance out of the shared registry.
+        var second = BuildOver(limiters, options, clock, new ScriptedHandler());
+        Assert.NotNull(second);
+
+        Assert.Equal(TimeSpan.FromSeconds(7), limiters.GetBudget("example.test").MinimumDelay);
+        Assert.Same(limiters.GetBudget("example.test"), limiters.GetBudget("EXAMPLE.TEST"));
+    }
+
+    private static IContentAcquirer BuildOver(
+        HostLimiterRegistry limiters,
+        AcquisitionOptions options,
+        TimeProvider clock,
+        HttpMessageHandler handler)
+    {
+        var client = new HttpClient(handler);
+        var robots = new RobotsPolicy(client, options, limiters, clock, diskRoot: Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var transport = new HttpContentAcquirer(client, new RecordingFixtureCorpus(), options, clock);
+        return new GovernedContentAcquirer(transport, limiters, robots, options, AcquisitionMode.Compliance, cache: null, clock: clock);
+    }
+
     private static (IContentAcquirer Acquirer, RecordingFixtureCorpus Corpus) Build(
         HttpMessageHandler handler,
         AcquisitionOptions? options = null,
