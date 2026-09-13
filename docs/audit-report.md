@@ -1,8 +1,9 @@
 # Documentation Audit Report — Sanare
 
-**Latest full-repository pass**: 2026-09-10 (documentation/code alignment)
+**Latest full-repository pass**: 2026-09-13 (documentation/code alignment — see
+"Full-Repository Findings — 2026-09-13" at the end of this report)
 **Latest targeted pass**: 2026-09-13 (acquisition-pipeline docs vs. code — see
-"Acquisition-Pipeline Findings — 2026-09-13" at the end of this report)
+"Acquisition-Pipeline Findings — 2026-09-13")
 
 ## Latest Full-Repository Audit Pass
 
@@ -583,5 +584,121 @@ Full suite after changes: **524 passed, 0 failed** (Sanare.Http.Tests 174,
 Sanare.Core.Tests 310, Sanare.Abstractions.Tests 40) — 30 more than the 494-test
 baseline at the start of the pass. No public API surface changed, so no
 approved-API regeneration was required.
+
+**Open findings from this pass**: none.
+
+## Full-Repository Findings — 2026-09-13
+
+**Scope**: All project documentation under `docs/`, root project guidance
+(`README.md`, `DEVELOPMENT.md`), and `docs/features/*.md`, cross-referenced
+against the `src/` and `tests/` trees as of `174bfd7`.
+**Method**: Code-grounded cross-reference. Code alignment was included using the
+recommended default when the user was unavailable for the workflow's optional
+confirmation, matching the precedent set by the 2026-09-10 pass. The commit
+timeline was used as the primary staleness detector: each document was compared
+against the feature commits that landed after it was last touched.
+
+### Findings Summary
+
+| Severity | Open | Resolved this pass | Category |
+|----------|-----:|--------------------:|----------|
+| Critical | 0 | 2 | Root README contradicted by shipped code |
+| Major | 0 | 1 | Stale "unimplemented" inventory |
+| Minor | 0 | 2 | Incomplete diagram, stale header date |
+| Info | 0 | 0 | — |
+
+**Root cause**: `README.md` was last modified at `38ebd36`. Two feature commits
+landed after it — `987729d` (governed acquisition pipeline) and `174bfd7`
+(script-repository completion). `987729d` updated `DEVELOPMENT.md`,
+`docs/audit-report.md`, `docs/features/acquisition-pipeline.md`,
+`docs/features/overview.md`, and `docs/sanare/tech-design.md`, but **not
+`README.md`**. Every finding below is downstream of that single omission, so the
+README is the only artifact that drifted; `DEVELOPMENT.md` and the feature specs
+were verified accurate and needed no changes.
+
+### RDM-001 (Critical, resolved) — README stated the acquirer was not wired into any runtime path
+
+The status section claimed "the independent acquirer is not yet wired into that
+execution path" and listed "integration of `HttpContentAcquirer` into
+`FixtureScrapeRunner` or the planned runtime path" as unimplemented.
+`src/Sanare.Http/AcquisitionScrapeRunner.cs` is a shipped `IScrapeRunner` that
+composes `IExtractionPlanProvider` → `IBrowsingIdentityProvider` →
+`IContentAcquirer` → `IPlanExecutor` → `ISchemaValidator` →
+`IDocumentMaterializer` with a one-shot consent-wall retry, and is covered by
+`tests/Sanare.Http.Tests/AcquisitionScrapeRunnerTests.cs`. Its own doc-comment
+cites the README section it obsoletes.
+
+**Resolution**: the status paragraph now names both runners and their division of
+labour; the false bullet was removed.
+
+### RDM-002 (Critical, resolved) — "Recommended next step" described already-shipped work
+
+The section recommended integrating "the existing controlled HTTP acquisition and
+browsing-identity boundary into the runtime path: replace the fixture-only
+acquisition seam, persist the selected identity in run provenance". That is
+precisely what `AcquisitionScrapeRunner` does, including threading
+`identityProfileId` into the result provenance. A reader following the README
+would have re-implemented shipped code.
+
+**Resolution**: rewritten to point at the browser tier (overview row 8) as the
+next increment, accurately describing the plan-runtime and browser-driven pagination
+modes it unblocks; runner instrumentation and the unconsulted redirect/discovery
+components are named as smaller independent follow-ups.
+
+### RDM-003 (Major, resolved) — Three "intentionally unimplemented" bullets were false
+
+- *HTTP acquisition policy and resilience* — `Robots/`, `Politeness/`,
+  `Resilience/`, `Caching/`, and `Redirects/` all ship in `Sanare.Http` and are
+  composed by `GovernedContentAcquirer` via `AcquisitionPipelineFactory`.
+- *Remainder of Git-backed plan storage/resolution* — history, diff, heal
+  branches, and rollback all shipped in `174bfd7`. Only the git CLI backend
+  remains, and DR-003 descopes it as an environment accommodation rather than
+  deferring it.
+- *Observability/telemetry, caching, and request pacing* —
+  `src/Sanare.Core/Observability/` shipped at `b6068b5` and `ScraperMetrics` is
+  threaded through `GovernedContentAcquirer`, `FileHttpResponseCache`,
+  `AdaptiveRateController`, `HostLimiterRegistry`, and `BlockCircuitBreaker`.
+
+**Resolution**: all three bullets rewritten to describe what is genuinely
+outstanding — browser-tier escalation, the authoring/healing workflow that drives
+the shipped repository primitives, the unconsulted `RedirectPolicy` and
+`DiscoveryDocumentResolver`, the DR-003 descope, and end-to-end runner
+instrumentation.
+
+### RDM-004 (Minor, resolved) — Execution-path diagram showed only the fixture path
+
+The single ASCII diagram remained accurate for `FixtureScrapeRunner` but was
+presented as *the* engine execution path, with no acquisition tier, identity
+composition, or consent-wall retry.
+
+**Resolution**: the diagram is now labelled as the fixture path and a second
+diagram documents the `AcquisitionScrapeRunner` path beside it.
+
+### RDM-005 (Minor, resolved) — `docs/features/overview.md` header date was stale
+
+The header read `Updated: 2026-09-10` although the row notes were edited at both
+`987729d` and `174bfd7` (2026-09-13). Corrected to `2026-09-13`; no row was
+renumbered.
+
+### Confirmed Non-Issues (checked, no gap found)
+
+- `StreamAsync` genuinely throws `NotSupportedException` — confirmed in
+  `FixtureScrapeRunner`. The README claim stands.
+- Browser-tier/Playwright and JSON-LD/microdata extraction are genuinely absent;
+  only an `AcquisitionTier` enum doc-comment mentions them.
+- `docs/features/script-repository.md`'s documented `IScriptRepository` block
+  matches the shipped 13-member interface exactly, verified member by member.
+- `DEVELOPMENT.md` is accurate: all six completed todos are marked `[x]` with
+  correct scope and descope notes, including the precise statement that
+  `RedirectPolicy` and `DiscoveryDocumentResolver` are "implemented and tested but
+  not yet consulted by the governed acquirer or any runner".
+- `docs/sanare/tech-design.md` Status "Draft" / Version 1.5 is intentional; it is
+  the canonical design document, not a status board.
+
+### Validation
+
+Documentation-only pass; no `src/` or `tests/` code changed. Full suite re-run as
+a regression guard: **559 passed, 0 failed** (Sanare.Core.Tests 345,
+Sanare.Http.Tests 174, Sanare.Abstractions.Tests 40).
 
 **Open findings from this pass**: none.
