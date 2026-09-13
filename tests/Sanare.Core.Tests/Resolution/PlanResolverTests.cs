@@ -1,8 +1,8 @@
 using Sanare.Abstractions;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Plans;
-using Sanare.Core.Repository;
 using Sanare.Core.Resolution;
+using Sanare.Core.Tests.Repository;
 using Xunit;
 
 namespace Sanare.Core.Tests.Resolution;
@@ -118,49 +118,4 @@ public sealed class PlanResolverTests
         ],
         Provenance = new PlanProvenance("test", "none", 1, Array.Empty<string>(), 0.9d, DateTimeOffset.UnixEpoch),
     };
-
-    private sealed class FakeScriptRepository : IScriptRepository
-    {
-        private readonly List<(string SourceId, string SchemaName, int SchemaVersion, string Json, string CommitId, string TagName)> _entries = [];
-
-        public int GetApprovalTagsCallCount { get; private set; }
-
-        public void AddApprovedPlan(ExtractionPlan plan, string commitId, string tagName) =>
-            AddRawDocument(plan.SourceId, plan.SchemaName, plan.SchemaVersion, new PlanSerializer().WriteCanonical(plan), commitId, tagName);
-
-        public void AddRawDocument(string sourceId, string schemaName, int schemaVersion, string json, string commitId, string tagName) =>
-            _entries.Add((sourceId, schemaName, schemaVersion, json, commitId, tagName));
-
-        public ValueTask InitializeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
-
-        public ValueTask<PlanDocument?> GetPlanAsync(string sourceId, string schemaName, int schemaVersion, GitRef? reference = null, CancellationToken ct = default)
-        {
-            var match = _entries.FirstOrDefault(e => e.CommitId == reference!.Value);
-            if (match.Json is null)
-            {
-                return ValueTask.FromResult<PlanDocument?>(null);
-            }
-
-            return ValueTask.FromResult<PlanDocument?>(new PlanDocument(match.Json, match.CommitId, reference!.Value, DateTimeOffset.UnixEpoch, "test"));
-        }
-
-        public ValueTask<PlanCommitInfo> CommitPlanAsync(PlanCommitRequest request, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask<PlanCommitInfo> ApproveAsync(string sourceId, string schemaName, int schemaVersion, string commitId, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask<RepositoryStatus> GetStatusAsync(CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask<IReadOnlyList<ApprovalTagEntry>> GetApprovalTagsAsync(string sourceId, string schemaName, int schemaVersion, CancellationToken ct = default)
-        {
-            GetApprovalTagsCallCount++;
-            var tags = _entries
-                .Where(e => e.SourceId == sourceId && e.SchemaName == schemaName && e.SchemaVersion == schemaVersion)
-                .Select(e => new ApprovalTagEntry(e.TagName, e.CommitId))
-                .ToArray();
-            return ValueTask.FromResult<IReadOnlyList<ApprovalTagEntry>>(tags);
-        }
-    }
 }

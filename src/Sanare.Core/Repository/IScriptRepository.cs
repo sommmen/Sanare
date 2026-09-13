@@ -7,9 +7,8 @@ namespace Sanare.Core.Repository;
 /// plans, and approval tagging. See docs/features/script-repository.md.
 /// </summary>
 /// <remarks>
-/// This is the minimal slice needed by <c>plan-resolver</c> to serve persisted plans: heal branches,
-/// rollback-by-name, history, diff, blame, and notes are out of scope for this slice and remain
-/// <c>script-repository</c>'s full backlog.
+/// Blame, remotes, and merge/conflict resolution remain out of scope; see
+/// docs/features/script-repository.md ("Deferred scope").
 /// </remarks>
 public interface IScriptRepository
 {
@@ -51,6 +50,66 @@ public interface IScriptRepository
     /// </summary>
     ValueTask<IReadOnlyList<ApprovalTagEntry>> GetApprovalTagsAsync(
         string sourceId, string schemaName, int schemaVersion, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lists the commits touching one plan's path, newest first, each carrying the approval tag pointing at
+    /// it when there is one (AC-GIT-009, AC-GIT-010). Renames are not followed. Takes no write lease.
+    /// </summary>
+    /// <param name="limit">Caps the number of entries returned; <see langword="null"/> returns all of them.</param>
+    ValueTask<PlanHistory> GetHistoryAsync(
+        string sourceId, string schemaName, int schemaVersion, int? limit = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Diffs two commits over the <c>plans/</c> tree (AC-GIT-011, AC-GIT-012). Either id failing to resolve
+    /// raises <c>SNR-GIT-002</c>.
+    /// </summary>
+    ValueTask<PlanDiff> DiffAsync(string fromCommitId, string toCommitId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates <c>heal/{source-id}/{yyyyMMdd}-{shortReason}</c> from the plan's currently approved commit,
+    /// falling back to the default branch tip when nothing is approved yet (AC-GIT-013). Returns the branch
+    /// name, which gains a numeric suffix on same-day collision.
+    /// </summary>
+    /// <param name="shortReason">
+    /// Slugified into the branch name and rejected with <c>SNR-GIT-015</c> when it cannot be reduced to
+    /// <c>^[a-z0-9-]+$</c>, so it can never inject a ref path.
+    /// </param>
+    ValueTask<string> CreateHealBranchAsync(
+        string sourceId, string schemaName, int schemaVersion, string shortReason, CancellationToken ct = default);
+
+    /// <summary>
+    /// Fast-forwards the default branch to <paramref name="branch"/>'s tip and approves it (AC-GIT-014).
+    /// A non-descendant tip raises <c>SNR-GIT-005</c> with every ref left untouched; a merge commit is never
+    /// created. The returned <see cref="PlanCommitInfo.ApprovalTag"/> is what lets the caller invalidate
+    /// <c>plan-resolver</c>'s warm index.
+    /// </summary>
+    ValueTask<PlanCommitInfo> PromoteAsync(
+        string sourceId, string schemaName, int schemaVersion, string branch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Re-points approval at an earlier commit by creating a new highest-numbered tag at
+    /// <paramref name="targetCommitId"/> (AC-GIT-015, AC-GIT-016). Commits nothing and never deletes or moves
+    /// a tag: the superseded plan becomes <c>Superseded</c>, never deleted. Idempotent when the target is
+    /// already the approved commit.
+    /// </summary>
+    ValueTask<PlanCommitInfo> RollbackAsync(
+        string sourceId, string schemaName, int schemaVersion, string targetCommitId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Writes a diagnosis note to <c>notes/{source-id}/{yyyyMMddHHmmss}-{shortCommitId}.md</c> on the branch
+    /// holding <paramref name="relatedCommitId"/> (AC-025). Notes never appear in
+    /// <see cref="GetHistoryAsync"/>, which is restricted to <c>plans/</c>.
+    /// </summary>
+    ValueTask CommitDiagnosisNoteAsync(
+        string sourceId, string markdown, string relatedCommitId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes <c>heal/*</c> branches that were promoted (tip is an ancestor of the default branch) or
+    /// abandoned (older than <paramref name="olderThan"/> with no approval tag pointing into them), and
+    /// returns their names (AC-GIT-017). Never deletes a branch whose tip carries a tag, never touches
+    /// <c>plans/</c>, and never runs automatically.
+    /// </summary>
+    ValueTask<IReadOnlyList<string>> PruneHealBranchesAsync(TimeSpan olderThan, CancellationToken ct = default);
 }
 
 /// <summary>An approval tag and the commit id it points at.</summary>

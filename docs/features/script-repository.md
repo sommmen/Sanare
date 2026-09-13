@@ -3,7 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
-> Implementation status: partial — local LibGit2Sharp-backed approved-plan storage slice implemented; advanced versioning remains deferred.
+> Implementation status: partial — the full local LibGit2Sharp-backed surface is implemented (storage, approval, history, diff, heal branches, promotion, rollback, diagnosis notes, pruning); the optional `git` CLI backend, remotes, blame, merge/conflict resolution, and the `IScraperAdministration` surface remain deferred.
 
 | Field | Value |
 |-------|-------|
@@ -28,10 +28,21 @@ The script repository persists extraction plans as canonical JSON in a local git
 - Serialize a plan canonically and commit it, with dirty-working-tree detection and a repository-coordination lease.
 - Create monotonic approval tags at `approved/{source-id}/{schema-name}@{schemaVersion}/{n}` and enumerate matching approval tags.
 - Provide `IRepositoryCoordinator` with the default `FileLockRepositoryCoordinator` for inter-process write coordination.
+- Read a plan's commit history, with approval tags and provenance presence attached to each entry.
+- Diff the `plans/` tree between two refs, capping patch text at the plan size limit and flagging truncation.
+- Create `heal/{yyyyMMdd}-{source-id}-{reason}` branches from the current approved commit, de-duplicating colliding names.
+- Fast-forward promote a heal branch onto the default branch and approve the promoted tip in one operation.
+- Roll back to an earlier commit by creating a new approval tag, without deleting tags or rewriting history.
+- Commit human-readable diagnosis notes under `notes/{source-id}/`.
+- Prune merged or stale heal branches.
 
 ### Deferred target-state scope
 
-The git CLI backend, heal branches, fast-forward promotion, rollback-by-name, history, diffs, blame, diagnosis notes, and divergence handling are not implemented. They remain planned `script-repository` work. Remote git operations are out of scope for both the slice and the target component.
+The optional `git` CLI backend, blame, and merge/conflict resolution are not implemented. Blame and merge/conflict resolution remain planned `script-repository` work; the CLI backend is deferred by decision, as described next. Remote git operations are out of scope for both the slice and the target component.
+
+The CLI backend is deliberately deferred rather than merely unbuilt. DR-003 accepts LibGit2Sharp as the default and describes the CLI backend as existing "for environments where [packaging LibGit2Sharp's native binaries per RID] is a problem" — an environment accommodation, not a functional requirement. Every behaviour in this spec is satisfied by the in-process backend, so the CLI backend is warranted only once a concrete deployment target rejects the native binaries. Reviving it means reimplementing all fourteen `IScriptRepository` members against `git` plumbing and proving parity by running the shared test harness against both backends.
+
+The `IScraperAdministration` surface that exposes history and diffs to operators belongs to `plan-resolver`'s admin work, not here; this component supplies the repository-level primitives it will call.
 
 Deciding what to commit remains with `authoring-workflow`/`healing-workflow`; choosing which approved plan runs remains with `plan-resolver`; fixtures, cache, and telemetry are non-git storage owned by other components.
 
@@ -42,6 +53,9 @@ Deciding what to commit remains with `authoring-workflow`/`healing-workflow`; ch
 3. Commit canonical plan JSON on the configured default branch or a caller-supplied branch.
 4. Serialize writers using a repository-coordinator lease and reject a dirty working tree.
 5. Create and enumerate approval tags for approved-plan resolution.
+6. Expose a plan's history and the diff between two refs as inspection primitives.
+7. Own the heal-branch lifecycle: creation from the approved commit, fast-forward promotion, and pruning.
+8. Move the approval pointer backwards on rollback without destroying history.
 
 ## Interfaces
 
@@ -56,6 +70,8 @@ Deciding what to commit remains with `authoring-workflow`/`healing-workflow`; ch
 - **`PlanDocument`** — canonical JSON and the commit/ref metadata from which it was read.
 - **`PlanCommitInfo`** — commit id, path, and commit metadata for commits and approvals.
 - **`RepositoryStatus`** and matching `ApprovalTagEntry` values.
+- **`PlanHistory`** — a plan path and its ordered `PlanHistoryEntry` values, each pairing a `PlanCommitInfo` with its summary and whether the plan carried provenance at that commit.
+- **`PlanDiff`** — the two compared commit ids and the changed `PlanDiffFile` entries, each with a status, line counts, patch text, and a truncation flag.
 
 ### Dependencies
 
@@ -98,6 +114,23 @@ public interface IScriptRepository
     ValueTask<RepositoryStatus> GetStatusAsync(CancellationToken ct = default);
     ValueTask<IReadOnlyList<ApprovalTagEntry>> GetApprovalTagsAsync(
         string sourceId, string schemaName, int schemaVersion, CancellationToken ct = default);
+    ValueTask<PlanHistory> GetHistoryAsync(
+        string sourceId, string schemaName, int schemaVersion,
+        int? limit = null, CancellationToken ct = default);
+    ValueTask<PlanDiff> DiffAsync(string fromCommitId, string toCommitId, CancellationToken ct = default);
+    ValueTask<string> CreateHealBranchAsync(
+        string sourceId, string schemaName, int schemaVersion,
+        string shortReason, CancellationToken ct = default);
+    ValueTask<PlanCommitInfo> PromoteAsync(
+        string sourceId, string schemaName, int schemaVersion,
+        string branch, CancellationToken ct = default);
+    ValueTask<PlanCommitInfo> RollbackAsync(
+        string sourceId, string schemaName, int schemaVersion,
+        string targetCommitId, CancellationToken ct = default);
+    ValueTask CommitDiagnosisNoteAsync(
+        string sourceId, string markdown, string relatedCommitId, CancellationToken ct = default);
+    ValueTask<IReadOnlyList<string>> PruneHealBranchesAsync(
+        TimeSpan olderThan, CancellationToken ct = default);
 }
 ```
 
@@ -107,6 +140,8 @@ public interface IScriptRepository
 |----------|-------------|
 | Plan file | `plans/{source-id}/{schema-name}@{schemaVersion}.plan.json` |
 | Approval tag | `approved/{source-id}/{schema-name}@{schemaVersion}/{n}` |
+| Heal branch | `heal/{source-id}/{yyyyMMdd}-{shortReason}`, with `-2`, `-3`, … appended on collision |
+| Diagnosis note | `notes/{source-id}/{yyyyMMddHHmmss}-{shortCommitId}.md` |
 | Write lease | `.sanare-lock` in the repository root |
 
 `{n}` is monotonically increasing per `(source-id, schema-name, schemaVersion)`: the repository lists matching tags, takes `max + 1`, and creates the tag at the supplied commit.
@@ -124,6 +159,21 @@ public interface IScriptRepository
 - Commits reject a dirty working tree with `SNR-GIT-003` rather than including an unrelated human edit.
 - Plan files are written through a temporary file in the same directory and atomically moved into place before staging.
 - Read operations do not acquire a write lease and read the git object at the requested ref.
+
+### History and diff
+
+- `GetHistoryAsync` walks commits touching the plan's path only, newest first, and returns an empty history for an uninitialized repository rather than failing. A non-positive `limit` is rejected with `SNR-GIT-015`.
+- Each entry reports the approval tag pointing at that commit, if any, and whether the plan carried provenance there. When several tags point at one commit, the highest-numbered wins.
+- `DiffAsync` compares the `plans/` subtree only, so diagnosis notes and repository scaffold files never appear in a plan diff.
+- Patch text is capped at `MaxPlanSizeBytes`. Truncation cuts on a UTF-8 character boundary and sets the file's truncation flag; it never raises `SNR-GIT-014`, which applies to writes.
+
+### Heal, promotion, and rollback
+
+- `CreateHealBranchAsync` branches from the plan's currently approved commit, falling back to the default-branch tip when nothing is approved yet. The reason is slugified to `[a-z0-9-]`; any other character is rejected with `SNR-GIT-015` rather than silently dropped, so a traversal-shaped reason cannot be laundered into a valid branch name.
+- `PromoteAsync` is fast-forward only. It verifies the branch tip descends from the default-branch tip, moves the branch ref, and then approves the promoted tip. A diverged branch fails with `SNR-GIT-005` **before any ref is written**, so a rejected promotion leaves the repository byte-identical.
+- `RollbackAsync` requires an existing approval and a target that is an ancestor of it, then creates a *new* highest-numbered approval tag at that target. It never deletes or moves a tag and never commits, so the superseded plan stays reachable and auditable. Re-running it for the already-approved commit is a no-op.
+- `PruneHealBranchesAsync` deletes a heal branch once it has been promoted, because a promoted tip is reachable from the default branch and deleting the branch ref strands nothing. An unpromoted branch is kept whenever its tip carries a tag or it is newer than the supplied age. Pruning never runs automatically and never touches `plans/`.
+- `CommitDiagnosisNoteAsync` writes onto the branch holding the related commit, so a note follows the heal branch it explains. Notes live outside `plans/` and therefore never appear in plan history or diffs.
 
 ## Constraints
 
@@ -143,6 +193,15 @@ public interface IScriptRepository
 | AC-GIT-006 | P0 | Given a dirty working tree | `CommitPlanAsync` fails with `SNR-GIT-003` | Unit |
 | AC-GIT-007 | P0 | Given a lease timeout | The write fails with retryable `SNR-GIT-004` | Unit |
 | AC-GIT-008 | P0 | Given the same commit approved twice | `ApproveAsync` is idempotent and returns the existing tag | Unit |
+| AC-GIT-009 | P1 | Given several revisions of a plan | `GetHistoryAsync` returns them newest first with approval tags and provenance flags attached | Unit |
+| AC-GIT-010 | P1 | Given an uninitialized repository or a non-positive limit | History returns empty; a non-positive limit fails with `SNR-GIT-015` | Unit |
+| AC-GIT-011 | P1 | Given two plan commits | `DiffAsync` reports the changed `plans/` files with status and line counts | Unit |
+| AC-GIT-012 | P1 | Given a diff larger than the size limit | The patch is truncated on a character boundary and flagged truncated | Unit |
+| AC-GIT-013 | P1 | Given an approved plan | `CreateHealBranchAsync` branches from the approved commit using the dated naming scheme and de-duplicates collisions | Unit |
+| AC-GIT-014 | P0 | Given a fast-forwardable heal branch | `PromoteAsync` advances the default branch and approves the tip; a diverged branch fails `SNR-GIT-005` with no ref written | Unit |
+| AC-GIT-015 | P0 | Given an earlier ancestor commit | `RollbackAsync` creates a new highest-numbered approval tag there without deleting or moving any tag | Unit |
+| AC-GIT-016 | P0 | Given a non-ancestor target or no prior approval | Rollback fails with `SNR-GIT-005`; a missing plan blob fails with `SNR-GIT-002` | Unit |
+| AC-GIT-017 | P2 | Given promoted and stale heal branches | `PruneHealBranchesAsync` deletes them and keeps tagged or recent unpromoted branches | Unit |
 
 ## Error Handling
 
@@ -168,8 +227,11 @@ src/
         ├── IRepositoryCoordinator.cs
         ├── IScriptRepository.cs
         ├── PlanCommitInfo.cs
+        ├── PlanCommitMessage.cs
         ├── PlanCommitRequest.cs
+        ├── PlanDiff.cs
         ├── PlanDocument.cs
+        ├── PlanHistory.cs
         ├── RepositoryStatus.cs
         ├── ScriptRepositoryException.cs
         └── ScriptRepositoryOptions.cs
@@ -180,23 +242,49 @@ constructs `GitScriptRepository` share the same write-lease contract. `FileLockR
 is the only implementation provided by this slice; a host wires it in (or substitutes a distributed
 coordinator) via constructor injection — there is no hosting-configuration factory type yet.
 
+`PlanCommitMessage` owns both directions of the commit-message trailer format, so the writer and the
+history reader share one definition of each trailer key and cannot drift apart.
+
 ## Test Module
 
-**Test file**: `tests/Sanare.Core.Tests/Repository/GitScriptRepositoryTests.cs`
+**Test files**: `tests/Sanare.Core.Tests/Repository/`
+
+| File | Covers |
+|------|--------|
+| `ScriptRepositoryFixture.cs` | Shared harness: isolated repository root, option defaults, plan/revision commit helpers, cleanup. |
+| `FakeScriptRepository.cs` | In-memory `IScriptRepository` double shared with the `plan-resolver` tests. |
+| `GitScriptRepositoryTests.cs` | Bootstrap, commit/read round-trips, approval tagging, status, lease timeout (AC-GIT-001…AC-GIT-008). |
+| `ScriptRepositoryHistoryTests.cs` | History ordering, tag and provenance attachment, empty and invalid-limit cases (AC-GIT-009, AC-GIT-010). |
+| `ScriptRepositoryDiffTests.cs` | Diff content, status, line counts, and `plans/`-only scoping (AC-GIT-011). |
+| `ScriptRepositoryDiffTruncationTests.cs` | Oversized patch truncation on a character boundary (AC-GIT-012). |
+| `ScriptRepositoryHealBranchTests.cs` | Branch naming, approved-commit base, collision de-duplication, reason validation (AC-GIT-013). |
+| `ScriptRepositoryPromotionTests.cs` | Fast-forward promotion, divergence rejection, and pruning (AC-GIT-014, AC-GIT-017, AC-024). |
+| `ScriptRepositoryRollbackTests.cs` | Rollback tagging, ancestry and approval preconditions, idempotence (AC-GIT-015, AC-GIT-016). |
 
 **Test scope**:
 
-- **Integration**: an isolated real LibGit2Sharp repository verifies bootstrap idempotence, canonical plan commit/read round-trips, reads at an explicit commit, monotonic approval tagging, tag enumeration, and repository status.
+- **Integration**: every suite drives a real isolated LibGit2Sharp repository through `ScriptRepositoryFixture`; there are no git mocks.
 - **Unit**: `GitScriptRepositoryTests.cs` covers `FileLockRepositoryCoordinator`'s retryable timeout behavior (`SNR-GIT-004`) by acquiring an exclusive lock on `.sanare-lock`.
 - **Fixtures / Mocks**: temporary repository roots and canonical plan fixtures; no CLI backend is exercised because it is deferred.
 
-The target-state suite will add CLI-parity, healing, promotion/rollback, history/diff/blame, and divergence scenarios when those APIs are implemented.
+These tests caught two defects worth recording, both of which are now regression-covered. Pruning
+originally checked "tip is tagged → skip" before the promoted check, and since promotion tags the
+promoted tip, no promoted branch was ever prunable. Slugification originally dropped unexpected
+characters, so `../../etc/passwd` was laundered into the valid slug `etc-passwd` instead of being
+rejected; unexpected characters now raise `SNR-GIT-015`.
+
+The target-state suite will add CLI-parity, blame, and merge/conflict scenarios when those APIs are implemented.
 
 ## Implementation Plan
 
 > Planned: 2026-09-13. Milestone M3 (with `plan-resolver`'s admin surface). This section is the build
 > order for the deferred target-state scope above; it does not restate the behaviour already described,
 > only how to land what is missing.
+>
+> **Status: executed 2026-09-13.** T1–T9 and T11 landed; the sections above now describe shipped
+> behaviour rather than intent. **T10 (git CLI backend) was descoped** — see "Deferred scope" below and
+> the rationale under "Deferred target-state scope". The plan is kept as the record of how the component
+> was built and why the one remaining task was not.
 
 ### Preconditions
 
@@ -228,7 +316,7 @@ discovered mid-build:
    observable to a caller that has already resolved once. This component does not reach into the
    resolver; T7 and T6 return the new approval tag in `PlanCommitInfo` so the admin layer can invalidate,
    and the verification matrix asserts that contract rather than assuming it.
-5. **Extending `IScriptRepository` breaks an existing test double.** `RecordingScriptRepository`, nested in
+5. **Extending `IScriptRepository` breaks an existing test double.** `FakeScriptRepository`, nested in
    `tests/Sanare.Core.Tests/Resolution/PlanResolverTests.cs`, implements the interface member-by-member and
    throws `NotSupportedException` from everything `plan-resolver` does not call. Each new interface member
    is therefore a compile break in a *different* component's test suite. Default interface implementations
@@ -272,7 +360,7 @@ that fixture into a reusable `ScriptRepositoryFixture` (temp root, options, coor
 `CommitPlan(...)` and `CommitPlanOn(branch, ...)` helpers returning commit ids) under
 `tests/Sanare.Core.Tests/Repository/`, and leave the existing tests passing against it unchanged. Every
 task below needs a repository with a shaped history; building that inline in each test is how this suite
-becomes unmaintainable. In the same task, promote `RecordingScriptRepository` out of
+becomes unmaintainable. In the same task, promote `FakeScriptRepository` out of
 `PlanResolverTests.cs` into a shared test-support file, since every subsequent task adds an interface
 member that breaks it (precondition 5) and the breakage belongs in one file rather than in
 `plan-resolver`'s suite. Depends on: —
@@ -339,7 +427,8 @@ branch is redundant) or older than `olderThan` with no approval tag pointing int
 deletes a branch whose tip carries a tag, never touches `plans/` content, never runs automatically —
 the host or admin API calls it. Returns the deleted branch names for audit. Depends on: T5, T6.
 
-**T10 — Optional git CLI backend.** Introduce `IScriptRepository`'s second implementation,
+**T10 — Optional git CLI backend.** *Descoped; not built. Retained as the design of record for whoever
+revives it — see "Deferred scope".* Introduce `IScriptRepository`'s second implementation,
 `CliScriptRepository`, selected by a `ScriptRepositoryOptions.Backend` enum (`LibGit2` default, `Cli`),
 shelling out to a configured `git` executable with `ProcessStartInfo` and no shell interpolation — every
 identifier already passes `ValidateIdentifiers`, and arguments go through `ArgumentList`, never a
@@ -351,9 +440,10 @@ T6, T7, T8, T9.
 
 **T11 — Specification and status sync.** Move the now-implemented items out of "Deferred target-state
 scope", update the "Implementation status" header, extend the "Acceptance Criteria" table with the
-AC-GIT-009 … AC-GIT-018 rows introduced below, refresh the "File Structure" and "Test Module" sections,
+AC-GIT-009 … AC-GIT-017 rows introduced below, refresh the "File Structure" and "Test Module" sections,
 and update row 4 of [overview.md](overview.md) with a note in the style of the existing row-6 note.
-Depends on: T10.
+Depends on: T10 — satisfied by T10's descoping rather than its delivery, which is why AC-GIT-018 is
+recorded as not delivered instead of being dropped from the matrix.
 
 ### Verification matrix
 
@@ -368,7 +458,7 @@ Depends on: T10.
 | AC-GIT-015 / AC-015 | T7 rollback test asserting a new higher-numbered tag at the older commit, that the previous tag still exists, and that `PlanResolver` resolves the rolled-back plan after invalidation | Integration |
 | AC-GIT-016 | T7 guard tests: non-ancestor target → `SNR-GIT-005`; missing plan file at target → `SNR-GIT-002`; already-approved target → idempotent no-op | Unit |
 | AC-GIT-017 | T9 prune test over one promoted branch, one stale untagged branch, and one stale **tagged** branch, asserting only the first two are deleted | Unit |
-| AC-GIT-018 | T10 backend-parity theory running the full T2-based suite against `LibGit2` and `Cli` | Integration |
+| AC-GIT-018 | *Not delivered.* T10 was descoped; the criterion is reserved for a future CLI backend | — |
 | AC-006 | T3 + T7 together — plans are committed, tagged, diffed, and rolled back, closing the M3 exit criterion | Integration |
 | AC-024 | T3 round-trip test asserting `PlanCommitMessage.TryParse(BuildCommitMessage(request))` recovers schema, tier, score, fixtures, model, attempts, and reason, plus a hand-written-commit test asserting a malformed trailer degrades instead of throwing | Unit |
 | AC-025 | T8 note test asserting the file lands at `notes/{source-id}/….md` on the heal branch and is excluded from `GetHistoryAsync` | Unit |
@@ -380,6 +470,14 @@ New tests live in `tests/Sanare.Core.Tests/Repository/`: `ScriptRepositoryHistor
 
 ### Deferred scope
 
+- **Git CLI backend (T10)** — descoped during execution, not attempted. DR-003 accepts LibGit2Sharp as
+  the default and positions the CLI backend as an accommodation "for environments where [packaging the
+  native binaries per RID] is a problem". No acceptance criterion depends on it, and the in-process
+  backend satisfies every behaviour in this spec, so the backend buys portability insurance rather than
+  function. Against that, `IScriptRepository` now has fourteen members, each of which would need a second
+  implementation against `git` plumbing plus a parity theory across the whole harness — a cost
+  disproportionate to speculative insurance. Revisit when a concrete deployment target actually rejects
+  the native binaries; AC-GIT-018 is reserved for that work and deliberately unallocated.
 - **Remote synchronization** — out of scope per "Deferred target-state scope" above and resolved in T1.
   If a host configures a remote, credentials come from the host's git credential manager (tech-design
   line 1571) and pushing is the host's operation, not this component's.

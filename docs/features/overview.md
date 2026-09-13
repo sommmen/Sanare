@@ -43,11 +43,12 @@ must not be used to renumber or reorder work.
 > `GovernedContentAcquirer`. See the component's
 > [Implementation Plan](acquisition-pipeline.md#implementation-plan).
 
-> Row 4 stays `partial` because the M3 versioning operations are still out: plan history, diffs, heal
-> branches, fast-forward promotion, rollback-by-name, diagnosis notes, and the optional git CLI backend.
-> The storage half is complete — bootstrap, read-at-ref, canonical commit under a write lease, and
-> monotonic approval tags — which is everything row 11 needs to resolve an approved plan. Remote git
-> operations are out of scope for this component. See the component's
+> Row 4 stays `partial` only because the optional git CLI backend, blame, and merge/conflict resolution
+> are out. The whole local LibGit2Sharp surface now ships: bootstrap, read-at-ref, canonical commit under
+> a write lease, monotonic approval tags, plan history, diffs, heal branches, fast-forward promotion,
+> rollback-by-name, diagnosis notes, and heal-branch pruning. The CLI backend is deferred by decision
+> rather than pending — DR-003 makes it an environment accommodation, not a functional requirement. Remote
+> git operations are out of scope for this component. See the component's
 > [Implementation Plan](script-repository.md#implementation-plan).
 
 ## Execution-Order Rationale
