@@ -69,7 +69,7 @@ public sealed class AcquisitionScrapeRunner(
         {
             var identity = identityProvider.GetIdentity(new IdentityRequest(sourceId, normalizedRequest.Url, CultureInfo.GetCultureInfo(culture), NavigationContext.TopLevel, plan.Tier));
             identityProfileId = identity.ProfileId;
-            content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: identity.ToRequestIdentity()), cancellationToken).ConfigureAwait(false);
+            content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: identity.ToRequestIdentity(), Acquisition: plan.Acquisition), cancellationToken).ConfigureAwait(false);
             requestsIssued++;
 
             var decision = identityProvider.EvaluateConsent(content, sourceId);
@@ -82,7 +82,7 @@ public sealed class AcquisitionScrapeRunner(
 
                 var retryIdentity = identityProvider.GetIdentity(new IdentityRequest(sourceId, normalizedRequest.Url, CultureInfo.GetCultureInfo(culture), NavigationContext.TopLevel, plan.Tier));
                 identityProfileId = retryIdentity.ProfileId;
-                content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: retryIdentity.ToRequestIdentity()), cancellationToken).ConfigureAwait(false);
+                content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: retryIdentity.ToRequestIdentity(), Acquisition: plan.Acquisition), cancellationToken).ConfigureAwait(false);
                 requestsIssued++;
 
                 var retryDecision = identityProvider.EvaluateConsent(content, sourceId);

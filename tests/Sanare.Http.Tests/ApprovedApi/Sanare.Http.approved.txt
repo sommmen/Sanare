@@ -1,9 +1,20 @@
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
 namespace Sanare.Http
 {
+    public sealed class AcquisitionGovernance : System.IEquatable<Sanare.Http.AcquisitionGovernance>
+    {
+        public AcquisitionGovernance(Sanare.Http.Politeness.IHostLimiterRegistry Limiters, Sanare.Http.Robots.IRobotsPolicy Robots, Sanare.Http.Resilience.BlockCircuitBreaker Breaker, System.TimeProvider Clock, Sanare.Core.Observability.ScraperMetrics? Metrics) { }
+        public Sanare.Http.Resilience.BlockCircuitBreaker Breaker { get; init; }
+        public System.TimeProvider Clock { get; init; }
+        public Sanare.Http.Politeness.IHostLimiterRegistry Limiters { get; init; }
+        public Sanare.Core.Observability.ScraperMetrics? Metrics { get; init; }
+        public Sanare.Http.Robots.IRobotsPolicy Robots { get; init; }
+    }
     public static class AcquisitionPipelineFactory
     {
         public static Sanare.Core.Acquisition.IContentAcquirer Create(System.Net.Http.HttpClient client, Sanare.Core.Fixtures.IFixtureCorpus fixtures, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Identity.AcquisitionMode mode = 0, Sanare.Http.Identity.Compliance.ComplianceReporter? compliance = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public static Sanare.Core.Acquisition.IContentAcquirer CreateBrowser(System.Net.Http.HttpClient client, Sanare.Core.Fixtures.IFixtureCorpus fixtures, System.Func<Sanare.Http.AcquisitionGovernance, Sanare.Core.Acquisition.IContentAcquirer> browserFactory, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Identity.AcquisitionMode mode = 0, Sanare.Http.Identity.Compliance.ComplianceReporter? compliance = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) { }
+        public static Sanare.Http.AcquisitionGovernance CreateGovernance(System.Net.Http.HttpClient client, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null) { }
     }
     public sealed class AcquisitionScrapeRunner : Sanare.Abstractions.IScrapeRunner
     {
@@ -17,6 +28,11 @@ namespace Sanare.Http
     public sealed class GovernedContentAcquirer : Sanare.Core.Acquisition.IContentAcquirer
     {
         public GovernedContentAcquirer(Sanare.Core.Acquisition.IContentAcquirer transport, Sanare.Http.Politeness.IHostLimiterRegistry limiters, Sanare.Http.Robots.IRobotsPolicy robots, Sanare.Core.Acquisition.AcquisitionOptions? options = null, Sanare.Http.Identity.AcquisitionMode mode = 0, Sanare.Http.Caching.IHttpResponseCache? cache = null, Sanare.Http.Resilience.BlockCircuitBreaker? breaker = null, Sanare.Http.Resilience.ChallengeDetector? challenges = null, Sanare.Http.Politeness.AdaptiveRateController? adaptive = null, Sanare.Http.Identity.Compliance.ComplianceReporter? compliance = null, Sanare.Core.Observability.ScraperMetrics? metrics = null, System.TimeProvider? clock = null, Microsoft.Extensions.Logging.ILogger<Sanare.Http.GovernedContentAcquirer>? logger = null) { }
+        public System.Threading.Tasks.ValueTask<Sanare.Core.Acquisition.AcquiredContent> AcquireAsync(Sanare.Core.Acquisition.AcquisitionRequest request, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class TieredContentAcquirer : Sanare.Core.Acquisition.IContentAcquirer
+    {
+        public TieredContentAcquirer(Sanare.Core.Acquisition.IContentAcquirer httpAcquirer, Sanare.Core.Acquisition.IContentAcquirer browserAcquirer) { }
         public System.Threading.Tasks.ValueTask<Sanare.Core.Acquisition.AcquiredContent> AcquireAsync(Sanare.Core.Acquisition.AcquisitionRequest request, System.Threading.CancellationToken ct = default) { }
     }
 }

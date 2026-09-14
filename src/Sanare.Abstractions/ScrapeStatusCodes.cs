@@ -29,7 +29,8 @@ public static class ScrapeStatusCodes
         ScrapeStatus.ChallengePaused => ["SNR-ACQ-011"],
         ScrapeStatus.DisallowedByRobots => ["SNR-ACQ-004"],
         ScrapeStatus.ConsentWallBlocked => ["SNR-ACQ-005"],
-        ScrapeStatus.BrowserFailed => ["SNR-BRW-003", "SNR-BRW-004", "SNR-BRW-005"],
+        ScrapeStatus.BrowserFailed =>
+            ["SNR-BRW-001", "SNR-BRW-002", "SNR-BRW-003", "SNR-BRW-004", "SNR-BRW-005"],
         ScrapeStatus.FixtureNotFound => ["SNR-FIX-001"],
         ScrapeStatus.SourceNotFound => ["SNR-API-002"],
         ScrapeStatus.Timeout => ["SNR-ACQ-001"],

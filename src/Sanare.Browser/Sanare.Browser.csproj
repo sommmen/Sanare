@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sanare.Browser</RootNamespace>
+    <AssemblyName>Sanare.Browser</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sanare.Http\Sanare.Http.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The Tier 3 (browser) automation engine; see docs/features/browser-tier.md. No Central Package
+      Management exists in this repo yet, so the version is pinned here, matching Sanare.Http's
+      System.Threading.RateLimiting reference.
+    -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+  </ItemGroup>
+
+</Project>

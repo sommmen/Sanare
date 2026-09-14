@@ -3,10 +3,12 @@
     <Project Path="src/Sanare.Abstractions/Sanare.Abstractions.csproj" />
     <Project Path="src/Sanare.Core/Sanare.Core.csproj" />
     <Project Path="src/Sanare.Http/Sanare.Http.csproj" />
+    <Project Path="src/Sanare.Browser/Sanare.Browser.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sanare.Abstractions.Tests/Sanare.Abstractions.Tests.csproj" />
     <Project Path="tests/Sanare.Core.Tests/Sanare.Core.Tests.csproj" />
     <Project Path="tests/Sanare.Http.Tests/Sanare.Http.Tests.csproj" />
+    <Project Path="tests/Sanare.Browser.Tests/Sanare.Browser.Tests.csproj" />
   </Folder>
 </Solution>

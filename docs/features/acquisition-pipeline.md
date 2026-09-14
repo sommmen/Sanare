@@ -3,7 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
-> Implementation status: partial — `Sanare.Http.AcquisitionScrapeRunner` composes the controlled HTTP/fixture boundary, browsing identity, bounded consent retry, deterministic plan execution, and result provenance for live single-page runs. Browser-tier escalation, streaming, and the remaining pipeline capabilities described below are not yet integrated.
+> Implementation status: partial — `Sanare.Http.AcquisitionScrapeRunner` composes the controlled HTTP/fixture boundary, browsing identity, bounded consent retry, deterministic plan execution, and result provenance for live single-page runs. `AcquisitionPipelineFactory.CreateBrowser(...)` wires a `TieredContentAcquirer` that dispatches `AcquisitionTier.Browser` requests to `Sanare.Browser.BrowserContentAcquirer` with no fallback edge in either direction (see [browser-tier.md](browser-tier.md)); streaming and the remaining pipeline capabilities described below are not yet integrated.
 
 | Field | Value |
 |-------|-------|

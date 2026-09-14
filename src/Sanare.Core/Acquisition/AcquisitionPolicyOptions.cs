@@ -210,6 +210,93 @@ public sealed record CacheOptions(
 }
 
 /// <summary>
+/// Browser tier (Tier 3, Playwright) governance policy (docs/features/browser-tier.md, "Task order" T1).
+/// Disabled by default: DR-004's double opt-in requires both this global flag and the per-source
+/// <see cref="AcquisitionPolicyOverride.AllowBrowserTier"/> before a browser is ever launched.
+/// </summary>
+/// <param name="Enabled">Whether the browser tier may run at all. The first half of the DR-004 double opt-in.</param>
+/// <param name="MaxContexts">The bounded concurrency cap on simultaneously open browser contexts.</param>
+/// <param name="BrowserWaitTimeout">How long <c>RentAsync</c> waits for a context to become available before failing <c>SNR-BRW-002</c>.</param>
+/// <param name="MaxOperationsPerContext">How many operations a context serves before it is recycled.</param>
+/// <param name="MaxContextAge">How long a context lives before it is recycled regardless of operation count.</param>
+/// <param name="ContextIdleTimeout">How long an unused context sits in the pool before eviction.</param>
+/// <param name="MaxScrolls">The clamp applied to a plan-requested scroll count (AC-BRW-008).</param>
+/// <param name="ScrollDelay">The pause between successive scroll operations.</param>
+/// <param name="BlockResources">Whether image/media/font/analytics requests are aborted by default (resource blocking).</param>
+/// <param name="CaptureNetwork">Whether a HAR-style network log is captured for endpoint discovery. Off by default; not used during normal runs.</param>
+/// <param name="BlockedHosts">The analytics/ads host block-list applied when <paramref name="BlockResources"/> is enabled.</param>
+public sealed record BrowserOptions(
+    bool Enabled = false,
+    int MaxContexts = 2,
+    TimeSpan? BrowserWaitTimeout = null,
+    int MaxOperationsPerContext = 50,
+    TimeSpan? MaxContextAge = null,
+    TimeSpan? ContextIdleTimeout = null,
+    int MaxScrolls = 50,
+    TimeSpan? ScrollDelay = null,
+    bool BlockResources = true,
+    bool CaptureNetwork = false,
+    IReadOnlyList<string>? BlockedHosts = null)
+{
+    private static readonly IReadOnlyList<string> DefaultBlockedHosts =
+    [
+        "google-analytics.com",
+        "googletagmanager.com",
+        "doubleclick.net",
+        "facebook.net",
+        "connect.facebook.net",
+        "hotjar.com",
+        "segment.io",
+    ];
+
+    /// <summary>The resolved pool-wait timeout; 30 seconds by default.</summary>
+    public TimeSpan EffectiveBrowserWaitTimeout { get; } = ValidateWaitTimeout(BrowserWaitTimeout);
+
+    /// <summary>The resolved context max age; 15 minutes by default.</summary>
+    public TimeSpan EffectiveMaxContextAge { get; } = ValidateMaxContextAge(MaxContextAge);
+
+    /// <summary>The resolved idle-context eviction timeout; 2 minutes by default.</summary>
+    public TimeSpan EffectiveContextIdleTimeout { get; } = ValidateContextIdleTimeout(ContextIdleTimeout);
+
+    /// <summary>The resolved inter-scroll delay; 250 ms by default.</summary>
+    public TimeSpan EffectiveScrollDelay { get; } = ValidateScrollDelay(MaxContexts, MaxOperationsPerContext, MaxScrolls, ScrollDelay);
+
+    /// <summary>The resolved analytics/ads block-list; a built-in default set when unspecified.</summary>
+    public IReadOnlyList<string> EffectiveBlockedHosts { get; } = BlockedHosts ?? DefaultBlockedHosts;
+
+    private static TimeSpan ValidateWaitTimeout(TimeSpan? browserWaitTimeout)
+    {
+        var value = browserWaitTimeout ?? TimeSpan.FromSeconds(30);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+        return value;
+    }
+
+    private static TimeSpan ValidateMaxContextAge(TimeSpan? maxContextAge)
+    {
+        var value = maxContextAge ?? TimeSpan.FromMinutes(15);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+        return value;
+    }
+
+    private static TimeSpan ValidateContextIdleTimeout(TimeSpan? contextIdleTimeout)
+    {
+        var value = contextIdleTimeout ?? TimeSpan.FromMinutes(2);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+        return value;
+    }
+
+    private static TimeSpan ValidateScrollDelay(int maxContexts, int maxOperationsPerContext, int maxScrolls, TimeSpan? scrollDelay)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxContexts, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxOperationsPerContext, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxScrolls, 1);
+        var value = scrollDelay ?? TimeSpan.FromMilliseconds(250);
+        ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
+        return value;
+    }
+}
+
+/// <summary>
 /// A per-host or per-source override of the pacing and governance policy. Every member is optional;
 /// an unset member inherits the corresponding root <see cref="AcquisitionOptions"/> value.
 /// </summary>
@@ -217,8 +304,18 @@ public sealed record CacheOptions(
 /// <param name="Robots">Overrides the root robots policy.</param>
 /// <param name="Retry">Overrides the root retry policy.</param>
 /// <param name="Breaker">Overrides the root breaker policy.</param>
+/// <param name="AllowBrowserTier">
+/// The per-source half of the DR-004 double opt-in for the browser tier. <see langword="false"/> by
+/// default: the global <see cref="AcquisitionOptions.Browser"/> flag alone is never sufficient (AC-007b).
+/// </param>
+/// <param name="RequiresImages">
+/// Marks a source whose plan depends on lazy-loading (e.g. an image-triggered infinite scroll), which
+/// disables resource blocking for that source when the wait strategy is <c>NetworkIdle</c> (AC-BRW-014).
+/// </param>
 public sealed record AcquisitionPolicyOverride(
     RateLimitOptions? RateLimit = null,
     RobotsOptions? Robots = null,
     RetryOptions? Retry = null,
-    BreakerOptions? Breaker = null);
+    BreakerOptions? Breaker = null,
+    bool AllowBrowserTier = false,
+    bool RequiresImages = false);

@@ -22,7 +22,7 @@ must not be used to renumber or reorder work.
 | 5 | Fixture Corpus | `fixture-corpus` | L1 | 1 | P0 | implemented | [fixture-corpus.md](fixture-corpus.md) |
 | 6 | Acquisition Pipeline | `acquisition-pipeline` | L2 | 1, 5 | P0 | partial | [acquisition-pipeline.md](acquisition-pipeline.md) |
 | 7 | Browsing Identity | `browsing-identity` | L2 | 6 | P0 | partial | [browsing-identity.md](browsing-identity.md) |
-| 8 | Browser Tier | `browser-tier` | L2 | 6, 7 | P0 | draft | [browser-tier.md](browser-tier.md) |
+| 8 | Browser Tier | `browser-tier` | L2 | 6, 7 | P0 | partial | [browser-tier.md](browser-tier.md) |
 | 9 | Plan Runtime | `plan-runtime` | L3 | 2, 3, 6 | P0 | partial | [plan-runtime.md](plan-runtime.md) |
 | 10 | Pagination Engine | `pagination-engine` | L3 | 9 | P0 | draft | [pagination-engine.md](pagination-engine.md) |
 | 11 | Plan Resolver | `plan-resolver` | L3 | 3, 4 | P0 | partial | [plan-resolver.md](plan-resolver.md) |
@@ -37,11 +37,20 @@ must not be used to renumber or reorder work.
 > Row 12 depends on row 13 despite appearing first because the canonical technical design fixes this
 > numbering. Implement row 13's tool contracts before completing row 12; **do not renumber the rows**.
 
-> Row 6 stays `partial` only because browser-tier escalation (row 8) is still out. The HTTP half of the
-> pipeline is complete: policy model, per-host pacing, `robots.txt`, `llms.txt` discovery, retries and
-> `Retry-After`, the block/challenge breaker, conditional caching, and redirect policy, composed by
-> `GovernedContentAcquirer`. See the component's
+> Row 6 stays `partial` because redirect policy and `llms.txt` discovery, while implemented and tested, are
+> not yet consulted by `GovernedContentAcquirer` or any runner. The HTTP half of the pipeline is otherwise
+> complete: policy model, per-host pacing, `robots.txt`, retries and `Retry-After`, the block/challenge
+> breaker, and conditional caching, composed by `GovernedContentAcquirer`. See the component's
 > [Implementation Plan](acquisition-pipeline.md#implementation-plan).
+
+> Row 8 stays `partial` because only the test-site/real-Chromium integration suite (T14 in the component's
+> implementation plan) remains. `BrowserContentAcquirer` (T11) composes the gate, breaker, robots check,
+> host limiter, pool, page scope, wait strategy, interactions, and fixture capture; `TieredContentAcquirer`
+> (T12) dispatches `AcquisitionTier.Browser` to it with no fallback edge in either direction and is wired
+> through `AcquisitionPipelineFactory.CreateBrowser(...)`; `PlaywrightChallengeHandoff` (T13) is the sole
+> `IChallengeHandoff` implementation, gated on `Browser.Enabled` and `ExecutionMode.Live`. All of this is
+> covered by unit-level gating tests; no test yet exercises a real Chromium instance. See the component's
+> [Implementation Plan](browser-tier.md#implementation-plan).
 
 > Row 4 stays `partial` only because the optional git CLI backend, blame, and merge/conflict resolution
 > are out. The whole local LibGit2Sharp surface now ships: bootstrap, read-at-ref, canonical commit under
