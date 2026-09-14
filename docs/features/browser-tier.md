@@ -340,7 +340,10 @@ src/
 
 ## Test Module
 
-**Test file**: `tests/Sanare.Browser.Tests/BrowserContentAcquirerTests.cs`
+**Test files**: `tests/Sanare.Browser.Tests/BrowserContentAcquirerTests.cs`,
+`BrowserContentAcquirerIntegrationTests.cs`, `BrowserPoolIntegrationTests.cs`, `BrowserPrimitivesTests.cs`,
+`ChallengeHandoffTests.cs`, `PlaywrightChallengeHandoffIntegrationTests.cs`,
+`PlaywrightInstallationValidatorTests.cs`, and `TieredContentAcquirerIntegrationTests.cs`.
 
 **Test scope**:
 

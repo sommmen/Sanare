@@ -14,7 +14,8 @@ public sealed record BrowserAcquisitionRequest(
     CultureInfo Culture,
     NavigationContext Navigation,
     bool CaptureNetwork = false,
-    string TimezoneId = "UTC");
+    string TimezoneId = "UTC",
+    string? PlanCommitId = null);
 
 /// <summary>Acquires rendered content using the browser tier.</summary>
 public interface IBrowserContentAcquirer

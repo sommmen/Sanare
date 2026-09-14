@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Microsoft.Playwright;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Acquisition;
+using Sanare.Core.Observability;
 using Sanare.Http.Identity.Consent;
 
 namespace Sanare.Browser.Tests;
@@ -25,6 +27,29 @@ public sealed class BrowserContentAcquirerIntegrationTests(BrowserTestSiteFixtur
         Assert.Equal(200, result.StatusCode);
         Assert.Equal(expectedOccurrences, System.Text.Encoding.UTF8.GetString(result.Body.Span).Split($"id=\"{marker}\"", StringSplitOptions.None).Length - 1);
         Assert.Contains(page == "product-js.html" ? "Deterministic Widget" : "Charlie", System.Text.Encoding.UTF8.GetString(result.Body.Span), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AcquireAsync_emits_canonical_navigation_telemetry_when_given_a_plan_commit()
+    {
+        var (listener, activities) = CreateListener();
+        using var playwright = await Playwright.CreateAsync();
+        await using var pool = new BrowserPool(playwright, new BrowserOptions(Enabled: true));
+        using var client = new HttpClient();
+        var acquirer = BrowserIntegrationHarness.CreateAcquirer(playwright, pool,
+            BrowserIntegrationHarness.Options(new BrowserOptions(Enabled: true)), new RecordingFixtureCorpus(), client);
+        var request = BrowserIntegrationHarness.Request(new Uri(site.UriFor("lister-js.html") + "?token=secret")) with { PlanCommitId = "a1b2c3d4" };
+
+        await acquirer.AcquireAsync(request);
+
+        var activity = Assert.Single(activities);
+        Assert.Equal(SpanNames.BrowserNavigate, activity.OperationName);
+        Assert.Equal(Sanare.Abstractions.Telemetry.ScraperTelemetry.ActivitySourceName, activity.Source.Name);
+        Assert.Equal("browser-test", activity.GetTagItem(TagNames.SourceId));
+        Assert.Equal("a1b2c3d4", activity.GetTagItem(TagNames.PlanCommit));
+        Assert.Equal("/lister-js.html", activity.GetTagItem(TagNames.UrlPath));
+        Assert.Equal(site.UriFor("lister-js.html").Host, activity.GetTagItem(TagNames.Host));
+        listener.Dispose();
     }
 
     [Fact]
@@ -84,5 +109,18 @@ public sealed class BrowserContentAcquirerIntegrationTests(BrowserTestSiteFixtur
         var acquirer = BrowserIntegrationHarness.CreateAcquirer(playwright, pool, options, new RecordingFixtureCorpus(), client);
         await acquirer.AcquireAsync(BrowserIntegrationHarness.Request(site.UriFor("lister-js.html"), "selector:#listing"));
         return site.BytesServed;
+    }
+
+    private static (ActivityListener Listener, List<Activity> Activities) CreateListener()
+    {
+        var activities = new List<Activity>();
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == Sanare.Abstractions.Telemetry.ScraperTelemetry.ActivitySourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => activities.Add(activity),
+        };
+        ActivitySource.AddActivityListener(listener);
+        return (listener, activities);
     }
 }

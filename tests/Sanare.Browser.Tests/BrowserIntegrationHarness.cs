@@ -4,6 +4,7 @@ using Sanare.Abstractions;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Acquisition;
 using Sanare.Core.Fixtures;
+using Sanare.Core.Observability;
 using Sanare.Http;
 using Sanare.Http.Identity;
 using Sanare.Http.Resilience;
@@ -36,10 +37,11 @@ internal static class BrowserIntegrationHarness
         AcquisitionOptions options,
         IFixtureCorpus fixtures,
         HttpClient client,
-        CookieBridge? cookies = null)
+        CookieBridge? cookies = null,
+        ScraperActivitySource? activitySource = null)
     {
         var governance = AcquisitionPipelineFactory.CreateGovernance(client, options);
         return new BrowserContentAcquirer(pool, new PageScope(pool), new BrowserStepExecutor(), fixtures, options,
-            AcquisitionMode.Compliance, governance, challenges: new ChallengeDetector(), cookies: cookies);
+            AcquisitionMode.Compliance, governance, challenges: new ChallengeDetector(), cookies: cookies, activitySource: activitySource);
     }
 }

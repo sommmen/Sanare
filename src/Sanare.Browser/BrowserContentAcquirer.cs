@@ -25,8 +25,6 @@ namespace Sanare.Browser;
 /// </remarks>
 public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAcquirer
 {
-    private static readonly ActivitySource Activity = new("Sanare");
-
     private readonly IBrowserPool _pool;
     private readonly PageScope _pages;
     private readonly IBrowserStepExecutor _steps;
@@ -42,6 +40,7 @@ public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAc
     private readonly ChallengeDetector _challenges;
     private readonly CookieBridge? _cookies;
     private readonly NetworkLogRecorder? _networkRecorder;
+    private readonly ScraperActivitySource _activitySource;
 
     public BrowserContentAcquirer(
         IBrowserPool pool,
@@ -54,7 +53,8 @@ public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAc
         BrowserTierGate? gate = null,
         ChallengeDetector? challenges = null,
         CookieBridge? cookies = null,
-        NetworkLogRecorder? networkRecorder = null)
+        NetworkLogRecorder? networkRecorder = null,
+        ScraperActivitySource? activitySource = null)
     {
         _pool = pool ?? throw new ArgumentNullException(nameof(pool));
         _pages = pages ?? throw new ArgumentNullException(nameof(pages));
@@ -72,6 +72,7 @@ public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAc
         _challenges = challenges ?? new ChallengeDetector();
         _cookies = cookies;
         _networkRecorder = networkRecorder;
+        _activitySource = activitySource ?? new ScraperActivitySource();
     }
 
     /// <inheritdoc />
@@ -87,7 +88,8 @@ public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAc
             acquisition,
             CultureInfo.GetCultureInfo("en-US"),
             Sanare.Http.Identity.NavigationContext.TopLevel,
-            _options.EffectiveBrowser.CaptureNetwork), request, ct);
+            _options.EffectiveBrowser.CaptureNetwork,
+            PlanCommitId: request.PlanCommitId), request, ct);
     }
 
     /// <inheritdoc />
@@ -104,14 +106,16 @@ public sealed class BrowserContentAcquirer : IContentAcquirer, IBrowserContentAc
             browserRequest.TargetUri,
             browserRequest.SourceId,
             Tier: AcquisitionTier.Browser,
-            Acquisition: browserRequest.Acquisition);
+            Acquisition: browserRequest.Acquisition,
+            PlanCommitId: browserRequest.PlanCommitId);
         var policy = _options.ResolveFor(browserRequest.TargetUri.Host, browserRequest.SourceId);
 
         _gate.EnsureAllowed(policy);
         var host = browserRequest.TargetUri.Host;
-        using var span = Activity.StartActivity(SpanNames.BrowserNavigate, ActivityKind.Client);
-        span?.SetTag("host", host);
-        span?.SetTag("sanare.source_id", browserRequest.SourceId);
+        using var span = string.IsNullOrWhiteSpace(request.PlanCommitId)
+            ? null
+            : _activitySource.StartChild(SpanNames.BrowserNavigate, browserRequest.SourceId, request.PlanCommitId, uri: browserRequest.TargetUri);
+        span?.SetTag(TagNames.Host, host);
 
         _breaker.ThrowIfOpen(host);
         var robots = await _robots.EvaluateAsync(browserRequest.TargetUri, _mode, cancellationToken).ConfigureAwait(false);

@@ -35,7 +35,8 @@ public sealed record AcquisitionRequest(
     AcquisitionTier Tier = AcquisitionTier.Html,
     string Method = "GET",
     RequestIdentity? Identity = null,
-    AcquisitionSpec? Acquisition = null)
+    AcquisitionSpec? Acquisition = null,
+    string? PlanCommitId = null)
 {
     public IReadOnlySet<string> EffectiveExpectedContentTypes => ExpectedContentTypes ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "text/html", "application/xhtml+xml" };
 }

@@ -1,9 +1,11 @@
 # Documentation Audit Report — Sanare
 
-**Latest full-repository pass**: 2026-09-13 (documentation/code alignment — see
-"Full-Repository Findings — 2026-09-13" at the end of this report)
-**Latest targeted pass**: 2026-09-13 (acquisition-pipeline docs vs. code — see
-"Acquisition-Pipeline Findings — 2026-09-13")
+**Latest full-repository pass**: 2026-09-14 (documentation/code reconciliation — see
+"Reconciliation Findings — 2026-09-14" at the end of this report)
+**Latest targeted pass**: 2026-09-14 (Browser-tier provenance and specification alignment — see
+"Reconciliation Findings — 2026-09-14")
+
+> Historical audit entries below retain the implementation state observed on their stated dates.
 
 ## Latest Full-Repository Audit Pass
 
@@ -753,3 +755,27 @@ resolved Info findings (10 total findings resolved in that pass: 2 Critical,
 The prescribed `auto-pr-validate.ps1` repair validation is the authoritative
 validation for this stage-4 repair and is recorded after it runs. No production
 or test code changed.
+
+## Reconciliation Findings — 2026-09-14
+
+**Scope**: Current documentation and implementation alignment after the Browser Tier landed.
+Historical entries were reviewed as evidence but not rewritten.
+
+### Resolved Findings
+
+1. **Browser Tier coverage and test inventory** — Browser acquisition is now implemented and exercised with
+   real Chromium against a local Kestrel site. The root README and Browser Tier specification now identify
+   that shipped coverage; JSON-LD and microdata extraction remain explicitly unimplemented.
+2. **Browser navigation provenance** — Browser navigation now uses the canonical `ScraperActivitySource` and
+   emits telemetry only when plan resolution supplies a genuine commit. The resolved commit is propagated
+   through the acquisition runner, including its consent retry, rather than fabricated from a request pin.
+3. **Pagination bounds and responsibilities** — `MaxItems` is implemented, serialized, and validated. Browser
+   scrolling mechanics are implemented, while Pagination Engine orchestration of `InfiniteScroll` and
+   `LoadMoreButton` remains deferred.
+4. **Challenge handoff status** — `PlaywrightChallengeHandoff` is implemented and covered. It remains
+   operator-triggered with no automated acquisition-pipeline caller.
+
+### Validation
+
+Focused provenance tests passed for the git-backed plan provider, acquisition scrape runner, and real-browser
+navigation telemetry. Full build and suite validation is recorded after the reconciliation changes run.

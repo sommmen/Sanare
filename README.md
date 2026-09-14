@@ -93,7 +93,7 @@ All three commands are expected to run clean (0 warnings/errors) against the cur
 
 The following are explicitly out of scope for v0.1 or remain incomplete after the governed acquisition pipeline:
 
-- The browser-tier integration suite: a real-Chromium test site under `tests/Sanare.Browser.Tests/TestSite/` and the associated process-count/leak assertions (`docs/features/browser-tier.md` T14). The tier itself (gate, pool, page scope, `BrowserContentAcquirer`, `TieredContentAcquirer` dispatch, `PlaywrightChallengeHandoff`) is implemented and unit-tested, but never exercised against a live browser yet. JSON/structured-data (JSON-LD, microdata) extraction operations are also unimplemented.
+- JSON/structured-data (JSON-LD, microdata) extraction operations are unimplemented. The browser tier itself, including its real-Chromium/local-Kestrel integration suite and process-count/leak assertions, is implemented and exercised against a live browser.
 - Plan authoring, LLM-assisted plan generation, and self-healing/repair workflows. The repository primitives those workflows need (heal branches, promotion, rollback, diagnosis notes) ship; the agent-driven workflow that drives them does not.
 - Redirect policy and `llms.txt` discovery are implemented and tested, but neither is consulted yet by `GovernedContentAcquirer` or any runner.
 - The git CLI backend for plan storage is descoped by decision rather than pending — DR-003 makes it an environment accommodation, not a functional requirement. Plan blame and merge/conflict resolution remain deferred (see [docs/features/script-repository.md](docs/features/script-repository.md) and [docs/features/plan-resolver.md](docs/features/plan-resolver.md)).

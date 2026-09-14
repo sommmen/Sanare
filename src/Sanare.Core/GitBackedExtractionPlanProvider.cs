@@ -12,7 +12,11 @@ namespace Sanare.Core;
 /// </summary>
 public sealed class GitBackedExtractionPlanProvider(IPlanResolver resolver, ISchemaDeriver schemas) : IExtractionPlanProvider
 {
-    public bool TryGet(string sourceId, Type schemaType, out ExtractionPlan plan)
+    public bool TryGet(string sourceId, Type schemaType, out ExtractionPlan plan) =>
+        TryGet(sourceId, schemaType, out plan, out _);
+
+    /// <inheritdoc />
+    public bool TryGet(string sourceId, Type schemaType, out ExtractionPlan plan, out string? commitId)
     {
         ArgumentNullException.ThrowIfNull(sourceId);
         ArgumentNullException.ThrowIfNull(schemaType);
@@ -23,10 +27,12 @@ public sealed class GitBackedExtractionPlanProvider(IPlanResolver resolver, ISch
         if (resolution.IsResolved)
         {
             plan = resolution.Plan!.Plan;
+            commitId = resolution.Plan.CommitId;
             return true;
         }
 
         plan = null!;
+        commitId = null;
         return false;
     }
 }

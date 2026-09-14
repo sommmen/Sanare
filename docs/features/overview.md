@@ -3,7 +3,7 @@
 > Implementation index for the Sanare technical design.
 > Canonical architecture: [Sanare Technical Design](../sanare/tech-design.md)
 > Status: active — implementation tracking
-> Updated: 2026-09-13
+> Updated: 2026-09-14
 
 ## Status
 

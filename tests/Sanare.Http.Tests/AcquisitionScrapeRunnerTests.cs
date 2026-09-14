@@ -39,6 +39,17 @@ public sealed class AcquisitionScrapeRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_forwards_the_resolved_plan_commit_to_the_acquirer()
+    {
+        var acquirer = new RecordingContentAcquirer([Content("<html><h1 class='name'>Yoga Tab</h1><span class='price'>$499.99</span></html>")]);
+        var runner = CreateRunner(new CommitAwarePlanProvider(PlanFor<Product>(), "a1b2c3d4"), acquirer).Runner;
+
+        await runner.RunAsync<Product>(Request());
+
+        Assert.Equal("a1b2c3d4", Assert.Single(acquirer.Requests).PlanCommitId);
+    }
+
+    [Fact]
     public async Task RunAsync_retries_once_with_the_consent_cookie_when_a_wall_is_detected()
     {
         var acquirer = new RecordingContentAcquirer(
@@ -144,7 +155,7 @@ public sealed class AcquisitionScrapeRunnerTests
         }), acquirer).Runner;
 
     private static (AcquisitionScrapeRunner Runner, IReadOnlyList<AcquisitionRequest> AcquirerRequests) CreateRunner(
-        InMemoryExtractionPlanProvider plans,
+        IExtractionPlanProvider plans,
         RecordingContentAcquirer acquirer)
     {
         var options = new IdentityOptions(
@@ -214,6 +225,22 @@ public sealed class AcquisitionScrapeRunnerTests
             }
 
             return ValueTask.FromResult(_responses.Dequeue());
+        }
+    }
+
+    private sealed class CommitAwarePlanProvider(ExtractionPlan plan, string commitId) : IExtractionPlanProvider
+    {
+        public bool TryGet(string sourceId, Type schemaType, out ExtractionPlan resolvedPlan)
+        {
+            resolvedPlan = plan;
+            return true;
+        }
+
+        public bool TryGet(string sourceId, Type schemaType, out ExtractionPlan resolvedPlan, out string? resolvedCommitId)
+        {
+            resolvedPlan = plan;
+            resolvedCommitId = commitId;
+            return true;
         }
     }
 
