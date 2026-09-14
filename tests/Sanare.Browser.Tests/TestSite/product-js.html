@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>JSON Product</title></head>
+<body><main id="product"><h1 id="product-name"></h1><p id="product-price"></p></main>
+<script id="product-data" type="application/json">{"name":"Deterministic Widget","price":"19.99","sku":"WIDGET-001"}</script>
+<script>document.addEventListener('DOMContentLoaded',()=>{const p=JSON.parse(document.querySelector('#product-data').textContent);document.querySelector('#product-name').textContent=p.name;document.querySelector('#product-price').textContent=`$${p.price}`;document.querySelector('#product').dataset.sku=p.sku;});</script>
+</body></html>

@@ -9,6 +9,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sanare.Browser\Sanare.Browser.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="TestSite\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

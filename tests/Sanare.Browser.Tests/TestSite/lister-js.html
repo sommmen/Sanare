@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>JavaScript Lister</title><script defer src="app.js"></script></head>
+<body><main><h1>Catalog</h1><ul id="listing" aria-label="products"></ul><img src="large-image.svg" alt="fixture artwork"></main>
+<script>document.addEventListener('DOMContentLoaded', () => { const list = document.querySelector('#listing'); ['Alpha','Bravo','Charlie'].forEach((name, index) => { const item = document.createElement('li'); item.dataset.productId = String(index + 1); item.textContent = name; list.append(item); }); });</script>
+</body></html>
