@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Sanare.Browser\Sanare.Browser.csproj" />
     <ProjectReference Include="..\..\src\Sanare.Http\Sanare.Http.csproj" />
   </ItemGroup>
 

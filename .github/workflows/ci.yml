@@ -35,4 +35,6 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Run tests
-        run: dotnet test --no-build --no-restore --configuration Release --verbosity normal
+        # Category=Browser tests launch a real Chromium instance via Playwright, which is not installed
+        # on this runner (see docs/features/browser-tier.md). They run in a dedicated job/step instead.
+        run: dotnet test --no-build --no-restore --configuration Release --verbosity normal --filter "Category!=Browser"

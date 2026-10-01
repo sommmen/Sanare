@@ -233,9 +233,8 @@ Checks, all reported together:
    The candidates must each be valid for the plan's acquisition tier and must not be structurally identical.
    They may use different strategies against the same content or target an equivalent alternate location, but
    the fallback is not permitted to select a different semantic field.
-6. The implemented model's pagination cap, `MaxPages`, is present and within 1–10 000; `LoadMoreButton`
-   and `InfiniteScroll` require `Tier == Browser`. `MaxItems` is a target-state cap and cannot yet be
-   validated because `PaginationSpec` has no corresponding property.
+6. The implemented model's pagination caps, `MaxPages` (1–10,000) and `MaxItems` (1–1,000,000), are present
+   and within their supported bounds; `LoadMoreButton` and `InfiniteScroll` require `Tier == Browser`.
 7. `Consent.Strategy` is one of the known strategies and carries its required arguments.
 8. `Acquisition.UrlTemplate` is an absolute `http`/`https` template. Placeholder-to-request-parameter
    binding is deferred to a layer that receives both the plan and `ScrapeRequest.Parameters`.
@@ -429,13 +428,8 @@ structurally invalid plan can never reach a commit. Update `GitScriptRepositoryT
 and add a negative test asserting a plan with a known defect (e.g. a forbidden header) is rejected before
 any git write. Depends on: T1–T6 (exercises the full validator surface, including the new rules).
 
-**T8 — Doc reconciliation.** Flip this component's status in `docs/features/overview.md` from `partial`
-to `implemented` (or leave `partial` and narrow the note if any item above is descoped during review),
-update this file's front-matter status line and the `## Validation` section's rule 6/8 prose to drop the
-"cannot yet be validated"/"deferred" language, remove the two satisfied bullets from `PlanValidator`'s
-class-level `<remarks>` (keep the regex-barrier note only if T5 is not landed), and check off the
-corresponding `DEVELOPMENT.md` item ("Implement plan version upgrades ... and wire `IPlanValidator` into
-the plan-authoring/repository pipeline"). Depends on: T1–T7.
+**T8 — Doc reconciliation.** Completed with the implemented model and validation updates: this component's
+status and validation prose reflect the shipped pagination caps and repository validation pipeline.
 
 ### Deferred scope
 

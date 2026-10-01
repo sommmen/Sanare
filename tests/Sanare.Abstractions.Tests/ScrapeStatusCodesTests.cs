@@ -33,4 +33,17 @@ public sealed partial class ScrapeStatusCodesTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => ScrapeStatusCodes.For((ScrapeStatus)(-1)));
     }
+
+    [Fact]
+    public void For_BrowserFailed_maps_to_all_five_SNR_BRW_codes()
+    {
+        // Pins the full SNR-BRW-* error table (docs/sanare/tech-design.md §"Error catalogue" and
+        // docs/features/browser-tier.md) so a future edit cannot silently drop a code from the switch
+        // body without a test noticing — the shape-only theory above would not catch that.
+        var codes = ScrapeStatusCodes.For(ScrapeStatus.BrowserFailed);
+
+        Assert.Equal(
+            ["SNR-BRW-001", "SNR-BRW-002", "SNR-BRW-003", "SNR-BRW-004", "SNR-BRW-005"],
+            codes);
+    }
 }

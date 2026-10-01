@@ -21,16 +21,17 @@ public sealed class GitBackedExtractionPlanProviderTests : IDisposable
         var firstPlan = SamplePlan();
         await repository.CommitPlanAsync(new PlanCommitRequest(firstPlan, "author", "initial plan", "authoring", Approve: true));
         var approvedPlan = firstPlan with { Provenance = firstPlan.Provenance with { Score = 0.5d } };
-        await repository.CommitPlanAsync(new PlanCommitRequest(approvedPlan, "heal", "healed plan", "heal:test", Approve: true));
+        var approval = await repository.CommitPlanAsync(new PlanCommitRequest(approvedPlan, "heal", "healed plan", "heal:test", Approve: true));
         var provider = new GitBackedExtractionPlanProvider(
             new PlanResolver(repository, new PlanSerializer()),
             new FixedSchemaDeriver(approvedPlan.SchemaName, approvedPlan.SchemaVersion, approvedPlan.SchemaHash));
 
-        var found = provider.TryGet(approvedPlan.SourceId, typeof(ProductSchema), out var plan);
+        var found = provider.TryGet(approvedPlan.SourceId, typeof(ProductSchema), out var plan, out var commitId);
 
         Assert.True(found);
         Assert.Equivalent(approvedPlan, plan);
         Assert.Equal(0.5d, plan.Provenance.Score);
+        Assert.Equal(approval.CommitId, commitId);
     }
 
     [Theory]

@@ -75,16 +75,17 @@ public sealed class AcquisitionArchitectureTests
     }
 
     [Fact]
-    public void No_production_type_implements_the_challenge_handoff()
+    public void Exactly_the_browser_handoff_implementation_is_present()
     {
-        // The hand-off is deliberately an escape hatch for a human operator. An in-process implementation
-        // would be a challenge solver by another name, which NG-1 forbids outright.
+        // The hand-off is deliberately an escape hatch for a human operator. There must be exactly one
+        // implementation, and its identity is part of the no-solver boundary rather than an open extension
+        // point for automation.
         var implementations = ProductionTypes()
             .Where(type => typeof(IChallengeHandoff).IsAssignableFrom(type) && type is { IsInterface: false, IsAbstract: false })
-            .Select(type => type.FullName ?? type.Name)
             .ToList();
 
-        Assert.Empty(implementations);
+        var implementation = Assert.Single(implementations);
+        Assert.Equal("PlaywrightChallengeHandoff", implementation.Name);
     }
 
     [Fact]
@@ -113,13 +114,20 @@ public sealed class AcquisitionArchitectureTests
         // difference, so governance cannot be bypassed by depending on the concrete transport.
         Assert.True(typeof(IContentAcquirer).IsAssignableFrom(typeof(GovernedContentAcquirer)));
         Assert.True(typeof(IContentAcquirer).IsAssignableFrom(typeof(HttpContentAcquirer)));
+        Assert.True(typeof(IContentAcquirer).IsAssignableFrom(typeof(TieredContentAcquirer)));
     }
 
     private static bool IsBrowserTier(Type type) =>
         (type.FullName ?? string.Empty).Contains("Browser", StringComparison.Ordinal);
 
     private static IEnumerable<Type> ProductionTypes() =>
-        new[] { typeof(GovernedContentAcquirer).Assembly, typeof(HttpContentAcquirer).Assembly }
+        new[]
+        {
+            typeof(GovernedContentAcquirer).Assembly,
+            typeof(HttpContentAcquirer).Assembly,
+            typeof(Sanare.Browser.BrowserTierGate).Assembly,
+        }
+            .Distinct()
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => !type.Name.Contains('<', StringComparison.Ordinal));
 }

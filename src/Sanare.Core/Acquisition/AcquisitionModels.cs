@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Sanare.Abstractions;
+using Sanare.Abstractions.Plans;
 
 namespace Sanare.Core.Acquisition;
 
@@ -33,7 +34,9 @@ public sealed record AcquisitionRequest(
     string? PageRole = null,
     AcquisitionTier Tier = AcquisitionTier.Html,
     string Method = "GET",
-    RequestIdentity? Identity = null)
+    RequestIdentity? Identity = null,
+    AcquisitionSpec? Acquisition = null,
+    string? PlanCommitId = null)
 {
     public IReadOnlySet<string> EffectiveExpectedContentTypes => ExpectedContentTypes ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "text/html", "application/xhtml+xml" };
 }
@@ -64,6 +67,7 @@ public sealed record AcquiredContent(
 /// <param name="Retry">Transient-failure retry policy.</param>
 /// <param name="Breaker">Circuit-breaker policy.</param>
 /// <param name="Cache">Conditional HTTP cache policy.</param>
+/// <param name="Browser">Browser tier (Tier 3) governance policy. Disabled by default (DR-004).</param>
 /// <param name="MaxRedirects">The redirect hop ceiling before <c>SNR-ACQ-008</c>.</param>
 /// <param name="MaxDiscoveryDocumentBytes">The streaming byte ceiling for an <c>llms.txt</c> discovery document.</param>
 /// <param name="HostOverrides">Per-host policy overrides, keyed by lowercase host.</param>
@@ -77,6 +81,7 @@ public sealed record AcquisitionOptions(
     RetryOptions? Retry = null,
     BreakerOptions? Breaker = null,
     CacheOptions? Cache = null,
+    BrowserOptions? Browser = null,
     int MaxRedirects = 10,
     long MaxDiscoveryDocumentBytes = 512L * 1024,
     IReadOnlyDictionary<string, AcquisitionPolicyOverride>? HostOverrides = null,
@@ -96,6 +101,9 @@ public sealed record AcquisitionOptions(
 
     /// <summary>The resolved cache policy.</summary>
     public CacheOptions EffectiveCache { get; } = Cache ?? new CacheOptions();
+
+    /// <summary>The resolved browser tier policy; disabled by default.</summary>
+    public BrowserOptions EffectiveBrowser { get; } = Browser ?? new BrowserOptions();
 
     /// <summary>
     /// Resolves the policy applying to one request by layering the source override over the host
@@ -117,7 +125,10 @@ public sealed record AcquisitionOptions(
             sourceOverride?.RateLimit ?? hostOverride?.RateLimit ?? EffectiveRateLimit,
             sourceOverride?.Robots ?? hostOverride?.Robots ?? EffectiveRobots,
             sourceOverride?.Retry ?? hostOverride?.Retry ?? EffectiveRetry,
-            sourceOverride?.Breaker ?? hostOverride?.Breaker ?? EffectiveBreaker);
+            sourceOverride?.Breaker ?? hostOverride?.Breaker ?? EffectiveBreaker,
+            EffectiveBrowser,
+            sourceOverride?.AllowBrowserTier ?? hostOverride?.AllowBrowserTier ?? false,
+            sourceOverride?.RequiresImages ?? hostOverride?.RequiresImages ?? false);
     }
 
     private static AcquisitionPolicyOverride? Lookup(IReadOnlyDictionary<string, AcquisitionPolicyOverride>? overrides, string key)
@@ -157,11 +168,20 @@ public sealed record AcquisitionOptions(
 /// <param name="Robots">The robots policy in force.</param>
 /// <param name="Retry">The retry policy in force.</param>
 /// <param name="Breaker">The breaker policy in force.</param>
+/// <param name="Browser">The resolved browser tier governance policy (global, not per-source).</param>
+/// <param name="AllowBrowserTier">
+/// The per-source half of the DR-004 double opt-in; the browser tier is only permitted when this is
+/// <see langword="true"/> AND <see cref="Browser"/>.Enabled is <see langword="true"/> (AC-007b).
+/// </param>
+/// <param name="RequiresImages">Whether this source's plan depends on lazily-loaded images, disabling resource blocking (AC-BRW-014).</param>
 public sealed record ResolvedAcquisitionPolicy(
     RateLimitOptions RateLimit,
     RobotsOptions Robots,
     RetryOptions Retry,
-    BreakerOptions Breaker);
+    BreakerOptions Breaker,
+    BrowserOptions Browser,
+    bool AllowBrowserTier,
+    bool RequiresImages);
 
 public sealed class AcquisitionException(string code, string message) : Exception(message)
 {

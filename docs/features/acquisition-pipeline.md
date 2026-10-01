@@ -3,7 +3,7 @@
 > Feature spec for code-forge implementation planning.
 > Source: extracted from docs/sanare/tech-design.md §8
 > Created: 2026-09-06
-> Implementation status: partial — `Sanare.Http.AcquisitionScrapeRunner` composes the controlled HTTP/fixture boundary, browsing identity, bounded consent retry, deterministic plan execution, and result provenance for live single-page runs. Browser-tier escalation, streaming, and the remaining pipeline capabilities described below are not yet integrated.
+> Implementation status: partial — `Sanare.Http.AcquisitionScrapeRunner` composes the controlled HTTP/fixture boundary, browsing identity, bounded consent retry, deterministic plan execution, and result provenance for live single-page runs. `AcquisitionPipelineFactory.CreateBrowser(...)` wires a `TieredContentAcquirer` that dispatches `AcquisitionTier.Browser` requests to `Sanare.Browser.BrowserContentAcquirer` with no fallback edge in either direction (see [browser-tier.md](browser-tier.md)); streaming and the remaining pipeline capabilities described below are not yet integrated.
 
 | Field | Value |
 |-------|-------|
@@ -405,9 +405,9 @@ src/
   with a fake clock, including the `ChallengePaused` (no auto-close) branch; `CharsetDetector` precedence;
   `ContentTypeGate`; `BoundedStreamReader` at the exact ceiling; `HostLimiterRegistry` partition identity
   (same host ⇒ same limiter instance); `AdaptiveRateController` additive-increase/multiplicative-decrease
-  trajectory and ceiling clamp. `IChallengeHandoff`'s mode gate is **not** unit-tested: the interface has no
-  implementation until the browser tier lands, so `AcquisitionArchitectureTests` asserts that absence
-  instead. See "Deviations recorded during implementation".
+  trajectory and ceiling clamp. `IChallengeHandoff` is implemented by the browser tier and has focused
+  mode-gate and integration coverage. `AcquisitionArchitectureTests` separately asserts that it has no
+  automated pipeline call sites. See "Deviations recorded during implementation".
 - **Integration**: an in-process scripted `HttpMessageHandler` (`ScriptedHandler`) drives
   `GovernedContentAcquirer` end to end through the robots gate (disallow, allow, missing `robots.txt`,
   stealth-mode override), the no-retry rule for `403`, corpus recording of error bodies, and the shared-limiter

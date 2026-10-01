@@ -57,7 +57,7 @@ public sealed class AcquisitionScrapeRunner(
         var culture = normalizedRequest.Culture ?? "en-US";
         var schema = schemas.Derive<TSchema>(culture);
 
-        if (!plans.TryGet(sourceId, typeof(TSchema), out var plan))
+        if (!plans.TryGet(sourceId, typeof(TSchema), out var plan, out var resolvedPlanCommitId))
         {
             return CreateResult<TSchema>(ScrapeStatus.NoPlanAvailable, null, Array.Empty<FieldHealth>(), [.. validation.Diagnostics, new ScrapeDiagnostic("SNR-PLAN-001", DiagnosticSeverity.Error, "No approved plan is available.")], sourceId, schema, started, requestsIssued: 0, origin: ResultOrigin.Network, identityProfileId: null);
         }
@@ -69,7 +69,7 @@ public sealed class AcquisitionScrapeRunner(
         {
             var identity = identityProvider.GetIdentity(new IdentityRequest(sourceId, normalizedRequest.Url, CultureInfo.GetCultureInfo(culture), NavigationContext.TopLevel, plan.Tier));
             identityProfileId = identity.ProfileId;
-            content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: identity.ToRequestIdentity()), cancellationToken).ConfigureAwait(false);
+            content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: identity.ToRequestIdentity(), Acquisition: plan.Acquisition, PlanCommitId: resolvedPlanCommitId), cancellationToken).ConfigureAwait(false);
             requestsIssued++;
 
             var decision = identityProvider.EvaluateConsent(content, sourceId);
@@ -82,7 +82,7 @@ public sealed class AcquisitionScrapeRunner(
 
                 var retryIdentity = identityProvider.GetIdentity(new IdentityRequest(sourceId, normalizedRequest.Url, CultureInfo.GetCultureInfo(culture), NavigationContext.TopLevel, plan.Tier));
                 identityProfileId = retryIdentity.ProfileId;
-                content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: retryIdentity.ToRequestIdentity()), cancellationToken).ConfigureAwait(false);
+                content = await acquirer.AcquireAsync(new AcquisitionRequest(normalizedRequest.Url, sourceId, Tier: plan.Tier, Identity: retryIdentity.ToRequestIdentity(), Acquisition: plan.Acquisition, PlanCommitId: resolvedPlanCommitId), cancellationToken).ConfigureAwait(false);
                 requestsIssued++;
 
                 var retryDecision = identityProvider.EvaluateConsent(content, sourceId);

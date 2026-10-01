@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Consent Wall</title><style>[hidden]{display:none}</style></head>
+<body><main id="protected-content" hidden><h1>Consent accepted</h1><p>Reusable content.</p></main><section id="consent-wall" role="dialog"><p>Accept cookies to continue.</p><button id="accept-consent" type="button">Accept</button></section>
+<script>document.querySelector('#accept-consent').addEventListener('click',()=>{document.cookie='sanare_consent=accepted; Path=/; SameSite=Lax';document.querySelector('#consent-wall').hidden=true;document.querySelector('#protected-content').hidden=false;});</script>
+</body></html>
