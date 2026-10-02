@@ -20,5 +20,12 @@ public sealed class HtmlDocument
     public string? SelectAttribute(string selector, string attribute) =>
         _document.QuerySelector(selector)?.GetAttribute(attribute);
 
+    /// <summary>Returns the text content of the first node matching an XPath expression.</summary>
+    public string? SelectXPath(string expression) =>
+        _document.DocumentElement?.SelectSingleNode(expression)?.TextContent;
+
+    /// <summary>Returns the serialized HTML document.</summary>
+    public string OuterHtml => _document.DocumentElement?.OuterHtml ?? string.Empty;
+
     public bool Exists(string selector) => _document.QuerySelector(selector) is not null;
 }

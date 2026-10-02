@@ -143,7 +143,7 @@ public sealed class FixtureScrapeRunnerTests
             Fields =
             [
                 new FieldPlan("/Name", true, "string", [new LocatorStep(PlanOperation.SelectFirst, [".name"])], [new TransformStep(PlanOperation.Trim, Array.Empty<string>())]),
-                new FieldPlan("/Price", true, "decimal", [new LocatorStep(PlanOperation.XPath, ["//span"])], Array.Empty<TransformStep>()),
+                new FieldPlan("/Price", true, "decimal", [new LocatorStep(PlanOperation.JsonPath, ["$.price"])], Array.Empty<TransformStep>()),
             ],
         };
         var runner = CreateRunner(plan);

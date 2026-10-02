@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Sanare.Abstractions.Diagnostics;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Runtime.Documents;
@@ -106,18 +108,60 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
     {
         PlanOperation.SelectFirst or PlanOperation.Text when locator.Arguments.Count == 1 => document.SelectText(locator.Arguments[0]),
         PlanOperation.Attribute when locator.Arguments.Count == 2 => document.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
+        PlanOperation.XPath when locator.Arguments.Count == 1 => document.SelectXPath(locator.Arguments[0]),
+        // Zero-arg Html as a first step has no selector to apply, so it yields the whole document's markup.
+        PlanOperation.Html when locator.Arguments.Count == 0 => document.OuterHtml,
         _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
     };
 
     private static string? LocateFromValue(string value, LocatorStep locator)
     {
-        var valueDocument = new HtmlDocument(value);
-        return locator.Operation switch
+        switch (locator.Operation)
         {
-            PlanOperation.Text when locator.Arguments.Count == 1 => valueDocument.SelectText(locator.Arguments[0]),
-            PlanOperation.Attribute when locator.Arguments.Count == 2 => valueDocument.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
-            _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
-        };
+            case PlanOperation.Text when locator.Arguments.Count == 1:
+                return new HtmlDocument(value).SelectText(locator.Arguments[0]);
+            case PlanOperation.Attribute when locator.Arguments.Count == 2:
+                return new HtmlDocument(value).SelectAttribute(locator.Arguments[0], locator.Arguments[1]);
+            // A chained Html step re-interprets the already-extracted string as HTML; the value itself
+            // does not change, since the preceding step already produced the raw markup/text to carry forward.
+            case PlanOperation.Html when locator.Arguments.Count == 0:
+                return value;
+            case PlanOperation.RegexCapture when locator.Arguments.Count is 1 or 2:
+                return RegexCapture(value, locator.Arguments);
+            default:
+                throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset.");
+        }
+    }
+
+    /// <summary>Matches <paramref name="arguments"/>[0] as a non-backtracking pattern (1-second timeout,
+    /// matching <c>PlanValidator</c>'s authoring-time compile check) against <paramref name="value"/> and
+    /// returns the optional group at <paramref name="arguments"/>[1] (default: the whole match, group 0).
+    /// A non-matching pattern yields <c>null</c> rather than throwing.</summary>
+    private static string? RegexCapture(string value, IReadOnlyList<string> arguments)
+    {
+        var groupIndex = 0;
+        if (arguments.Count == 2 && !int.TryParse(arguments[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out groupIndex))
+        {
+            return null;
+        }
+
+        Match match;
+        try
+        {
+            match = Regex.Match(value, arguments[0], RegexOptions.NonBacktracking, TimeSpan.FromSeconds(1));
+        }
+        catch (Exception exception) when (exception is RegexParseException or RegexMatchTimeoutException or NotSupportedException)
+        {
+            return null;
+        }
+
+        if (!match.Success || groupIndex >= match.Groups.Count)
+        {
+            return null;
+        }
+
+        var group = match.Groups[groupIndex];
+        return group.Success ? group.Value : null;
     }
 
     private static bool TryTransform(string input, IReadOnlyList<TransformStep> transforms, out string output, out string? error)

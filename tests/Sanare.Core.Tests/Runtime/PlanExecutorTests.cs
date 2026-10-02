@@ -44,6 +44,65 @@ public sealed class PlanExecutorTests
             diagnostic.Message == "A fallback locator succeeded.");
     }
 
+    [Fact]
+    public void Execute_locates_a_value_with_an_xpath_expression()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.XPath, ["//div[@class='target']"]),
+        ]);
+
+        var outcome = Execute(plan, "<div class='other'>Nope</div><div class='target'>Yoga Tab</div>");
+
+        Assert.True(outcome.RequiredFieldsPresent);
+        Assert.Equal("Yoga Tab", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Execute_html_locator_yields_the_document_markup_for_a_downstream_regex_capture()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.Html, []),
+            new LocatorStep(PlanOperation.RegexCapture, ["Yoga Tab \\d+"]),
+        ]);
+
+        var outcome = Execute(plan, "<div>prefix Yoga Tab 2 suffix</div>");
+
+        Assert.True(outcome.RequiredFieldsPresent);
+        Assert.Equal("Yoga Tab 2", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Execute_regex_capture_supports_an_explicit_group_index()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectFirst, [".payload"]),
+            new LocatorStep(PlanOperation.RegexCapture, ["SKU: (\\w+)", "1"]),
+        ]);
+
+        var outcome = Execute(plan, "<div class='payload'>SKU: LEN103Y0003</div>");
+
+        Assert.True(outcome.RequiredFieldsPresent);
+        Assert.Equal("LEN103Y0003", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Execute_regex_capture_miss_yields_null_rather_than_throwing()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectFirst, [".payload"]),
+            new LocatorStep(PlanOperation.RegexCapture, ["NoMatch\\d+"]),
+        ]);
+
+        var outcome = Execute(plan, "<div class='payload'>Yoga Tab</div>");
+
+        Assert.False(outcome.RequiredFieldsPresent);
+        Assert.Null(outcome.Values["/Name"]);
+    }
+
     private static ExtractionOutcome Execute(ExtractionPlan plan, string html)
     {
         var schema = new SchemaDeriver().Derive<Product>();

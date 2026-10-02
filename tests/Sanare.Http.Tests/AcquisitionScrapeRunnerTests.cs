@@ -121,7 +121,7 @@ public sealed class AcquisitionScrapeRunnerTests
             Fields =
             [
                 new FieldPlan("/Name", true, "string", [new LocatorStep(PlanOperation.SelectFirst, [".name"])], [new TransformStep(PlanOperation.Trim, [])]),
-                new FieldPlan("/Price", true, "decimal", [new LocatorStep(PlanOperation.XPath, ["//span"])], []),
+                new FieldPlan("/Price", true, "decimal", [new LocatorStep(PlanOperation.JsonPath, ["$.price"])], []),
             ],
         };
         var runner = CreateRunner(invalidPlan, new RecordingContentAcquirer([Content("<html><h1 class='name'>Yoga Tab</h1><span>$499.99</span></html>")]));
