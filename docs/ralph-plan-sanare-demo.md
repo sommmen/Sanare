@@ -94,7 +94,7 @@ Two real pages are already committed under
   is an alternative and restarts from the document. Add
   `tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs` covering both shapes. Depends on: —.
 
-- [ ] **T2 — Add `XPath`, `Html`, and `RegexCapture` locators.**
+- [x] **T2 — Add `XPath`, `Html`, and `RegexCapture` locators.**
   `HtmlDocument` gains `SelectXPath(expr)` (AngleSharp.XPath is referenced) and
   `OuterHtml`. `PlanExecutor` supports `XPath` (1 arg), `Html` (0 args — yields the
   document or the piped value as HTML), and `RegexCapture` (pattern, optional group
@@ -208,3 +208,5 @@ the next iteration needs to know.
   recorded in "Known code constraints". Do not re-survey; start editing.
 
 - T1 completed: `PlanExecutor.Locate` now partitions `Locators` into pipelines separated by document locators. Value-kind operations are passed the preceding string; repeated `SelectFirst`/`SelectAll`/`XPath` restart from the document as fallback candidates. `Text`/`Attribute` value handling parses the piped HTML string for the currently supported subset. Added `PlanExecutorTests` for piping and fallback restart. Verified with `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (2 passed). T2 can extend the two dispatch methods with its supported operations.
+
+- T2 was already fully implemented across iterations 2–3 (commits `9d250c4`, `8c8fb55`) but the checklist box was never ticked — this iteration just verified and checked it off, no code changes needed. `HtmlDocument.SelectXPath` (AngleSharp.XPath `SelectSingleNode(...).TextContent`) and `HtmlDocument.OuterHtml` exist. `PlanExecutor.LocateFromDocument`/`LocateFromValue` support `XPath` (1 arg, document-restart semantics via `IsDocumentLocator`), `Html` (0 args, yields document markup as a first step or passes through the piped value when chained), and `RegexCapture` (1–2 args, `RegexOptions.NonBacktracking` + 1s timeout, catches `RegexParseException`/`RegexMatchTimeoutException`/`NotSupportedException` and returns null on miss rather than throwing). `PlanExecutorTests.cs` covers: XPath document location, Html→RegexCapture chaining, RegexCapture with an explicit group index, and a RegexCapture miss yielding null. Verified clean: `dotnet build Sanare.slnx -c Release` → 0 warnings/errors; `dotnet test Sanare.slnx -c Release --filter "Category!=Browser"` → 617 passed (Core 366, Http 181, Abstractions 41, Browser-tagged-but-non-Browser 29), 0 failed — comfortably above the 611 floor. Next: T3 (`JsonPath` locator) is unblocked and is the next open task.
