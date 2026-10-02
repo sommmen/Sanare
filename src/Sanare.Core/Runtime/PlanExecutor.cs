@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Sanare.Abstractions.Diagnostics;
 using Sanare.Abstractions.Plans;
@@ -82,6 +83,10 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
             for (var index = candidateStart + 1; value is not null && index < candidateEnd; index++)
             {
                 value = LocateFromValue(value, field.Locators[index]);
+                if (value is null && field.Locators[index].Operation == PlanOperation.JsonPath)
+                {
+                    diagnostics.Add(new ScrapeDiagnostic("SNR-EXT-001", DiagnosticSeverity.Warning, "JSONPath locator did not produce a value.", field.Pointer));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(value))
@@ -128,10 +133,120 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 return value;
             case PlanOperation.RegexCapture when locator.Arguments.Count is 1 or 2:
                 return RegexCapture(value, locator.Arguments);
+            case PlanOperation.JsonPath when locator.Arguments.Count == 1:
+                return JsonPath(value, locator.Arguments[0]);
             default:
                 throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset.");
         }
     }
+
+    /// <summary>
+    /// Evaluates the supported JSONPath subset: <c>$.a.b</c>, <c>$.a[0].b</c>, and <c>$.a[*].b</c>.
+    /// Wildcard paths return the first scalar match. Invalid paths, malformed JSON, and missing values return
+    /// <c>null</c> so a failed extraction is reported through the normal field diagnostics.
+    /// </summary>
+    private static string? JsonPath(string value, string path)
+    {
+        if (!TryParseJsonPath(path, out var segments))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            IEnumerable<JsonElement> current = [document.RootElement];
+
+            foreach (var segment in segments)
+            {
+                current = segment.Index switch
+                {
+                    null => current.Where(element => element.ValueKind == JsonValueKind.Object)
+                        .SelectMany(element => element.TryGetProperty(segment.Property, out var property)
+                            ? new[] { property }
+                            : Enumerable.Empty<JsonElement>()),
+                    -1 => current.Where(element => element.ValueKind == JsonValueKind.Object)
+                        .SelectMany(element => element.TryGetProperty(segment.Property, out var property) && property.ValueKind == JsonValueKind.Array
+                            ? property.EnumerateArray()
+                            : Enumerable.Empty<JsonElement>()),
+                    _ => current.Where(element => element.ValueKind == JsonValueKind.Object)
+                        .SelectMany(element => element.TryGetProperty(segment.Property, out var property) && property.ValueKind == JsonValueKind.Array && segment.Index.Value < property.GetArrayLength()
+                            ? new[] { property[segment.Index.Value] }
+                            : Enumerable.Empty<JsonElement>()),
+                };
+            }
+
+            var match = current.FirstOrDefault();
+            return match.ValueKind is JsonValueKind.Undefined or JsonValueKind.Object or JsonValueKind.Array
+                ? null
+                : match.ValueKind == JsonValueKind.String ? match.GetString() : match.GetRawText();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryParseJsonPath(string path, out List<JsonPathSegment> segments)
+    {
+        segments = [];
+        if (string.IsNullOrEmpty(path) || path[0] != '$')
+        {
+            return false;
+        }
+
+        for (var index = 1; index < path.Length;)
+        {
+            if (path[index++] != '.')
+            {
+                return false;
+            }
+
+            var propertyStart = index;
+            while (index < path.Length && (char.IsLetterOrDigit(path[index]) || path[index] == '_' || path[index] == '-'))
+            {
+                index++;
+            }
+
+            if (propertyStart == index)
+            {
+                return false;
+            }
+
+            var property = path[propertyStart..index];
+            int? arrayIndex = null;
+            if (index < path.Length && path[index] == '[')
+            {
+                var closeIndex = path.IndexOf(']', ++index);
+                if (closeIndex < 0)
+                {
+                    return false;
+                }
+
+                var indexText = path[index..closeIndex];
+                if (indexText == "*")
+                {
+                    arrayIndex = -1;
+                }
+                else if (!int.TryParse(indexText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedIndex) || parsedIndex < 0)
+                {
+                    return false;
+                }
+                else
+                {
+                    arrayIndex = parsedIndex;
+                }
+
+                index = closeIndex + 1;
+            }
+
+            segments.Add(new JsonPathSegment(property, arrayIndex));
+        }
+
+        return segments.Count > 0;
+    }
+
+    private sealed record JsonPathSegment(string Property, int? Index);
 
     /// <summary>Matches <paramref name="arguments"/>[0] as a non-backtracking pattern (1-second timeout,
     /// matching <c>PlanValidator</c>'s authoring-time compile check) against <paramref name="value"/> and

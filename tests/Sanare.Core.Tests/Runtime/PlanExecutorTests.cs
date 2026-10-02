@@ -88,6 +88,56 @@ public sealed class PlanExecutorTests
         Assert.Equal("LEN103Y0003", outcome.Values["/Name"]);
     }
 
+    [Theory]
+    [InlineData("$.product.offers.price", "649.01")]
+    [InlineData("$.product.images[0].url", "first")]
+    [InlineData("$.product.images[*].url", "first")]
+    public void Execute_json_path_locates_supported_nested_values(string path, string expected)
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectFirst, [".payload"]),
+            new LocatorStep(PlanOperation.JsonPath, [path]),
+        ]);
+
+        var outcome = Execute(plan, "<script class='payload'>{\"product\":{\"offers\":{\"price\":649.01},\"images\":[{\"url\":\"first\"},{\"url\":\"second\"}]}}</script>");
+
+        Assert.True(outcome.RequiredFieldsPresent);
+        Assert.Equal(expected, outcome.Values["/Name"]);
+    }
+
+    [Theory]
+    [InlineData("$.product.missing")]
+    [InlineData("product.name")]
+    public void Execute_json_path_miss_or_invalid_path_yields_null(string path)
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectFirst, [".payload"]),
+            new LocatorStep(PlanOperation.JsonPath, [path]),
+        ]);
+
+        var outcome = Execute(plan, "<script class='payload'>{\"product\":{\"name\":\"Yoga Tab\"}}</script>");
+
+        Assert.False(outcome.RequiredFieldsPresent);
+        Assert.Null(outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Execute_json_path_malformed_json_yields_null()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectFirst, [".payload"]),
+            new LocatorStep(PlanOperation.JsonPath, ["$.product.name"]),
+        ]);
+
+        var outcome = Execute(plan, "<script class='payload'>{\"product\":</script>");
+
+        Assert.False(outcome.RequiredFieldsPresent);
+        Assert.Null(outcome.Values["/Name"]);
+    }
+
     [Fact]
     public void Execute_regex_capture_miss_yields_null_rather_than_throwing()
     {
