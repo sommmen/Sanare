@@ -1,190 +1,210 @@
 # Ralph Plan — Finish Sanare and ship the Lenovo demo
 
-> Goal: close the remaining `draft`/`partial` gaps that the working end-to-end demo
-> actually requires, then land `samples/Sanare.Samples.Lenovo` as a runnable console
-> application that prints schema-valid JSON for the Lenovo Yoga Tab Gen 2 detail page
-> **offline, with zero network access**, driven entirely by a versioned extraction plan.
+> Goal: a runnable console sample that prints schema-valid JSON for the Lenovo
+> Yoga Tab Gen 2 detail page **offline, with zero network access**, driven entirely
+> by a versioned extraction plan rather than by hand-written scraping code.
+
+Each task below is sized for a **single 20-minute agent session**. Prefer finishing one
+whole small task over surveying broadly — the survey is already written down below.
 
 ## Definition of done
 
-All of the following must hold at once:
-
-1. `dotnet build Sanare.slnx -c Release` exits 0 with **zero warnings**
-   (`TreatWarningsAsErrors` is already on; do not weaken it).
+1. `dotnet build Sanare.slnx -c Release` exits 0 with **zero warnings**.
 2. `dotnet test Sanare.slnx -c Release --filter "Category!=Browser"` exits 0.
 3. `dotnet run --project samples/Sanare.Samples.Lenovo -- detail --offline`
-   exits 0 and writes a single JSON object to **stdout** that contains the product
-   name, a decimal price, currency `EUR`, availability, and **at least 14**
-   specification rows.
-4. `dotnet run --project samples/Sanare.Samples.Lenovo -- list --offline`
-   exits 0 and writes a JSON array of tablet listings to stdout.
-5. `dotnet run --project samples/Sanare.Samples.Lenovo -- validate`
-   exits 0 and reports both checked-in plans as structurally valid.
+   exits 0 and writes one JSON object to **stdout** with the product name, a decimal
+   price, currency `EUR`, availability, and **at least 14** specification rows.
+4. `dotnet run --project samples/Sanare.Samples.Lenovo -- list --offline` exits 0 and
+   writes a JSON array of tablet listings to stdout.
+5. `dotnet run --project samples/Sanare.Samples.Lenovo -- validate` exits 0.
 6. Every checklist task below is checked off.
-
-Ground truth for 3–5 is the process exit code plus the parsed stdout, not narration.
 
 ## Quality bars — do not cross these
 
-- **Do not weaken, delete, skip, or `[Fact(Skip=...)]` any existing test.** The repo
-  starts at 611 passing tests; the count must never go down.
-- **Do not suppress warnings** with `#pragma warning disable`, `<NoWarn>`, or by
-  lowering `TreatWarningsAsErrors`. Fix the cause.
-- **Do not put Lenovo CSS selectors, XPath, JSON pointers, regexes, or URLs-to-content
-  mappings in sample C# code.** They belong only in the JSON extraction plans under
-  `samples/Sanare.Samples.Lenovo.State/scripts/plans/`. The sample's C# may name the two
-  source ids and the two start URLs — nothing more. A test must enforce this.
-- **The `--offline` path must perform zero DNS and zero socket connections.** It reads
-  only the checked-in fixture files.
-- **Do not call any LLM or `IChatClient` at runtime.** Plan authoring/healing is out of
-  scope for this plan; the checked-in plans are hand-written, which the spec explicitly
-  permits for v0.1 fixtures.
-- **Do not add new NuGet packages** unless a task below names one. Everything needed is
-  already referenced (AngleSharp, AngleSharp.XPath, System.Text.Json, LibGit2Sharp).
-- Keep `Sanare.Abstractions` dependency-free; there is an API-surface test guarding it.
-  If you intentionally change the public surface, update the approved API text file in
-  the same commit.
-- Follow Conventional Commits (`feat(scope): ...`). Never add a `Co-authored-by` trailer.
+- **Never weaken, delete, or skip an existing test.** The repo starts at **611**
+  passing non-Browser tests. That number must never go down.
+- **Never suppress a warning** (`#pragma warning disable`, `<NoWarn>`, lowering
+  `TreatWarningsAsErrors`). Fix the cause.
+- **No Lenovo CSS selectors, XPath, JSON pointers, or content regexes in sample C#.**
+  They live only in the plan JSON under
+  `samples/Sanare.Samples.Lenovo.State/scripts/plans/`. Sample C# may name the two
+  source ids and the two start URLs, nothing more. T13 enforces this with a test.
+- **`--offline` must open zero sockets.** It reads only committed fixture files.
+- **No LLM / `IChatClient` calls at runtime.** The plans are hand-written, which the
+  spec explicitly permits for v0.1 fixtures.
+- **No new NuGet packages.** AngleSharp, AngleSharp.XPath, System.Text.Json and
+  LibGit2Sharp are already referenced and are sufficient.
+- Keep `Sanare.Abstractions` dependency-free. If you deliberately change the public
+  API surface, update the approved API text file in the same commit.
+- Conventional Commits. **Never** add a `Co-authored-by` trailer.
 
-## Ground truth already established (do not re-derive)
+## Established ground truth — use it, do not re-derive it
 
-Real pages were captured and committed at
+Two real pages are already committed under
 `samples/Sanare.Samples.Lenovo.State/fixtures/lenovo-com/`:
+`yoga-tab-gen2-detail.html` and `tablets-lister-page1.html`.
+**Never fetch lenovo.com.** Verified facts about those exact files:
 
-- `yoga-tab-gen2-detail.html` — the Yoga Tab Gen 2 product detail page.
-- `tablets-lister-page1.html` — the `/nl/nl/tablets/` lister page.
+- The detail page has **two** `application/ld+json` scripts. The **second** is the
+  Product block: `name` = `Lenovo Yoga Tab Gen 2`, `offers.price` = `649.01`,
+  `offers.priceCurrency` = `EUR`, `offers.availability` = `http://schema.org/InStock`,
+  `sku`/`mpn` = `LEN103Y0003`, `image` is an array of protocol-relative URLs
+  (`//p3-ofp.static.pub/...`). Select it by `"@type":"Product"` content, not by index.
+- The **whole specification table is in the HTML**, inside an inline `<script>` that
+  starts with `var $pdpAllData = {` and runs to the next `</script>`. In that JSON,
+  `techSpecs.tables` is an array of `{ groupHeadline, specs: [{ headline, text }] }`.
+  There are **5 groups and 14 rows**: Prestaties 3, Connectiviteit 3, Ontwerp 4,
+  Duurzaamheid 1, Overige informatie 3. `text` holds HTML (`<ul>/<li>/<p>`) that must be
+  flattened to plain text. **No browser needed.**
+- The lister fixture is a marketing page whose product links (`/p/tablets/...`) live in
+  an embedded navigation JSON. Treat it as a best-effort listing over that fixture.
 
-Facts verified against those exact files:
+## Known code constraints — read before writing code
 
-- The detail page carries a **`application/ld+json` Product block** with
-  `name` = `Lenovo Yoga Tab Gen 2`, `offers.price` = `649.01`,
-  `offers.priceCurrency` = `EUR`, `offers.availability` =
-  `http://schema.org/InStock`, `sku`/`mpn` = `LEN103Y0003`, and an `image` array.
-  It is the **second** `ld+json` script in the document (the first is a breadcrumb
-  `itemListElement` block), so a plan must select the Product block by content, not by
-  ordinal position alone.
-- The **entire specification table is embedded in the HTML** inside an inline
-  `<script>` that begins `var $pdpAllData = {` and ends at the next `</script>`.
-  Its `techSpecs.tables` is an array of `{ groupHeadline, specs: [{ headline, text }] }`.
-  There are **5 groups and 14 spec rows**: Prestaties (3), Connectiviteit (3),
-  Ontwerp (4), Duurzaamheid (1), Overige informatie (3). `text` contains HTML markup
-  (`<ul>/<li>/<p>`) that must be flattened to readable text.
-  **No browser is required** — ordinary HTTP acquisition sees all of it.
-- The lister page is a marketing landing page; product links matching
-  `/p/tablets/...` appear in an embedded navigation JSON. Treat the lister as a
-  best-effort listing over the links present in that fixture. Do **not** go to the
-  network to improve it.
-
-Use these facts. Do not spend an iteration rediscovering them, and **never** fetch
-lenovo.com during this plan.
+- `PlanExecutor.Locate` supports only `SelectFirst`/`Text` (1 arg) and `Attribute`
+  (2 args), and **throws `NotSupportedException`** for anything else.
+  `TryTransform` supports only `Trim`, `CollapseWhitespace`, `StripCurrency`,
+  `StripUnit`. Everything else must be added.
+- `PlanValidator` already validates arity and tier **generically** from
+  `PlanOperationCatalog`, so newly-supported operations need **no** new validator rules.
+  Do not add redundant ones.
+- Operation tiers in the catalog are fixed: `JsonPath` is allowed only for tiers
+  `JsonApi`/`StructuredData`; `SelectFirst`/`SelectAll`/`XPath` only for
+  `StructuredData`/`Html`/`Browser`. **A plan using both CSS and `JsonPath` must declare
+  `Tier = StructuredData`.** That is the tier the detail plan must use.
+- `DocumentMaterializer` uses `Activator.CreateInstance<T>()` plus **writable**
+  properties keyed by `"/" + PropertyName`. It cannot populate positional records.
+  Sample schema types must therefore have a parameterless constructor and settable
+  properties, or the materializer must be upgraded. Pick one; record it in Notes.
+- `SchemaDeriver` emits pointers like `/Specifications/*/Name` for a collection of
+  complex elements, and requires exactly one `[ScrapeCollection]` property per schema.
+- There is **no** `tests/Sanare.Core.Tests/Runtime/` folder yet; create it.
 
 ## Checklist
 
-- [ ] **T1 — Runtime: JSON-island + structured extraction primitives.**
-  `PlanExecutor` currently supports only `SelectFirst`/`Text`/`Attribute` locators and
-  `Trim`/`CollapseWhitespace`/`StripCurrency`/`StripUnit` transforms, and throws
-  `NotSupportedException` for everything else. The demo cannot be expressed in that
-  subset. Extend `HtmlDocument` and `PlanExecutor` to support, from the already-closed
-  `PlanOperation` vocabulary: `XPath`, `RegexCapture`, `Html`, `JsonPath`, `ParseDecimal`,
-  `ParseInt`, `ParseBool`, `MapEnum`, `Split`, `Index`, `Coalesce`, `Exists`, and
-  `Concat`. `JsonPath` must be able to run against a JSON document extracted from the
-  page by a preceding locator step (that is the `$pdpAllData` / `ld+json` case), so
-  locator steps must thread an intermediate value rather than always restarting from the
-  document. `RegexCapture` must keep the existing non-backtracking guarantee that
-  `PlanValidator` enforces, and must be given a bounded `Regex` timeout.
-  Add focused unit tests in `tests/Sanare.Core.Tests` for each new operation, including
-  a negative test that an unsupported operation still fails loudly rather than silently
-  yielding null. Depends on: —.
+- [ ] **T1 — Thread an intermediate value through locator steps.**
+  Today every locator step restarts from the document, so `JsonPath` can never run
+  against JSON pulled out of the page. Refactor `PlanExecutor.Locate` so a field's
+  `Locators` list is a **pipeline**: step 1 reads the document, each later step receives
+  the previous step's string output. Preserve today's behaviour exactly for single-step
+  fields and for existing fallback-locator semantics. Resolve the ambiguity this way and
+  state it in a code comment: steps after the first that are *value-kind* operations
+  (`JsonPath`, `RegexCapture`, `Index`, `Split`, `Text`, `Attribute`) consume the
+  previous value; a repeat of a *document* locator (`SelectFirst`/`SelectAll`/`XPath`)
+  is an alternative and restarts from the document. Add
+  `tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs` covering both shapes. Depends on: —.
 
-- [ ] **T2 — Runtime: collection extraction (`ExecuteMany`).**
-  Add `IPlanExecutor.ExecuteMany(plan, content, schema)` returning one
-  `ExtractionOutcome` per item, driven by `ExtractionPlan.Root` as the item locator, with
-  per-item field pointers resolved relative to the item. Support a `Root` that selects
-  over HTML elements **and** one that selects over a JSON array (needed for the 14 spec
-  rows, which live in JSON, and for the lister). An item whose required fields are
-  missing is reported as a failed item, not silently dropped. Add unit tests covering
-  both shapes, empty collections, and `MaxItems` clamping. Depends on: T1.
+- [ ] **T2 — Add `XPath`, `Html`, and `RegexCapture` locators.**
+  `HtmlDocument` gains `SelectXPath(expr)` (AngleSharp.XPath is referenced) and
+  `OuterHtml`. `PlanExecutor` supports `XPath` (1 arg), `Html` (0 args — yields the
+  document or the piped value as HTML), and `RegexCapture` (pattern, optional group
+  index) compiled with `RegexOptions.NonBacktracking` and a **1-second timeout**,
+  matching what `PlanValidator` already promises. Unit-test each, including a
+  `RegexCapture` miss returning null rather than throwing. Depends on: T1.
 
-- [ ] **T3 — Plan validation catches up with T1/T2.**
-  Extend `PlanValidator` so the newly reachable operations validate correctly:
-  arity/tier checks for each operation added in T1, and the rule that a plan with a
-  non-`None` pagination strategy, or any field pointer containing `/*`, must declare a
-  `Root`. Keep every existing validator test passing. Add tests for the new rules.
-  Depends on: T2.
+- [ ] **T3 — Add the `JsonPath` locator.**
+  Support a **documented, deliberately small** path subset over a JSON string produced
+  by a previous step: `$.a.b`, `$.a[0].b`, and `$.a[*].b` returning the first match for
+  scalar use. `System.Text.Json` only. An invalid path or a miss yields null plus a
+  diagnostic — never an escaping exception. Put the supported grammar in an XML doc
+  comment. Unit-test hits, misses, nested arrays, and malformed JSON. Depends on: T2.
 
-- [ ] **T4 — Offline fixture acquisition seam for the sample.**
-  The sample must read the committed fixture HTML with **zero sockets**. Provide a
-  file-backed `IFixtureContentProvider` in `Sanare.Core` (next to
-  `InMemoryFixtureContentProvider`) that maps a `(sourceId, url)` pair to a file on disk
-  via a small committed manifest JSON, so the mapping is data, not C# code. Unit-test it,
-  including the miss path. Depends on: —.
+- [ ] **T4 — Transform operations the demo needs.**
+  Extend `PlanExecutor.TryTransform` with `Split` (1 arg), `Index` (1 int arg),
+  `Concat` (0–1 separator), `Coalesce`, `Exists`, `MapEnum` (pairs), `ParseInt`,
+  `ParseDecimal`, `ParseBool` — all already in the closed vocabulary, all with the arity
+  the catalog declares. Final CLR coercion stays `TypeCoercer`'s job; these operate on
+  text. Also add HTML-to-readable-text flattening, which the spec `text` values need;
+  name it clearly and say in Notes which operation exposes it. Unit-test each. Depends on: T3.
 
-- [ ] **T5 — Sample project skeleton.**
+- [ ] **T5 — `ExecuteMany` for collections.**
+  Add `ExtractionOutcome[] ExecuteMany(plan, content, schema)` to `IPlanExecutor` and
+  `PlanExecutor`, driven by `ExtractionPlan.Root` as the item locator, with field
+  pointers containing `/*` resolved **relative to each item**. Support a `Root` over
+  HTML elements *and* over a **JSON array** (the 14 spec rows are JSON). Items missing
+  required fields are reported as failed items, never dropped silently. Honour
+  `Pagination.MaxItems` as a clamp when set. Unit-test both shapes, the empty
+  collection, and the clamp. Depends on: T4.
+
+- [ ] **T6 — File-backed offline fixture provider.**
+  Add `FileFixtureContentProvider` to `src/Sanare.Core/Fixtures/` implementing
+  `IFixtureContentProvider`, resolving `(sourceId, url)` to a file through a small
+  committed manifest JSON so the mapping is **data, not code**. Zero sockets by
+  construction. Unit-test a hit, a miss, and a manifest entry pointing at a missing
+  file. Depends on: —.
+
+- [ ] **T7 — Sample and test projects exist and build.**
   Create `samples/Sanare.Samples.Lenovo/Sanare.Samples.Lenovo.csproj` (console,
-  `net10.0`, `IsPackable=false`) referencing `Sanare.Core` and `Sanare.Abstractions`, and
-  add it plus a `samples/` folder entry to `Sanare.slnx`. Add
-  `tests/Sanare.Samples.Lenovo.Tests` and register it in `Sanare.slnx` too. The project
-  must build clean with warnings-as-errors. At this point `Program.cs` may just print
-  usage and return 0. Depends on: —.
+  `net10.0`, `IsPackable=false`) referencing `Sanare.Core` + `Sanare.Abstractions`, and
+  `tests/Sanare.Samples.Lenovo.Tests`. Register both in `Sanare.slnx` under a new
+  `/samples/` folder and the existing `/tests/` folder. `Program.cs` may print usage and
+  return 0 for now. Build must be clean under warnings-as-errors. Depends on: —.
 
-- [ ] **T6 — Typed schemas and JSON output contract.**
-  Add `TabletListing`, `TabletProduct`, and `ProductSpecification` records as described
-  in `docs/features/sample-app-lenovo.md` ("Typed schemas"), plus a
-  `System.Text.Json` source-generated `LenovoJsonContext`. stdout is JSON only; all logs
-  and diagnostics go to **stderr**. Prices serialize as JSON numbers. Add unit tests for
-  schema derivation of all three records and for the writer. Depends on: T5.
+- [ ] **T8 — Typed schemas + JSON output contract.**
+  Add `TabletListing`, `TabletProduct`, `ProductSpecification` (shapes in
+  `docs/features/sample-app-lenovo.md` → "Typed schemas"), honouring the materializer
+  constraint recorded in Notes. Add a source-generated `LenovoJsonContext`. **stdout is
+  JSON only; every log and diagnostic goes to stderr.** Prices are JSON numbers.
+  Unit-test schema derivation for all three types and the stdout/stderr split. Depends on: T7.
 
-- [ ] **T7 — The two extraction plans, committed as data.**
-  Hand-write canonical plan JSON under
-  `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/` — one for
-  `lenovo-com/tablet-detail` and one for `lenovo-com/tablet-lister`. They must round-trip
-  through `PlanSerializer` byte-identically and pass `PlanValidator`. The detail plan
-  extracts name/price/currency/availability/part-number/images from the `ld+json` Product
-  block and all 14 specification rows from the `$pdpAllData` JSON island, using only
-  operations from the closed vocabulary. Add a test asserting round-trip stability and
-  validity of both committed plans. Depends on: T3, T6.
+- [ ] **T9 — The detail extraction plan, as committed data.**
+  Hand-write canonical plan JSON for `lenovo-com/tablet-detail` under
+  `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/`, with
+  `Tier = StructuredData`. It pulls name/price/currency/availability/part-number/images
+  from the Product `ld+json` block and the 14 spec rows from the `$pdpAllData` island,
+  using only closed-vocabulary operations. Add a test asserting byte-identical
+  `PlanSerializer` round-trip and `PlanValidator` success against the derived
+  `TabletProduct` schema. Depends on: T5, T8.
 
-- [ ] **T8 — Wire the sample end to end: `detail --offline`.**
-  Implement the `detail` command: load the committed plan, derive the `TabletProduct`
-  schema, read the fixture through T4's provider, execute via `PlanExecutor` +
-  `ExecuteMany` for the specification collection, validate/materialize, and print JSON to
-  stdout. Exit 0 on success; on failure print nothing to stdout, a diagnostic to stderr,
-  and return a non-zero code. Write the golden output to
-  `samples/Sanare.Samples.Lenovo.State/golden/yoga-tab-gen2.json`. Add an integration
-  test that runs the command in-process and asserts: exit 0, parseable stdout, the
-  expected name, price `649.01`, currency `EUR`, and **>= 14** specification rows with
-  non-empty `Name` and `Value`. Depends on: T7, T4.
+- [ ] **T10 — `detail --offline` works end to end.**
+  Implement `detail`: load the committed plan, derive the schema, read the fixture via
+  T6's provider, run `Execute` + `ExecuteMany`, validate, materialize, print JSON to
+  stdout, exit 0. On failure: stdout empty, diagnostic on stderr, non-zero exit. Save
+  golden output to `samples/Sanare.Samples.Lenovo.State/golden/yoga-tab-gen2.json`. Add
+  an integration test asserting exit 0, parseable stdout, name `Lenovo Yoga Tab Gen 2`,
+  price `649.01`, currency `EUR`, and **>= 14** spec rows each with non-empty `Name` and
+  `Value`. Depends on: T9.
 
-- [ ] **T9 — Wire the sample end to end: `list --offline` and `validate`.**
-  Implement `list --offline` (streams tablet listings from the lister fixture as a JSON
-  array, deduplicated by `ProductUrl`) and `validate` (validates both committed plans and
-  reports per-plan results, exit 0 only when both are valid). Write
-  `samples/Sanare.Samples.Lenovo.State/golden/tablet-list.json`. Add integration tests for
-  both commands. Depends on: T8.
+- [ ] **T11 — The lister plan and `list --offline`.**
+  Hand-write the `lenovo-com/tablet-lister` plan, implement `list --offline` streaming
+  listings as a JSON array deduplicated by `ProductUrl`, and save
+  `samples/Sanare.Samples.Lenovo.State/golden/tablet-list.json`. Integration-test exit 0,
+  a non-empty array, no duplicate `ProductUrl`, and absolute `ProductUrl` values.
+  Depends on: T10.
 
-- [ ] **T10 — Architecture guard test.**
-  Add a test that scans every `.cs` file under `samples/Sanare.Samples.Lenovo/` and fails
-  if it contains CSS-selector-looking strings, XPath literals, JSON pointers into Lenovo
-  payloads, or `lenovo.com` URLs other than the two declared start URLs. This is the test
-  that proves the product claim. Depends on: T9.
+- [ ] **T12 — The `validate` command.**
+  Implement `validate`: run `PlanValidator` over both committed plans against their
+  derived schemas, report per-plan results on stdout as JSON, exit 0 only when both are
+  valid. Integration-test the success path and a deliberately corrupted temp-copy plan
+  producing a non-zero exit. Depends on: T11.
 
-- [ ] **T11 — Sample README and documentation reconciliation.**
-  Write `samples/Sanare.Samples.Lenovo/README.md` documenting the commands, the offline
-  guarantee, where the plans live, and how to regenerate fixtures manually. Update
-  `README.md`, `DEVELOPMENT.md`, and `docs/features/overview.md` so the status table and
-  todo list match what now actually exists — including flipping row 18 off `draft`. Do
-  not claim anything the code does not do. Depends on: T10.
+- [ ] **T13 — Architecture guard test.**
+  Add a test scanning every `.cs` file under `samples/Sanare.Samples.Lenovo/` that fails
+  on CSS-selector-looking strings, XPath literals, JSON paths into Lenovo payloads, or
+  any `lenovo.com` URL other than the two declared start URLs. This test is what proves
+  the product claim. Depends on: T12.
 
-- [ ] **T12 — Final verification sweep.**
-  Re-run the full definition of done from a clean build. Then grep the repository to
-  prove the quality bars held: no new `#pragma warning disable`, no `NoWarn`, no
-  `Skip =` added to tests, and no Lenovo selector strings in sample C#. Confirm the test
-  count is **>= 611**. Record the actual numbers in Notes. Depends on: T11.
+- [ ] **T14 — Sample README + documentation reconciliation.**
+  Write `samples/Sanare.Samples.Lenovo/README.md` (commands, the offline guarantee,
+  where plans live, how to refresh fixtures manually). Update `README.md`,
+  `DEVELOPMENT.md`, and `docs/features/overview.md` so statuses match reality, including
+  row 18. Claim nothing the code does not do. Depends on: T13.
+
+- [ ] **T15 — Final verification sweep.**
+  Re-run the whole definition of done from a clean build. Then prove the bars held by
+  grepping for newly added `#pragma warning disable`, `NoWarn`, and `Skip =`, and for
+  selector strings in sample C#. Confirm the non-Browser test count is **>= 611**. Write
+  the actual numbers into Notes. Depends on: T14.
 
 ## Notes
 
 Each iteration starts with a blank context; this section is the only memory between
-iterations. Append findings here — what you changed, what surprised you, what the next
-iteration should know. Keep it factual and short.
+iterations. Append short, factual findings — what you changed, what surprised you, what
+the next iteration needs to know.
+
+- A first run's two iterations both **timed out at the 20-minute budget** on a much
+  larger version of T1 and produced no code. The plan has since been split into the
+  smaller tasks above, and the survey results they spent their time rediscovering are
+  recorded in "Known code constraints". Do not re-survey; start editing.
 
 - (iteration notes go here)
