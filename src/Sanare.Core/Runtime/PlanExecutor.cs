@@ -68,28 +68,56 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
 
     private static string? Locate(HtmlDocument document, FieldPlan field, List<ScrapeDiagnostic> diagnostics)
     {
-        for (var index = 0; index < field.Locators.Count; index++)
+        for (var candidateStart = 0; candidateStart < field.Locators.Count;)
         {
-            var locator = field.Locators[index];
-            var value = locator.Operation switch
+            var candidateEnd = candidateStart + 1;
+            while (candidateEnd < field.Locators.Count && !IsDocumentLocator(field.Locators[candidateEnd].Operation))
             {
-                PlanOperation.SelectFirst or PlanOperation.Text when locator.Arguments.Count == 1 => document.SelectText(locator.Arguments[0]),
-                PlanOperation.Attribute when locator.Arguments.Count == 2 => document.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
-                _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
-            };
+                candidateEnd++;
+            }
+
+            var value = LocateFromDocument(document, field.Locators[candidateStart]);
+            for (var index = candidateStart + 1; value is not null && index < candidateEnd; index++)
+            {
+                value = LocateFromValue(value, field.Locators[index]);
+            }
 
             if (!string.IsNullOrWhiteSpace(value))
             {
-                if (index > 0)
+                if (candidateStart > 0)
                 {
                     diagnostics.Add(new ScrapeDiagnostic("SNR-EXT-001", DiagnosticSeverity.Info, "A fallback locator succeeded.", field.Pointer));
                 }
 
                 return value;
             }
+
+            candidateStart = candidateEnd;
         }
 
         return null;
+    }
+
+    // JsonPath, RegexCapture, Index, Split, Text, and Attribute consume the preceding value;
+    // a repeated SelectFirst, SelectAll, or XPath starts an alternative from the document.
+    private static bool IsDocumentLocator(PlanOperation operation) => operation is PlanOperation.SelectFirst or PlanOperation.SelectAll or PlanOperation.XPath;
+
+    private static string? LocateFromDocument(HtmlDocument document, LocatorStep locator) => locator.Operation switch
+    {
+        PlanOperation.SelectFirst or PlanOperation.Text when locator.Arguments.Count == 1 => document.SelectText(locator.Arguments[0]),
+        PlanOperation.Attribute when locator.Arguments.Count == 2 => document.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
+        _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
+    };
+
+    private static string? LocateFromValue(string value, LocatorStep locator)
+    {
+        var valueDocument = new HtmlDocument(value);
+        return locator.Operation switch
+        {
+            PlanOperation.Text when locator.Arguments.Count == 1 => valueDocument.SelectText(locator.Arguments[0]),
+            PlanOperation.Attribute when locator.Arguments.Count == 2 => valueDocument.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
+            _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
+        };
     }
 
     private static bool TryTransform(string input, IReadOnlyList<TransformStep> transforms, out string output, out string? error)

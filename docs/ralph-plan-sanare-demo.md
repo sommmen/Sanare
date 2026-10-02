@@ -82,7 +82,7 @@ Two real pages are already committed under
 
 ## Checklist
 
-- [ ] **T1 — Thread an intermediate value through locator steps.**
+- [x] **T1 — Thread an intermediate value through locator steps.**
   Today every locator step restarts from the document, so `JsonPath` can never run
   against JSON pulled out of the page. Refactor `PlanExecutor.Locate` so a field's
   `Locators` list is a **pipeline**: step 1 reads the document, each later step receives
@@ -207,4 +207,4 @@ the next iteration needs to know.
   smaller tasks above, and the survey results they spent their time rediscovering are
   recorded in "Known code constraints". Do not re-survey; start editing.
 
-- (iteration notes go here)
+- T1 completed: `PlanExecutor.Locate` now partitions `Locators` into pipelines separated by document locators. Value-kind operations are passed the preceding string; repeated `SelectFirst`/`SelectAll`/`XPath` restart from the document as fallback candidates. `Text`/`Attribute` value handling parses the piped HTML string for the currently supported subset. Added `PlanExecutorTests` for piping and fallback restart. Verified with `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (2 passed). T2 can extend the two dispatch methods with its supported operations.
