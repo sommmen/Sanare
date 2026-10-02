@@ -298,6 +298,69 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 case PlanOperation.StripUnit when transform.Arguments.Count == 1 && output.TrimEnd().EndsWith(transform.Arguments[0], StringComparison.OrdinalIgnoreCase):
                     output = output.TrimEnd()[..^transform.Arguments[0].Length].Trim();
                     break;
+                case PlanOperation.Split when transform.Arguments.Count == 1:
+                    output = string.Join("\n", output.Split(transform.Arguments[0], StringSplitOptions.None));
+                    break;
+                case PlanOperation.Index when transform.Arguments.Count == 1 && int.TryParse(transform.Arguments[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var index):
+                    var values = output.Split('\n');
+                    if (index < 0 || index >= values.Length)
+                    {
+                        error = $"Index '{index}' is outside the split value range.";
+                        return false;
+                    }
+
+                    output = values[index];
+                    break;
+                case PlanOperation.Concat:
+                    output = string.Join(transform.Arguments.Count == 1 ? transform.Arguments[0] : string.Empty, output.Split('\n'));
+                    break;
+                case PlanOperation.Coalesce:
+                    output = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty;
+                    break;
+                case PlanOperation.Exists:
+                    output = (!string.IsNullOrWhiteSpace(output)).ToString().ToLowerInvariant();
+                    break;
+                case PlanOperation.MapEnum when transform.Arguments.Count >= 2 && transform.Arguments.Count % 2 == 0:
+                    for (var argumentIndex = 0; argumentIndex < transform.Arguments.Count; argumentIndex += 2)
+                    {
+                        if (string.Equals(output, transform.Arguments[argumentIndex], StringComparison.OrdinalIgnoreCase))
+                        {
+                            output = transform.Arguments[argumentIndex + 1];
+                            break;
+                        }
+                    }
+
+                    break;
+                case PlanOperation.ParseInt:
+                    if (!int.TryParse(output, NumberStyles.Integer, GetCulture(transform.Arguments), out var integer))
+                    {
+                        error = $"'{output}' is not a valid integer.";
+                        return false;
+                    }
+
+                    output = integer.ToString(CultureInfo.InvariantCulture);
+                    break;
+                case PlanOperation.ParseDecimal:
+                    if (!decimal.TryParse(output, NumberStyles.Number, GetCulture(transform.Arguments), out var decimalValue))
+                    {
+                        error = $"'{output}' is not a valid decimal.";
+                        return false;
+                    }
+
+                    output = decimalValue.ToString(CultureInfo.InvariantCulture);
+                    break;
+                case PlanOperation.ParseBool:
+                    if (!bool.TryParse(output, out var boolean))
+                    {
+                        error = $"'{output}' is not a valid Boolean.";
+                        return false;
+                    }
+
+                    output = boolean.ToString().ToLowerInvariant();
+                    break;
+                case PlanOperation.Html:
+                    output = HtmlToReadableText(output);
+                    break;
                 default:
                     error = $"Plan transform '{transform.Operation}' is outside the v0.1 HTML runtime subset.";
                     return false;
@@ -306,5 +369,15 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
 
         error = null;
         return true;
+    }
+
+    private static CultureInfo GetCulture(IReadOnlyList<string> arguments) =>
+        arguments.Count == 0 ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(arguments[0]);
+
+    /// <summary>Flattens HTML list and paragraph content to normalized, newline-separated readable text.</summary>
+    private static string HtmlToReadableText(string html)
+    {
+        var text = Regex.Replace(html, "</(?:li|p|div|br|tr|h[1-6])\\s*>", "\n", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        return TextNormalizer.Normalize(new HtmlDocument(text).TextContent.Replace("\n", " ", StringComparison.Ordinal));
     }
 }

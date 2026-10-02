@@ -27,5 +27,8 @@ public sealed class HtmlDocument
     /// <summary>Returns the serialized HTML document.</summary>
     public string OuterHtml => _document.DocumentElement?.OuterHtml ?? string.Empty;
 
+    /// <summary>Returns the document text with markup removed.</summary>
+    public string TextContent => _document.DocumentElement?.TextContent ?? string.Empty;
+
     public bool Exists(string selector) => _document.QuerySelector(selector) is not null;
 }

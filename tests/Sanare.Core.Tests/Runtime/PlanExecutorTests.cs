@@ -153,13 +153,37 @@ public sealed class PlanExecutorTests
         Assert.Null(outcome.Values["/Name"]);
     }
 
+    [Theory]
+    [InlineData(PlanOperation.Split, "Yoga|Tab|2", new[] { "|" }, "Yoga Tab 2")]
+    [InlineData(PlanOperation.Index, "Yoga\nTab\n2", new[] { "1" }, "Tab")]
+    [InlineData(PlanOperation.Concat, "Yoga\nTab\n2", new[] { " " }, "Yoga Tab 2")]
+    [InlineData(PlanOperation.Coalesce, "\n\nYoga\nTab", new string[0], "Yoga")]
+    [InlineData(PlanOperation.Exists, "Yoga", new string[0], "true")]
+    [InlineData(PlanOperation.MapEnum, "http://schema.org/InStock", new[] { "http://schema.org/InStock", "InStock" }, "InStock")]
+    [InlineData(PlanOperation.ParseInt, "649", new string[0], "649")]
+    [InlineData(PlanOperation.ParseDecimal, "649.01", new string[0], "649.01")]
+    [InlineData(PlanOperation.ParseBool, "TRUE", new string[0], "true")]
+    [InlineData(PlanOperation.Html, "<ul><li>Yoga</li><li>Tab</li></ul>", new string[0], "Yoga Tab")]
+    public void Execute_applies_demo_transforms(PlanOperation operation, string value, string[] arguments, string expected)
+    {
+        var plan = CreatePlan(
+            [new LocatorStep(PlanOperation.SelectFirst, [".payload"])],
+            [new TransformStep(operation, arguments)]);
+
+        var payload = operation == PlanOperation.Html ? System.Net.WebUtility.HtmlEncode(value) : value;
+        var outcome = Execute(plan, $"<div class='payload'>{payload}</div>");
+
+        Assert.True(outcome.RequiredFieldsPresent);
+        Assert.Equal(expected, outcome.Values["/Name"]);
+    }
+
     private static ExtractionOutcome Execute(ExtractionPlan plan, string html)
     {
         var schema = new SchemaDeriver().Derive<Product>();
         return new PlanExecutor(new TypeCoercer()).Execute(plan, html, schema);
     }
 
-    private static ExtractionPlan CreatePlan(IReadOnlyList<LocatorStep> locators) => new()
+    private static ExtractionPlan CreatePlan(IReadOnlyList<LocatorStep> locators, IReadOnlyList<TransformStep>? transforms = null) => new()
     {
         PlanVersion = ExtractionPlan.CurrentPlanVersion,
         SourceId = "example/products",
@@ -169,7 +193,7 @@ public sealed class PlanExecutorTests
         Culture = "en-US",
         Tier = AcquisitionTier.Html,
         Acquisition = new AcquisitionSpec(AcquisitionMethod.Get, StartUrl.AbsoluteUri, new Dictionary<string, string>(), null, Array.Empty<InteractionStep>()),
-        Fields = [new FieldPlan("/Name", true, "string", locators, Array.Empty<TransformStep>())],
+        Fields = [new FieldPlan("/Name", true, "string", locators, transforms ?? Array.Empty<TransformStep>())],
         Provenance = new PlanProvenance("test", "none", 1, Array.Empty<string>(), 1d, DateTimeOffset.UnixEpoch),
     };
 
