@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using AngleSharp.XPath;
 
 namespace Sanare.Core.Runtime.Documents;
 
