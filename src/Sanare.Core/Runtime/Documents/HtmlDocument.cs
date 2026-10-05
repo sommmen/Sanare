@@ -28,6 +28,10 @@ public sealed class HtmlDocument
     public IReadOnlyList<string> SelectAllOuterHtml(string selector) =>
         _document.QuerySelectorAll(selector).Select(static element => element.OuterHtml).ToArray();
 
+    /// <summary>Returns the text content of every node matching a CSS selector, in document order.</summary>
+    public IReadOnlyList<string> SelectAllTextContent(string selector) =>
+        _document.QuerySelectorAll(selector).Select(static element => element.TextContent).ToArray();
+
     /// <summary>Returns the text content of the first node matching an XPath expression.</summary>
     public string? SelectXPath(string expression) =>
         _document.DocumentElement?.SelectSingleNode(expression)?.TextContent;

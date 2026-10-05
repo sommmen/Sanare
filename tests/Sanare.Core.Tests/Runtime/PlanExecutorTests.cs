@@ -249,6 +249,53 @@ public sealed class PlanExecutorTests
     }
 
     [Fact]
+    public void ExecuteMany_finds_a_json_island_embedded_in_markup_without_site_specific_knowledge()
+    {
+        var locator = new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]);
+        var plan = CreatePlan([locator]) with
+        {
+            Root = "$.groups[*].products[*]",
+            Fields = [new FieldPlan("/Products/*/Name", true, "string", [locator, new LocatorStep(PlanOperation.JsonPath, ["$.name"])], [])],
+        };
+
+        // The island is named by an arbitrary variable, and an unrelated script precedes it. Neither the
+        // variable name nor the page's structure may be known to this generic runtime.
+        const string Markup = """
+            <html><body>
+            <script>window.__ANALYTICS__ = {"session":"abc"};</script>
+            <script>var $someOtherSitesPayload = {"groups":[{"products":[{"name":"Yoga"}]},{"products":[{"name":"Tab"}]}]};</script>
+            </body></html>
+            """;
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, Markup, new SchemaDeriver().Derive<ProductCollection>());
+
+        Assert.Equal(["Yoga", "Tab"], outcomes.Select(outcome => outcome.Values["/Name"]));
+    }
+
+    [Fact]
+    public void ExecuteMany_ignores_a_json_island_whose_braces_appear_inside_strings()
+    {
+        var locator = new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]);
+        var plan = CreatePlan([locator]) with
+        {
+            Root = "$.groups[*].products[*]",
+            Fields = [new FieldPlan("/Products/*/Name", true, "string", [locator, new LocatorStep(PlanOperation.JsonPath, ["$.name"])], [])],
+        };
+
+        // A brace inside a string literal must not terminate the island early, or the payload that
+        // follows it is lost.
+        const string Markup = """
+            <html><body>
+            <script>var payload = {"label":"a } brace","groups":[{"products":[{"name":"Yoga"}]}]};</script>
+            </body></html>
+            """;
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, Markup, new SchemaDeriver().Derive<ProductCollection>());
+
+        Assert.Equal(["Yoga"], outcomes.Select(outcome => outcome.Values["/Name"]));
+    }
+
+    [Fact]
     public void ExecuteMany_returns_no_outcomes_for_an_empty_collection()
     {
         var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".name"])]) with { Root = ".item" };

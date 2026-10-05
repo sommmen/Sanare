@@ -87,9 +87,8 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         }
 
         var jsonRoot = plan.Root.StartsWith('$');
-        var rootContent = jsonRoot ? ExtractJsonIsland(content) : content;
         var itemContents = jsonRoot
-            ? SelectJsonItems(rootContent, plan.Root)
+            ? SelectJsonItems(content, plan.Root)
             : new HtmlDocument(content).SelectAllOuterHtml(plan.Root);
         var maxItems = plan.Pagination.MaxItems;
         if (maxItems is not null)
@@ -126,32 +125,118 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
     private static FieldDescriptor Relativize(FieldDescriptor field, string collectionPointer) =>
         field with { JsonPointer = field.JsonPointer[(collectionPointer.Length + 2)..] };
 
-    private static string ExtractJsonIsland(string content)
+    /// <summary>
+    /// Resolves the JSON document a <c>$</c>-rooted plan selects over. Content that is already JSON is
+    /// used as-is. Otherwise the content is treated as markup and each <c>&lt;script&gt;</c> element is
+    /// searched for an embedded JSON object literal — the "JSON island" pattern used by sites that
+    /// server-render their data into a page rather than exposing an API.
+    /// </summary>
+    /// <remarks>
+    /// This scan is deliberately site-agnostic: it recognises the shape <c>… = { … }</c> inside a script
+    /// body rather than any particular variable name, so no site-specific knowledge lives in this generic
+    /// runtime. Candidate islands are returned in document order and the caller picks the first whose
+    /// content satisfies the plan's root path, which keeps selection driven by the plan rather than by a
+    /// heuristic guess here.
+    /// </remarks>
+    private static IEnumerable<string> ResolveJsonCandidates(string content)
     {
-        const string prefix = "var $pdpAllData = ";
-        var start = content.IndexOf(prefix, StringComparison.Ordinal);
-        if (start < 0)
+        var trimmed = content.TrimStart();
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
         {
-            return content;
+            yield return content;
+            yield break;
         }
 
-        start += prefix.Length;
-        var end = content.IndexOf("</script>", start, StringComparison.Ordinal);
-        return end < 0 ? content : content[start..end].Trim().TrimEnd(';').Trim();
+        foreach (var script in new HtmlDocument(content).SelectAllTextContent("script"))
+        {
+            if (TryReadJsonObject(script, out var island))
+            {
+                yield return island;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts the first balanced JSON object literal from a script body, honouring string literals and
+    /// escapes so that a brace inside a string cannot end the object early.
+    /// </summary>
+    private static bool TryReadJsonObject(string script, out string json)
+    {
+        json = string.Empty;
+        var start = script.IndexOf('{');
+        if (start < 0)
+        {
+            return false;
+        }
+
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var index = start; index < script.Length; index++)
+        {
+            var character = script[index];
+            if (escaped)
+            {
+                escaped = false;
+                continue;
+            }
+
+            if (inString)
+            {
+                if (character == '\\')
+                {
+                    escaped = true;
+                }
+                else if (character == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            switch (character)
+            {
+                case '"':
+                    inString = true;
+                    break;
+                case '{':
+                    depth++;
+                    break;
+                case '}':
+                    depth--;
+                    if (depth == 0)
+                    {
+                        json = script[start..(index + 1)];
+                        return true;
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<string> SelectJsonItems(string content, string path)
     {
-        try
+        foreach (var candidate in ResolveJsonCandidates(content))
         {
-            using var document = JsonDocument.Parse(content);
-            var items = ResolveJsonArray(document.RootElement, path);
-            return items?.Select(static item => item.GetRawText()).ToArray() ?? [];
+            try
+            {
+                using var document = JsonDocument.Parse(candidate);
+                if (ResolveJsonArray(document.RootElement, path) is { Count: > 0 } items)
+                {
+                    return items.Select(static item => item.GetRawText()).ToArray();
+                }
+            }
+            catch (JsonException)
+            {
+                // A script body that is not valid JSON is simply not this plan's island; keep looking.
+            }
         }
-        catch (JsonException)
-        {
-            return [];
-        }
+
+        return [];
     }
 
     private static IReadOnlyList<JsonElement>? ResolveJsonArray(JsonElement root, string path)
