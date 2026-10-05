@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "sourceId": "lenovo-com/tablet-detail",
+      "url": "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/yoga-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
+      "file": "lenovo-com/yoga-tab-gen2-detail.html"
+    },
+    {
+      "sourceId": "lenovo-com/tablet-lister",
+      "url": "https://www.lenovo.com/nl/nl/tablets/",
+      "file": "lenovo-com/tablets-lister-page1.html"
+    }
+  ]
+}

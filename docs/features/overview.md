@@ -32,7 +32,7 @@ must not be used to renumber or reorder work.
 | 15 | Healing Workflow | `healing-workflow` | L4 | 4, 5, 9, 12, 13, 14 | P0 | draft | [healing-workflow.md](healing-workflow.md) |
 | 16 | Observability | `observability` | cross | 1 | P1 | partial | [observability.md](observability.md) |
 | 17 | Hosting & Configuration | `hosting-configuration` | cross | 1–16 | P0 | draft | [hosting-configuration.md](hosting-configuration.md) |
-| 18 | Lenovo Sample Application | `sample-app-lenovo` | app | 17 | P0 | draft | [sample-app-lenovo.md](sample-app-lenovo.md) |
+| 18 | Lenovo Sample Application | `sample-app-lenovo` | app | 17 | P0 | partial | [sample-app-lenovo.md](sample-app-lenovo.md) |
 
 > Row 12 depends on row 13 despite appearing first because the canonical technical design fixes this
 > numbering. Implement row 13's tool contracts before completing row 12; **do not renumber the rows**.
@@ -59,6 +59,17 @@ must not be used to renumber or reorder work.
 > rather than pending — DR-003 makes it an environment accommodation, not a functional requirement. Remote
 > git operations are out of scope for this component. See the component's
 > [Implementation Plan](script-repository.md#implementation-plan).
+
+> Row 18 is `partial`: `samples/Sanare.Samples.Lenovo` proves the product claim end to end for the
+> `detail --offline`, `list --offline`, and `validate` commands only — hand-written `TabletListing`/
+> `TabletProduct`/`ProductSpecification` schemas, two committed hand-authored `StructuredData` plans, a
+> file-backed zero-socket fixture provider, and `tests/Sanare.Samples.Lenovo.Tests/ArchitectureGuardTests.cs`
+> enforcing that no Lenovo selector/XPath/JSON-path logic lives outside plan JSON. The spec's `--live`,
+> `capture`, and `approve` modes are not implemented because they depend on #6/#9's acquisition wiring and
+> #12/#13's authoring workflow, both still `partial`/`draft`; pagination's `StreamAsync<TabletListing>` is
+> likewise out, consistent with row 10 being `draft`. See
+> [sample-app-lenovo.md](sample-app-lenovo.md) and the sample's own
+> [README](../../samples/Sanare.Samples.Lenovo/README.md).
 
 ## Execution-Order Rationale
 

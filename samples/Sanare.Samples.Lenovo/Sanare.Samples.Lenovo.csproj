@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Sanare.Samples.Lenovo</RootNamespace>
+    <AssemblyName>Sanare.Samples.Lenovo</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sanare.Core\Sanare.Core.csproj" />
+    <ProjectReference Include="..\..\src\Sanare.Abstractions\Sanare.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

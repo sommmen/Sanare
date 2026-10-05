@@ -1,0 +1,141 @@
+# Ralph progress
+
+Host-written. One row per iteration; facts come from git and from
+validation exit codes, never from the worker's narration.
+
+Run started 2026-10-02 22:19:43 +02:00.
+
+## Iteration 1 — ok
+
+- Elapsed: 00:21:06
+- Open tasks: 15 -> 14
+- Files changed (git): docs/ralph-plan-sanare-demo.md, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs
+- Validation: passed
+- Commit: committed: be841d5 feat(core): thread intermediate values through plan locator pipelines
+
+## Iteration 2 — ok
+
+- Elapsed: 00:23:13
+- Open tasks: 14 -> 14
+- Files changed (git): src/Sanare.Core/Runtime/Documents/HtmlDocument.cs, docs/ralph-plan-sanare-demo.progress.md
+- Validation: passed
+- Commit: committed: 9d250c4 feat(core): reference AngleSharp.XPath in HtmlDocument for upcoming XPath locator
+
+## Iteration 3 — ok
+
+- Elapsed: 00:22:00
+- Open tasks: 14 -> 14
+- Files changed (git): docs/ralph-plan-sanare-demo.progress.md, src/Sanare.Core/Runtime/Documents/HtmlDocument.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/FixtureScrapeRunnerTests.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs, tests/Sanare.Http.Tests/AcquisitionScrapeRunnerTests.cs
+- Validation: passed
+- Commit: committed: 8c8fb55 feat(core): support xpath and string plan operations
+
+## Iteration 4 — ok
+
+- Elapsed: 00:04:42
+- Open tasks: 14 -> 13
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md
+- Validation: passed
+- Commit: committed: 1647181 docs(ralph-plan): mark T2 locator task complete and log verification
+
+## Run stopped
+
+**ExhaustedIterations** — Reached the 4 iteration ceiling with 13 task(s) open. Re-run to continue; the plan carries the state.
+
+Ended 2026-10-02 23:09:39 +02:00.
+
+## Iteration 1 — ok
+
+- Elapsed: 00:06:12
+- Open tasks: 13 -> 12
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs
+- Validation: passed
+- Commit: committed: ac47fd7 feat(core): add JsonPath locator to PlanExecutor
+
+## Iteration 1 — ok
+
+- Elapsed: 00:14:13
+- Open tasks: 11 -> 10
+- Files changed (git): docs/ralph-plan-sanare-demo.md, src/Sanare.Core/Runtime/Documents/HtmlDocument.cs, src/Sanare.Core/Runtime/IPlanExecutor.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs
+- Validation: passed
+- Commit: committed: b751e74 feat(runtime): add collection plan execution
+
+## Iteration 2 — ok
+
+- Elapsed: 00:08:49
+- Open tasks: 10 -> 9
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, src/Sanare.Core/Fixtures/FileFixtureContentProvider.cs, tests/Sanare.Core.Tests/Fixtures/FileFixtureContentProviderTests.cs
+- Validation: passed
+- Commit: committed: 7f46135 feat(fixtures): add file-backed fixture provider
+
+## Iteration 3 — ok
+
+- Elapsed: 00:05:21
+- Open tasks: 9 -> 8
+- Files changed (git): Sanare.slnx, docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo/Program.cs, samples/Sanare.Samples.Lenovo/Sanare.Samples.Lenovo.csproj, tests/Sanare.Samples.Lenovo.Tests/Sanare.Samples.Lenovo.Tests.csproj
+- Validation: passed
+- Commit: committed: 63b06e7 feat(lenovo): add sample and test project scaffolding
+
+## Iteration 4 — ok
+
+- Elapsed: 00:09:36
+- Open tasks: 8 -> 7
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo/Program.cs, samples/Sanare.Samples.Lenovo/LenovoJsonContext.cs, samples/Sanare.Samples.Lenovo/TabletSchemas.cs, tests/Sanare.Samples.Lenovo.Tests/GlobalUsings.cs, tests/Sanare.Samples.Lenovo.Tests/TabletSchemasTests.cs
+- Validation: passed
+- Commit: committed: 4171e78 feat(lenovo): add typed tablet schemas
+
+## Iteration 1 — ok
+
+- Elapsed: 00:08:09
+- Open tasks: 8 -> 7
+- Files changed (git): docs/ralph-plan-sanare-demo.md, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs
+- Validation: passed
+- Commit: committed: 56bade3 fix(runtime): correct nested collection extraction
+
+## Iteration 2 — ok
+
+- Elapsed: 00:31:34
+- Open tasks: 7 -> 6
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json, tests/Sanare.Samples.Lenovo.Tests/DetailPlanTests.cs
+- Validation: passed
+- Commit: committed: 34085a2 feat(lenovo): add canonical tablet detail extraction plan; e826e2e docs(ralph): record the verified spec-row extraction recipe
+
+## Iteration 3 — ok
+
+- Elapsed: 00:18:09
+- Open tasks: 6 -> 5
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json, samples/Sanare.Samples.Lenovo/Program.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Samples.Lenovo.Tests/TabletSchemasTests.cs, samples/Sanare.Samples.Lenovo.State/fixtures/manifest.json, samples/Sanare.Samples.Lenovo.State/golden/yoga-tab-gen2.json
+- Validation: passed
+- Commit: committed: c508be2 feat(lenovo): add offline detail extraction demo
+
+## Iteration 4 — ok
+
+- Elapsed: 00:17:45
+- Open tasks: 5 -> 4
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/fixtures/manifest.json, samples/Sanare.Samples.Lenovo/Program.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, samples/Sanare.Samples.Lenovo.State/golden/tablet-list.json, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-lister.json, tests/Sanare.Samples.Lenovo.Tests/ListCommandTests.cs
+- Validation: passed
+- Commit: committed: 08b0c1a feat(lenovo): add offline tablet listing demo
+
+## Iteration 5 — ok
+
+- Elapsed: 00:16:00
+- Open tasks: 4 -> 3
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo/LenovoJsonContext.cs, samples/Sanare.Samples.Lenovo/Program.cs, samples/Sanare.Samples.Lenovo/TabletSchemas.cs, tests/Sanare.Samples.Lenovo.Tests/ListCommandTests.cs, tests/Sanare.Samples.Lenovo.Tests/TabletSchemasTests.cs, tests/Sanare.Samples.Lenovo.Tests/ConsoleTestLock.cs, tests/Sanare.Samples.Lenovo.Tests/ValidateCommandTests.cs
+- Validation: passed
+- Commit: committed: 2f3f588 feat(lenovo): add offline plan validation demo
+
+## Iteration 6 — ok
+
+- Elapsed: 00:16:34
+- Open tasks: 3 -> 2
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo/Program.cs, tests/Sanare.Samples.Lenovo.Tests/ArchitectureGuardTests.cs
+- Validation: passed
+- Commit: committed: 42ff759 feat(lenovo): add architecture guard test
+
+## Iteration 7 — ok
+
+- Elapsed: 00:13:23
+- Open tasks: 2 -> 1
+- Files changed (git): DEVELOPMENT.md, README.md, docs/features/overview.md, docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo/README.md
+- Validation: passed
+- Commit: committed: 3e528e5 docs(lenovo): add sample README and reconcile status docs
+

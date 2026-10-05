@@ -5,10 +5,14 @@
     <Project Path="src/Sanare.Http/Sanare.Http.csproj" />
     <Project Path="src/Sanare.Browser/Sanare.Browser.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Sanare.Samples.Lenovo/Sanare.Samples.Lenovo.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sanare.Abstractions.Tests/Sanare.Abstractions.Tests.csproj" />
     <Project Path="tests/Sanare.Core.Tests/Sanare.Core.Tests.csproj" />
     <Project Path="tests/Sanare.Http.Tests/Sanare.Http.Tests.csproj" />
     <Project Path="tests/Sanare.Browser.Tests/Sanare.Browser.Tests.csproj" />
+    <Project Path="tests/Sanare.Samples.Lenovo.Tests/Sanare.Samples.Lenovo.Tests.csproj" />
   </Folder>
 </Solution>
