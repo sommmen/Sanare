@@ -66,8 +66,8 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 continue;
             }
 
-            values[field.JsonPointer] = coercion.Value is System.Text.Json.Nodes.JsonNode node
-                ? node.Deserialize(field.ClrType)
+            values[field.JsonPointer] = coercion.Value is not null
+                ? coercion.Value.Deserialize(field.ClrType)
                 : coercion.Value;
         }
 
@@ -437,7 +437,7 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                     output = output.TrimEnd()[..^transform.Arguments[0].Length].Trim();
                     break;
                 case PlanOperation.Split when transform.Arguments.Count == 1:
-                    output = string.Join("\n", output.Split(transform.Arguments[0], StringSplitOptions.None));
+                    output = string.Join("\n", output.Split(transform.Arguments[0]));
                     break;
                 case PlanOperation.Index when transform.Arguments.Count == 1 && int.TryParse(transform.Arguments[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var index):
                     var values = output.Split('\n');

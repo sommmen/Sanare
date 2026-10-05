@@ -1,4 +1,5 @@
 using Sanare.Abstractions;
+using Sanare.Abstractions.Diagnostics;
 using Sanare.Abstractions.Attributes;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Runtime;
@@ -41,7 +42,7 @@ public sealed class PlanExecutorTests
         Assert.True(outcome.RequiredFieldsPresent);
         Assert.Equal("Yoga Tab", outcome.Values["/Name"]);
         Assert.Contains(outcome.Diagnostics, diagnostic =>
-            diagnostic.Severity == Sanare.Abstractions.Diagnostics.DiagnosticSeverity.Info &&
+            diagnostic.Severity == DiagnosticSeverity.Info &&
             diagnostic.Message == "A fallback locator succeeded.");
     }
 

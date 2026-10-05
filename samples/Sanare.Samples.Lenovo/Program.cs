@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Sanare.Abstractions.Diagnostics;
 using Sanare.Core.Fixtures;
 using Sanare.Core.Plans;
 using Sanare.Core.Runtime;
@@ -66,7 +67,7 @@ public static class Program
             {
                 var diagnostics = productOutcome.Diagnostics
                     .Concat(specificationOutcomes.SelectMany(static outcome => outcome.Diagnostics))
-                    .Where(static diagnostic => diagnostic.Severity == Sanare.Abstractions.Diagnostics.DiagnosticSeverity.Error)
+                    .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
                     .Select(static diagnostic => diagnostic.Message);
                 return Fail($"Extraction failed required-field validation: {string.Join("; ", diagnostics)}");
             }
