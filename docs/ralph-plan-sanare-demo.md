@@ -140,7 +140,7 @@ Two real pages are already committed under
   `/samples/` folder and the existing `/tests/` folder. `Program.cs` may print usage and
   return 0 for now. Build must be clean under warnings-as-errors. Depends on: —.
 
-- [ ] **T8 — Typed schemas + JSON output contract.**
+- [x] **T8 — Typed schemas + JSON output contract.**
   Add `TabletListing`, `TabletProduct`, `ProductSpecification` (shapes in
   `docs/features/sample-app-lenovo.md` → "Typed schemas"), honouring the materializer
   constraint recorded in Notes. Add a source-generated `LenovoJsonContext`. **stdout is
@@ -220,3 +220,5 @@ the next iteration needs to know.
 - T6 completed: added `FileFixtureContentProvider`, which eagerly reads a data-only JSON manifest (`entries`: `sourceId`, absolute `url`, relative `file`) and maps requests to files below its configured fixture root. Missing mappings and missing mapped files return `false`; path traversal is rejected. It performs file I/O only, so it opens no sockets. Added hit, unmapped miss, and missing-file tests. Verified `dotnet test tests\Sanare.Core.Tests\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~FileFixtureContentProviderTests" --no-restore` (3 passed, 0 failed). Next unblocked task: T7.
 
 - T7 completed: created the `net10.0` console sample with usage written to stderr and exit 0, plus the Lenovo test project; both are registered in `/samples/` and `/tests/` respectively in `Sanare.slnx`. The sample references `Sanare.Core` and `Sanare.Abstractions`; the test project references the sample and uses the existing xUnit package versions. Verified `dotnet build Sanare.slnx -c Release` succeeds with 0 warnings and 0 errors. Next unblocked task: T8.
+
+- T8 completed: added writable, parameterless `TabletListing`, `TabletProduct`, and `ProductSpecification` classes (rather than positional records) because `DocumentMaterializer` requires writable properties. `TabletProduct.Specifications` is the sole `[ScrapeCollection]`, producing `/Specifications/*` field pointers. Added source-generated camel-case `LenovoJsonContext`, so prices serialize as JSON numbers. Made `Program.Main(string[] args)` public to unit-test the current usage stdout/stderr contract. Added schema derivation, source-generated serialization, and stderr-only usage tests. Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --no-restore` (3 passed) and `dotnet build Sanare.slnx -c Release --no-restore` (0 warnings/errors). Next unblocked task: T9.

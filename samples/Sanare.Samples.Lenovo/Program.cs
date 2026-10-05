@@ -1,8 +1,8 @@
 namespace Sanare.Samples.Lenovo;
 
-internal static class Program
+public static class Program
 {
-    private static int Main()
+    public static int Main(string[] args)
     {
         Console.Error.WriteLine("Usage: Sanare.Samples.Lenovo <detail|list|validate> [--offline]");
         return 0;
