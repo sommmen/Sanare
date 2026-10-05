@@ -144,6 +144,15 @@ selection.
 
 ### Per-field selector pairs
 
+> **Target state, not current behaviour.** `PlanExecutor` evaluates the `Locators` list directly and never
+> reads `PrimaryLocator`/`FallbackLocator`; those members exist for serialization compatibility and are
+> derived from the list. The shipped runtime treats `Locators` as a sequence of pipelines — a document
+> locator (`SelectFirst`/`SelectAll`/`XPath`) opens a candidate and the value locators after it consume the
+> previous step's output — because a two-member pair cannot express a chain such as
+> `Html → RegexCapture → JsonPath`. Representing independent candidates *and* pipeline stages distinctly
+> requires a plan-version bump and is deferred; the contract below describes the intended end state,
+> including the staged-write and `LocatorIndex` semantics, none of which are implemented yet.
+
 Every eligible field declares exactly two ordered locator candidates: `PrimaryLocator` (index `0`) and
 `FallbackLocator` (index `1`). They may use independent selector strategies or equivalent alternate DOM
 locations, but both are intended to recover the same field value.
