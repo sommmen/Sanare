@@ -209,7 +209,7 @@ second pass over `$.techSpecs.tables[*]`, or accept `Group` as null and say so i
   Add unit tests for both: a schema whose item field name collides with a top-level
   field name, and a doubly-nested `[*]` root. Depends on: T5.
 
-- [ ] **T9 — The detail extraction plan, as committed data.**
+- [x] **T9 — The detail extraction plan, as committed data.**
   Hand-write canonical plan JSON for `lenovo-com/tablet-detail` under
   `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/`, with
   `Tier = StructuredData`. It pulls name/price/currency/availability/part-number/images
@@ -290,3 +290,5 @@ the next iteration needs to know.
 - T8b completed: `ExecuteMany` now filters both plan and schema fields to the declared collection pointer before relativizing, preventing collection item names from colliding with top-level fields. JSON collection roots now traverse `[*]` and `[n]` selectors across nested arrays and return every selected item. Added collision and doubly nested wildcard regression tests. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (27 passed, 0 failed). Next unblocked task: T9.
 
 - **Supervisor note after T8b.** T8b's fix is confirmed correct by execution against the real fixture: the nested root `\$.techSpecs.tables[*].specs[*]` now yields exactly **14** items and the pointer collision is gone. A third constraint surfaced while verifying: `JsonPath` cannot be a field's **first** locator, because the first step always runs against the document. Prefix it with `SelectFirst script.sanare-json-item` — the full verified recipe is now in "Established ground truth". No further executor changes are needed for T9; write the plan JSON to match that recipe.
+
+- T9 completed while repairing the failed validation: its `DetailPlanTests` test had been added before the required `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json` data file, so `File.ReadAllText` threw `FileNotFoundException`. Added the byte-canonical plan with `StructuredData` tier, Product `ld+json` scalar locator pipelines, the nested specification root, and canonical provenance. It validates against the derived `TabletProduct` schema. Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --filter "FullyQualifiedName~DetailPlanTests" --no-restore` (1 passed). Next unblocked task: T10.

@@ -83,3 +83,11 @@ Ended 2026-10-02 23:09:39 +02:00.
 - Validation: passed
 - Commit: committed: 4171e78 feat(lenovo): add typed tablet schemas
 
+## Iteration 1 — ok
+
+- Elapsed: 00:08:09
+- Open tasks: 8 -> 7
+- Files changed (git): docs/ralph-plan-sanare-demo.md, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Core.Tests/Runtime/PlanExecutorTests.cs
+- Validation: passed
+- Commit: committed: 56bade3 fix(runtime): correct nested collection extraction
+

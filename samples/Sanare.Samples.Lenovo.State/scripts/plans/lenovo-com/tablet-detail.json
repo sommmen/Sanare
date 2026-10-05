@@ -1,0 +1,361 @@
+{
+  "planVersion": 2,
+  "sourceId": "lenovo-com/tablet-detail",
+  "schemaName": "TabletProduct",
+  "schemaVersion": 1,
+  "schemaHash": "sha256:52b820493425b84531966d73918cd0eda352ac0f084b1c59fbfda350cef43eb0",
+  "culture": "nl-NL",
+  "tier": "structuredData",
+  "acquisition": {
+    "method": "get",
+    "urlTemplate": "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
+    "headers": {},
+    "waitFor": null,
+    "interactions": []
+  },
+  "notFound": null,
+  "consent": null,
+  "pagination": {
+    "strategy": "none",
+    "nextSelector": null,
+    "maxPages": 1,
+    "itemKey": null
+  },
+  "root": "$.techSpecs.tables[*].specs[*]",
+  "fields": [
+    {
+      "pointer": "/Availability",
+      "required": false,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.offers.availability"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    },
+    {
+      "pointer": "/Currency",
+      "required": false,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.offers.priceCurrency"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    },
+    {
+      "pointer": "/Images",
+      "required": true,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.image[0]"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "uri[]"
+    },
+    {
+      "pointer": "/Name",
+      "required": true,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.name"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    },
+    {
+      "pointer": "/PartNumber",
+      "required": false,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.sku"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    },
+    {
+      "pointer": "/Price",
+      "required": false,
+      "locators": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "regexCapture",
+          "arguments": [
+            "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+            "1"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.offers.price"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "html",
+        "arguments": []
+      },
+      "fallbackLocator": {
+        "op": "regexCapture",
+        "arguments": [
+          "\u003Cscript[^\u003E]*application/ld\\\u002Bjson[^\u003E]*\u003E([^\u003C]*\u0022@type\u0022:\u0022Product\u0022[^\u003C]*)\u003C/script\u003E",
+          "1"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "decimal"
+    },
+    {
+      "pointer": "/Specifications/*/Name",
+      "required": true,
+      "locators": [
+        {
+          "op": "selectFirst",
+          "arguments": [
+            "script.sanare-json-item"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.headline"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "selectFirst",
+        "arguments": [
+          "script.sanare-json-item"
+        ]
+      },
+      "fallbackLocator": {
+        "op": "jsonPath",
+        "arguments": [
+          "$.headline"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    },
+    {
+      "pointer": "/Specifications/*/Value",
+      "required": true,
+      "locators": [
+        {
+          "op": "selectFirst",
+          "arguments": [
+            "script.sanare-json-item"
+          ]
+        },
+        {
+          "op": "jsonPath",
+          "arguments": [
+            "$.text"
+          ]
+        }
+      ],
+      "primaryLocator": {
+        "op": "selectFirst",
+        "arguments": [
+          "script.sanare-json-item"
+        ]
+      },
+      "fallbackLocator": {
+        "op": "jsonPath",
+        "arguments": [
+          "$.text"
+        ]
+      },
+      "transforms": [
+        {
+          "op": "html",
+          "arguments": []
+        },
+        {
+          "op": "trim",
+          "arguments": []
+        }
+      ],
+      "type": "string"
+    }
+  ],
+  "provenance": {
+    "authoredBy": "human",
+    "model": "none",
+    "attempts": 1,
+    "fixtureIds": [
+      "lenovo-com/yoga-tab-gen2-detail"
+    ],
+    "score": 1,
+    "authoredAt": "2026-10-05T00:00:00Z"
+  }
+}
