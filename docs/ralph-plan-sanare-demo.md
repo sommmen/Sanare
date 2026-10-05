@@ -78,9 +78,29 @@ For the specification rows, the `$pdpAllData` island must first be cut out of th
 `ExecuteMany` parses its `content` argument as **raw JSON** when `Root` starts with `$`,
 so pass the island JSON itself — *not* wrapped in a `<script>` tag. The island is the
 text between `var $pdpAllData = ` and the next `</script>`, trimmed of a trailing `;`.
-With `Root = "$.techSpecs.tables[*].specs[*]"` and item fields
-`/Specifications/*/Name` → `$.headline`, `/Specifications/*/Value` → `$.text`, that
-yields the 14 rows **once T8b is fixed**. `Group` comes from the enclosing
+`ExecuteMany` wraps each JSON item back into `<script class="sanare-json-item">…</script>`
+before running `Execute` on it, and a **first** locator step always runs against that
+document. `JsonPath` is therefore *not* valid as a first step — it is a value-kind
+operation and throws `NotSupportedException` there. The working item-field shape is to
+select the wrapper's text first and then apply `JsonPath` to it.
+
+**Verified end to end against the real fixture — this produced all 14 rows:**
+
+```
+root:       $.techSpecs.tables[*].specs[*]
+content:    the raw $pdpAllData island JSON (NOT wrapped in a script tag)
+
+pointer:    /Specifications/*/Name
+locators:   SelectFirst  script.sanare-json-item
+            JsonPath     $.headline
+
+pointer:    /Specifications/*/Value
+locators:   SelectFirst  script.sanare-json-item
+            JsonPath     $.text
+```
+
+`Value` comes back as HTML (`<ul><li><p>…`), so the field needs the HTML-flattening
+transform from T4 to become readable text. `Group` comes from the enclosing
 `groupHeadline`, which a flat `[*].specs[*]` root loses — either extract groups with a
 second pass over `$.techSpecs.tables[*]`, or accept `Group` as null and say so in Notes.
 
@@ -268,3 +288,5 @@ the next iteration needs to know.
 - **Supervisor note (before T9 was attempted).** The supervising session ran the real `PlanExecutor` against the real committed fixture rather than reading the code, and found the two `ExecuteMany` defects now written up as **T8b**. The scalar `ld+json` locator chain in "Established ground truth" is verified working output, not a guess: it returned `Lenovo Yoga Tab Gen 2`. Do **T8b first** — T9 and T10 cannot pass without it.
 
 - T8b completed: `ExecuteMany` now filters both plan and schema fields to the declared collection pointer before relativizing, preventing collection item names from colliding with top-level fields. JSON collection roots now traverse `[*]` and `[n]` selectors across nested arrays and return every selected item. Added collision and doubly nested wildcard regression tests. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (27 passed, 0 failed). Next unblocked task: T9.
+
+- **Supervisor note after T8b.** T8b's fix is confirmed correct by execution against the real fixture: the nested root `\$.techSpecs.tables[*].specs[*]` now yields exactly **14** items and the pointer collision is gone. A third constraint surfaced while verifying: `JsonPath` cannot be a field's **first** locator, because the first step always runs against the document. Prefix it with `SelectFirst script.sanare-json-item` — the full verified recipe is now in "Established ground truth". No further executor changes are needed for T9; write the plan JSON to match that recipe.
