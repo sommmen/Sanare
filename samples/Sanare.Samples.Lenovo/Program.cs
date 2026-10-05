@@ -175,14 +175,6 @@ public static class Program
         Defects = result.Defects.Select(static defect => $"{defect.PlanPointer}: {defect.Message}").ToArray(),
     };
 
-    private static IReadOnlyList<Uri> ExtractImages(string content)
-    {
-        const string imagePrefix = "\"image\":[\"//";
-        var start = content.IndexOf(imagePrefix, StringComparison.Ordinal) + imagePrefix.Length;
-        var end = start > imagePrefix.Length ? content.IndexOf('"', start) : -1;
-        return end > start ? [new Uri("https://" + content[start..end])] : [];
-    }
-
     private static int Fail(string message)
     {
         Console.Error.WriteLine(message);
