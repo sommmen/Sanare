@@ -260,14 +260,14 @@ public sealed class PlanExecutorTests
 
         // The island is named by an arbitrary variable, and an unrelated script precedes it. Neither the
         // variable name nor the page's structure may be known to this generic runtime.
-        const string Markup = """
+        const string markup = """
             <html><body>
             <script>window.__ANALYTICS__ = {"session":"abc"};</script>
             <script>var $someOtherSitesPayload = {"groups":[{"products":[{"name":"Yoga"}]},{"products":[{"name":"Tab"}]}]};</script>
             </body></html>
             """;
 
-        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, Markup, new SchemaDeriver().Derive<ProductCollection>());
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, markup, new SchemaDeriver().Derive<ProductCollection>());
 
         Assert.Equal(["Yoga", "Tab"], outcomes.Select(outcome => outcome.Values["/Name"]));
     }
@@ -284,13 +284,13 @@ public sealed class PlanExecutorTests
 
         // A brace inside a string literal must not terminate the island early, or the payload that
         // follows it is lost.
-        const string Markup = """
+        const string markup = """
             <html><body>
             <script>var payload = {"label":"a } brace","groups":[{"products":[{"name":"Yoga"}]}]};</script>
             </body></html>
             """;
 
-        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, Markup, new SchemaDeriver().Derive<ProductCollection>());
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, markup, new SchemaDeriver().Derive<ProductCollection>());
 
         Assert.Equal(["Yoga"], outcomes.Select(outcome => outcome.Values["/Name"]));
     }
