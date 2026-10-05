@@ -133,7 +133,7 @@ Two real pages are already committed under
   construction. Unit-test a hit, a miss, and a manifest entry pointing at a missing
   file. Depends on: —.
 
-- [ ] **T7 — Sample and test projects exist and build.**
+- [x] **T7 — Sample and test projects exist and build.**
   Create `samples/Sanare.Samples.Lenovo/Sanare.Samples.Lenovo.csproj` (console,
   `net10.0`, `IsPackable=false`) referencing `Sanare.Core` + `Sanare.Abstractions`, and
   `tests/Sanare.Samples.Lenovo.Tests`. Register both in `Sanare.slnx` under a new
@@ -218,3 +218,5 @@ the next iteration needs to know.
 - T5 completed: added `IPlanExecutor.ExecuteMany` and collection execution for CSS-rooted HTML elements and `$.property.path` JSON arrays. Collection field pointers are made relative by stripping the schema collection pointer plus `/*`; every selected item is executed, so missing required values remain failed outcomes. `Pagination.MaxItems` clamps selected items. JSON items are wrapped in a local script element so the existing locator pipeline can read them. `HtmlDocument` now retains raw content and can serialize all CSS matches. Added tests for HTML failures preserved, JSON extraction and clamp, and empty selections. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (25 passed, 0 failed). Next unblocked task: T6, T7, or T8 (T8 depends on T7); T6 is independent.
 
 - T6 completed: added `FileFixtureContentProvider`, which eagerly reads a data-only JSON manifest (`entries`: `sourceId`, absolute `url`, relative `file`) and maps requests to files below its configured fixture root. Missing mappings and missing mapped files return `false`; path traversal is rejected. It performs file I/O only, so it opens no sockets. Added hit, unmapped miss, and missing-file tests. Verified `dotnet test tests\Sanare.Core.Tests\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~FileFixtureContentProviderTests" --no-restore` (3 passed, 0 failed). Next unblocked task: T7.
+
+- T7 completed: created the `net10.0` console sample with usage written to stderr and exit 0, plus the Lenovo test project; both are registered in `/samples/` and `/tests/` respectively in `Sanare.slnx`. The sample references `Sanare.Core` and `Sanare.Abstractions`; the test project references the sample and uses the existing xUnit package versions. Verified `dotnet build Sanare.slnx -c Release` succeeds with 0 warnings and 0 errors. Next unblocked task: T8.
