@@ -8,7 +8,7 @@
   "tier": "structuredData",
   "acquisition": {
     "method": "get",
-    "urlTemplate": "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
+    "urlTemplate": "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/yoga-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
     "headers": {},
     "waitFor": null,
     "interactions": []

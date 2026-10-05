@@ -4,7 +4,7 @@ A runnable proof that Sanare's engine, not hand-written scraping code, produces
 schema-valid JSON for two real Lenovo NL pages:
 
 1. **Tablet lister** — `https://www.lenovo.com/nl/nl/tablets/`
-2. **Product detail** — `https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003`
+2. **Product detail** — `https://www.lenovo.com/nl/nl/p/tablets/android-tablets/yoga-tab-series/lenovo-yoga-tab-gen-2/len103y0003`
 
 The two source ids (`lenovo-com/tablet-lister`, `lenovo-com/tablet-detail`) and the
 two URLs above are the only Lenovo-specific facts allowed in this project's C#. Every
@@ -30,7 +30,13 @@ dotnet run --project samples/Sanare.Samples.Lenovo -- validate
   specification table.
 - `list --offline` — executes the `tablet-lister` plan against the committed fixture
   and prints a JSON array of `TabletListing` objects (deduplicated by `ProductUrl`) to
-  stdout.
+  stdout. Note that `https://www.lenovo.com/nl/nl/tablets/` is a client-rendered
+  marketing page: its product grid is drawn by JavaScript and is simply **not present**
+  in the HTML an ordinary HTTP GET returns. The plan therefore extracts the products
+  that *are* server-rendered in that page's merchandising banner, which is one tablet
+  for the committed capture. This is a property of the page, not a limitation of the
+  engine — a genuinely server-rendered lister, or the same page acquired through the
+  browser tier, would yield the full grid with no change to this sample's C#.
 - `validate` — runs `PlanValidator` over both committed plans against their derived
   schemas and prints a JSON array of `{ planSourceId, isValid, defects }` reports to
   stdout. Exits non-zero if either plan fails validation.

@@ -21,27 +21,27 @@
     "maxPages": 1,
     "itemKey": "/ProductUrl"
   },
-  "root": "a[textvalue][href*=\u0027/p/tablets/\u0027]",
+  "root": "article.merchandizingItem:has(a[href*=\u0027/p/tablets/\u0027])",
   "fields": [
     {
       "pointer": "/Name",
       "required": true,
       "locators": [
-        { "op": "text", "arguments": [ "a" ] }
+        { "op": "text", "arguments": [ "strong" ] }
       ],
-      "primaryLocator": { "op": "text", "arguments": [ "a" ] },
-      "fallbackLocator": { "op": "text", "arguments": [ "a" ] },
-      "transforms": [ { "op": "trim", "arguments": [] } ],
+      "primaryLocator": { "op": "text", "arguments": [ "strong" ] },
+      "fallbackLocator": { "op": "text", "arguments": [ "strong" ] },
+      "transforms": [ { "op": "collapseWhitespace", "arguments": [] }, { "op": "trim", "arguments": [] } ],
       "type": "string"
     },
     {
       "pointer": "/ProductUrl",
       "required": true,
       "locators": [
-        { "op": "attribute", "arguments": [ "a", "href" ] }
+        { "op": "attribute", "arguments": [ "a[href*=\u0027/p/tablets/\u0027]", "href" ] }
       ],
-      "primaryLocator": { "op": "attribute", "arguments": [ "a", "href" ] },
-      "fallbackLocator": { "op": "attribute", "arguments": [ "a", "href" ] },
+      "primaryLocator": { "op": "attribute", "arguments": [ "a[href*=\u0027/p/tablets/\u0027]", "href" ] },
+      "fallbackLocator": { "op": "attribute", "arguments": [ "a[href*=\u0027/p/tablets/\u0027]", "href" ] },
       "transforms": [ { "op": "trim", "arguments": [] } ],
       "type": "uri"
     }

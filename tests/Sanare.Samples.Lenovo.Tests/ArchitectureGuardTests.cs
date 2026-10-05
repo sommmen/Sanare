@@ -16,7 +16,7 @@ public sealed class ArchitectureGuardTests
     /// </summary>
     private static readonly string[] AllowedLenovoUrls =
     [
-        "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
+        "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/yoga-tab-series/lenovo-yoga-tab-gen-2/len103y0003",
         "https://www.lenovo.com/nl/nl/tablets/",
     ];
 

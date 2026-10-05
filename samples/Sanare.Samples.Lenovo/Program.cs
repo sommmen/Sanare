@@ -13,7 +13,7 @@ namespace Sanare.Samples.Lenovo;
 public static class Program
 {
     private const string DetailSourceId = "lenovo-com/tablet-detail";
-    private const string DetailUrl = "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003";
+    private const string DetailUrl = "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/yoga-tab-series/lenovo-yoga-tab-gen-2/len103y0003";
     private const string ListerSourceId = "lenovo-com/tablet-lister";
     private const string ListerUrl = "https://www.lenovo.com/nl/nl/tablets/";
 
