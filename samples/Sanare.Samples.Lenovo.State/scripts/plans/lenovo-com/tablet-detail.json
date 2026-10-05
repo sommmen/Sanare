@@ -265,6 +265,12 @@
         {
           "op": "trim",
           "arguments": []
+        },
+        {
+          "op": "parseDecimal",
+          "arguments": [
+            "en-US"
+          ]
         }
       ],
       "type": "decimal"

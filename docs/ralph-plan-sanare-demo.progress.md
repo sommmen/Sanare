@@ -91,3 +91,11 @@ Ended 2026-10-02 23:09:39 +02:00.
 - Validation: passed
 - Commit: committed: 56bade3 fix(runtime): correct nested collection extraction
 
+## Iteration 2 — ok
+
+- Elapsed: 00:31:34
+- Open tasks: 7 -> 6
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json, tests/Sanare.Samples.Lenovo.Tests/DetailPlanTests.cs
+- Validation: passed
+- Commit: committed: 34085a2 feat(lenovo): add canonical tablet detail extraction plan; e826e2e docs(ralph): record the verified spec-row extraction recipe
+

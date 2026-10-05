@@ -31,6 +31,43 @@ public sealed class TabletSchemasTests
     }
 
     [Fact]
+    public void Detail_offline_writes_the_extracted_product_as_json()
+    {
+        lock (ConsoleLock)
+        {
+            var stdout = new StringWriter();
+            var stderr = new StringWriter();
+            var originalOut = Console.Out;
+            var originalError = Console.Error;
+            try
+            {
+                Console.SetOut(stdout);
+                Console.SetError(stderr);
+                Assert.Equal(0, Program.Main(["detail", "--offline"]));
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+                Console.SetError(originalError);
+            }
+
+            using var document = JsonDocument.Parse(stdout.ToString());
+            var root = document.RootElement;
+            Assert.Equal("Lenovo Yoga Tab Gen 2", root.GetProperty("name").GetString());
+            Assert.Equal(649.01m, root.GetProperty("price").GetDecimal());
+            Assert.Equal("EUR", root.GetProperty("currency").GetString());
+            var specifications = root.GetProperty("specifications").EnumerateArray().ToArray();
+            Assert.True(specifications.Length >= 14);
+            Assert.All(specifications, specification =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(specification.GetProperty("name").GetString()));
+                Assert.False(string.IsNullOrWhiteSpace(specification.GetProperty("value").GetString()));
+            });
+            Assert.Equal(string.Empty, stderr.ToString());
+        }
+    }
+
+    [Fact]
     public void Program_writes_usage_only_to_stderr()
     {
         lock (ConsoleLock)

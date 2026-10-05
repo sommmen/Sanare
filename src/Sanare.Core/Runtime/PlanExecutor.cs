@@ -54,15 +54,21 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 continue;
             }
 
-            if (!coercer.TryCoerce(transformed, field, out var value, out var coercionError))
+            var coercion = coercer.Coerce(
+                transformed,
+                field,
+                new CoercionContext(Culture: CultureInfo.InvariantCulture, DocumentBaseUri: new Uri(plan.Acquisition.UrlTemplate, UriKind.Absolute)));
+            if (!coercion.Success)
             {
                 values[field.JsonPointer] = null;
                 coercionFailedFields.Add(field.JsonPointer);
-                diagnostics.Add(new ScrapeDiagnostic("SNR-SCH-005", DiagnosticSeverity.Error, coercionError!, field.JsonPointer));
+                diagnostics.Add(new ScrapeDiagnostic("SNR-SCH-005", DiagnosticSeverity.Error, coercion.FailureReason!, field.JsonPointer));
                 continue;
             }
 
-            values[field.JsonPointer] = value;
+            values[field.JsonPointer] = coercion.Value is System.Text.Json.Nodes.JsonNode node
+                ? node.Deserialize(field.ClrType)
+                : coercion.Value;
         }
 
         var requiredPresent = !diagnostics.Any(static diagnostic => diagnostic.Code is "SNR-SCH-004" or "SNR-SCH-005" && diagnostic.Severity == DiagnosticSeverity.Error);
@@ -81,8 +87,9 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         }
 
         var jsonRoot = plan.Root.StartsWith('$');
+        var rootContent = jsonRoot ? ExtractJsonIsland(content) : content;
         var itemContents = jsonRoot
-            ? SelectJsonItems(content, plan.Root)
+            ? SelectJsonItems(rootContent, plan.Root)
             : new HtmlDocument(content).SelectAllOuterHtml(plan.Root);
         var maxItems = plan.Pagination.MaxItems;
         if (maxItems is not null)
@@ -112,6 +119,20 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
 
     private static FieldDescriptor Relativize(FieldDescriptor field, string collectionPointer) =>
         field with { JsonPointer = field.JsonPointer[(collectionPointer.Length + 2)..] };
+
+    private static string ExtractJsonIsland(string content)
+    {
+        const string prefix = "var $pdpAllData = ";
+        var start = content.IndexOf(prefix, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return content;
+        }
+
+        start += prefix.Length;
+        var end = content.IndexOf("</script>", start, StringComparison.Ordinal);
+        return end < 0 ? content : content[start..end].Trim().TrimEnd(';').Trim();
+    }
 
     private static IReadOnlyList<string> SelectJsonItems(string content, string path)
     {

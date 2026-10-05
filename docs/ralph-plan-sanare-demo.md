@@ -218,8 +218,7 @@ second pass over `$.techSpecs.tables[*]`, or accept `Group` as null and say so i
   `PlanSerializer` round-trip and `PlanValidator` success against the derived
   `TabletProduct` schema. Depends on: T5, T8.
 
-- [ ] **T10 — `detail --offline` works end to end.**
-  Implement `detail`: load the committed plan, derive the schema, read the fixture via
+- [x] **T10 — `detail --offline` works end to end.**  Implement `detail`: load the committed plan, derive the schema, read the fixture via
   T6's provider, run `Execute` + `ExecuteMany`, validate, materialize, print JSON to
   stdout, exit 0. On failure: stdout empty, diagnostic on stderr, non-zero exit. Save
   golden output to `samples/Sanare.Samples.Lenovo.State/golden/yoga-tab-gen2.json`. Add
@@ -292,3 +291,5 @@ the next iteration needs to know.
 - **Supervisor note after T8b.** T8b's fix is confirmed correct by execution against the real fixture: the nested root `\$.techSpecs.tables[*].specs[*]` now yields exactly **14** items and the pointer collision is gone. A third constraint surfaced while verifying: `JsonPath` cannot be a field's **first** locator, because the first step always runs against the document. Prefix it with `SelectFirst script.sanare-json-item` — the full verified recipe is now in "Established ground truth". No further executor changes are needed for T9; write the plan JSON to match that recipe.
 
 - T9 completed while repairing the failed validation: its `DetailPlanTests` test had been added before the required `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json` data file, so `File.ReadAllText` threw `FileNotFoundException`. Added the byte-canonical plan with `StructuredData` tier, Product `ld+json` scalar locator pipelines, the nested specification root, and canonical provenance. It validates against the derived `TabletProduct` schema. Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --filter "FullyQualifiedName~DetailPlanTests" --no-restore` (1 passed). Next unblocked task: T10.
+
+- T10 completed: `detail --offline` reads the canonical plan and the data-only fixture manifest, executes scalar and collection extraction, materializes `TabletProduct`, and writes only source-generated JSON to stdout. Added fixture manifest and committed golden output, plus an integration-style console redirection test (5 Lenovo tests pass). The executor now supplies the plan acquisition URL as the coercion base URI so protocol-relative product images coerce to HTTPS; it also recognizes the `$pdpAllData` JSON island for JSON collection roots. Decimal coercion uses invariant culture to preserve the plan's JSON `649.01` as a decimal (the PowerShell display renders it as `649,01` under the local culture). Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --no-restore` (5 passed) and `dotnet build Sanare.slnx -c Release --no-restore` (0 warnings/errors). Next unblocked task: T11.
