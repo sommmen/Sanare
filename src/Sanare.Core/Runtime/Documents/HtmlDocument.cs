@@ -12,13 +12,21 @@ public sealed class HtmlDocument
     public HtmlDocument(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
+        RawContent = content;
         _document = new HtmlParser().ParseDocument(content);
     }
+
+    /// <summary>Gets the unparsed content supplied to this document boundary.</summary>
+    public string RawContent { get; }
 
     public string? SelectText(string selector) => _document.QuerySelector(selector)?.TextContent;
 
     public string? SelectAttribute(string selector, string attribute) =>
         _document.QuerySelector(selector)?.GetAttribute(attribute);
+
+    /// <summary>Returns the serialized HTML for every node matching a CSS selector.</summary>
+    public IReadOnlyList<string> SelectAllOuterHtml(string selector) =>
+        _document.QuerySelectorAll(selector).Select(static element => element.OuterHtml).ToArray();
 
     /// <summary>Returns the text content of the first node matching an XPath expression.</summary>
     public string? SelectXPath(string expression) =>

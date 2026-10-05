@@ -1,4 +1,5 @@
 using Sanare.Abstractions;
+using Sanare.Abstractions.Attributes;
 using Sanare.Abstractions.Plans;
 using Sanare.Core.Runtime;
 using Sanare.Core.Schema;
@@ -177,6 +178,49 @@ public sealed class PlanExecutorTests
         Assert.Equal(expected, outcome.Values["/Name"]);
     }
 
+    [Fact]
+    public void ExecuteMany_extracts_html_items_and_preserves_failed_items()
+    {
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".name"])]) with
+        {
+            Root = ".item",
+            Fields = [new FieldPlan("/Products/*/Name", true, "string", [new LocatorStep(PlanOperation.Text, [".name"])], [])],
+        };
+        var schema = new SchemaDeriver().Derive<ProductCollection>();
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, "<div class='item'><span class='name'>Yoga</span></div><div class='item'></div>", schema);
+
+        Assert.Equal(2, outcomes.Length);
+        Assert.Equal("Yoga", outcomes[0].Values["/Name"]);
+        Assert.False(outcomes[1].RequiredFieldsPresent);
+    }
+
+    [Fact]
+    public void ExecuteMany_extracts_json_items_and_honours_max_items()
+    {
+        var plan = CreatePlan([new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]), new LocatorStep(PlanOperation.JsonPath, ["$.name"])]) with
+        {
+            Root = "$.items",
+            Pagination = new PaginationSpec(PaginationStrategy.None, MaxItems: 1),
+            Fields = [new FieldPlan("/Products/*/Name", true, "string", [new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]), new LocatorStep(PlanOperation.JsonPath, ["$.name"])], [])],
+        };
+        var schema = new SchemaDeriver().Derive<ProductCollection>();
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, "{\"items\":[{\"name\":\"Yoga\"},{\"name\":\"Tab\"}]}", schema);
+
+        var outcome = Assert.Single(outcomes);
+        Assert.Equal("Yoga", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void ExecuteMany_returns_no_outcomes_for_an_empty_collection()
+    {
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".name"])]) with { Root = ".item" };
+        var schema = new SchemaDeriver().Derive<ProductCollection>();
+
+        Assert.Empty(new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, "<div></div>", schema));
+    }
+
     private static ExtractionOutcome Execute(ExtractionPlan plan, string html)
     {
         var schema = new SchemaDeriver().Derive<Product>();
@@ -200,5 +244,11 @@ public sealed class PlanExecutorTests
     private sealed class Product
     {
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ProductCollection
+    {
+        [ScrapeCollection]
+        public List<Product> Products { get; set; } = [];
     }
 }

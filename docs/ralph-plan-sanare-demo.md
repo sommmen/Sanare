@@ -117,7 +117,7 @@ Two real pages are already committed under
   text. Also add HTML-to-readable-text flattening, which the spec `text` values need;
   name it clearly and say in Notes which operation exposes it. Unit-test each. Depends on: T3.
 
-- [ ] **T5 — `ExecuteMany` for collections.**
+- [x] **T5 — `ExecuteMany` for collections.**
   Add `ExtractionOutcome[] ExecuteMany(plan, content, schema)` to `IPlanExecutor` and
   `PlanExecutor`, driven by `ExtractionPlan.Root` as the item locator, with field
   pointers containing `/*` resolved **relative to each item**. Support a `Root` over
@@ -214,3 +214,5 @@ the next iteration needs to know.
 - T3 completed: `PlanExecutor` now evaluates a deliberately small, XML-documented JSONPath subset over piped JSON: property paths, non-negative array indices, and array wildcards (which select the first scalar result). Invalid paths, malformed JSON, and misses return null; chained JsonPath misses also add an `SNR-EXT-001` warning diagnostic. Tests cover nested properties, indexed and wildcard arrays, misses/invalid paths, and malformed JSON. Verified with `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (12 passed, 0 failed).
 
 - T4 completed: `TryTransform` now supports Split (newline-delimited intermediate values), Index, Concat, Coalesce (first nonblank newline-delimited value), Exists, pairwise case-insensitive MapEnum, invariant/culture-aware ParseInt and ParseDecimal, and ParseBool. `Html` used as a transform exposes HTML-to-readable-text flattening through `HtmlToReadableText`; it inserts list/block boundaries before normalized text. Added unit coverage for every operation. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (22 passed) and `dotnet build Sanare.slnx -c Release --no-restore` (0 warnings/errors). Next: T5 is unblocked and is the riskiest remaining ready task.
+
+- T5 completed: added `IPlanExecutor.ExecuteMany` and collection execution for CSS-rooted HTML elements and `$.property.path` JSON arrays. Collection field pointers are made relative by stripping the schema collection pointer plus `/*`; every selected item is executed, so missing required values remain failed outcomes. `Pagination.MaxItems` clamps selected items. JSON items are wrapped in a local script element so the existing locator pipeline can read them. `HtmlDocument` now retains raw content and can serialize all CSS matches. Added tests for HTML failures preserved, JSON extraction and clamp, and empty selections. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (25 passed, 0 failed). Next unblocked task: T6, T7, or T8 (T8 depends on T7); T6 is independent.

@@ -69,6 +69,82 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         return new ExtractionOutcome(values, diagnostics, coercionFailedFields, requiredPresent);
     }
 
+    /// <summary>Executes a collection plan against each HTML or JSON item selected by <see cref="ExtractionPlan.Root"/>.</summary>
+    public ExtractionOutcome[] ExecuteMany(ExtractionPlan plan, string content, SchemaDescriptor schema)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(schema);
+        if (string.IsNullOrWhiteSpace(plan.Root))
+        {
+            throw new InvalidOperationException("A collection plan must declare a root locator.");
+        }
+
+        var jsonRoot = plan.Root.StartsWith('$');
+        var itemContents = jsonRoot
+            ? SelectJsonItems(content, plan.Root)
+            : new HtmlDocument(content).SelectAllOuterHtml(plan.Root);
+        var maxItems = plan.Pagination.MaxItems;
+        if (maxItems is not null)
+        {
+            itemContents = itemContents.Take(maxItems.Value).ToArray();
+        }
+
+        var collectionPointer = schema.CollectionPointer ?? throw new InvalidOperationException("The schema does not declare a collection pointer.");
+        var itemPlan = plan with { Root = null, Fields = plan.Fields.Select(field => Relativize(field, collectionPointer)).ToArray() };
+        var itemSchema = schema with { Fields = schema.Fields.Select(field => Relativize(field, collectionPointer)).ToArray(), CollectionPointer = null };
+        return itemContents.Select(item => Execute(itemPlan, jsonRoot ? $"<script class=\"sanare-json-item\">{item}</script>" : item, itemSchema)).ToArray();
+    }
+
+    private static FieldPlan Relativize(FieldPlan field, string collectionPointer)
+    {
+        var prefix = collectionPointer + "/*";
+        return field.Pointer.StartsWith(prefix + "/", StringComparison.Ordinal)
+            ? field with { Pointer = field.Pointer[prefix.Length..] }
+            : field;
+    }
+
+    private static FieldDescriptor Relativize(FieldDescriptor field, string collectionPointer)
+    {
+        var prefix = collectionPointer + "/*";
+        return field.JsonPointer.StartsWith(prefix + "/", StringComparison.Ordinal)
+            ? field with { JsonPointer = field.JsonPointer[prefix.Length..] }
+            : field;
+    }
+
+    private static IReadOnlyList<string> SelectJsonItems(string content, string path)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            var array = ResolveJsonArray(document.RootElement, path);
+            return array?.EnumerateArray().Select(static item => item.GetRawText()).ToArray() ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static JsonElement? ResolveJsonArray(JsonElement root, string path)
+    {
+        if (!path.StartsWith("$.", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var current = root;
+        foreach (var property in path[2..].Split('.', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(property, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.Array ? current : null;
+    }
+
     private static string? Locate(HtmlDocument document, FieldPlan field, List<ScrapeDiagnostic> diagnostics)
     {
         for (var candidateStart = 0; candidateStart < field.Locators.Count;)
