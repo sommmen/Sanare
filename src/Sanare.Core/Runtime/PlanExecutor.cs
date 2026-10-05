@@ -97,18 +97,24 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
             itemContents = itemContents.Take(maxItems.Value).ToArray();
         }
 
-        var collectionPointer = schema.CollectionPointer ?? throw new InvalidOperationException("The schema does not declare a collection pointer.");
-        var itemPlan = plan with
-        {
-            Root = null,
-            Fields = plan.Fields.Where(field => IsCollectionField(field.Pointer, collectionPointer)).Select(field => Relativize(field, collectionPointer)).ToArray(),
-        };
-        var itemSchema = schema with
-        {
-            Fields = schema.Fields.Where(field => IsCollectionField(field.JsonPointer, collectionPointer)).Select(field => Relativize(field, collectionPointer)).ToArray(),
-            CollectionPointer = null,
-        };
-        return itemContents.Select(item => Execute(itemPlan, jsonRoot ? $"<script class=\"sanare-json-item\">{item}</script>" : item, itemSchema)).ToArray();
+        // A collection schema has item pointers below its collection property. A top-level schema
+        // (such as a listing card) uses every field unchanged for each selected root item.
+        var collectionPointer = schema.CollectionPointer;
+        var itemPlan = collectionPointer is null
+            ? plan with { Root = null }
+            : plan with
+            {
+                Root = null,
+                Fields = plan.Fields.Where(field => IsCollectionField(field.Pointer, collectionPointer)).Select(field => Relativize(field, collectionPointer)).ToArray(),
+            };
+        var itemSchema = collectionPointer is null
+            ? schema
+            : schema with
+            {
+                Fields = schema.Fields.Where(field => IsCollectionField(field.JsonPointer, collectionPointer)).Select(field => Relativize(field, collectionPointer)).ToArray(),
+                CollectionPointer = null,
+            };
+        return itemContents.Select(item => Execute(itemPlan, jsonRoot ? $"<script class=\"sanare-json-item\">{item}</script>" : $"<div class=\"sanare-html-item\">{item}</div>", itemSchema)).ToArray();
     }
 
     private static bool IsCollectionField(string pointer, string collectionPointer) =>

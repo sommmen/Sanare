@@ -12,12 +12,19 @@ public static class Program
 {
     private const string DetailSourceId = "lenovo-com/tablet-detail";
     private const string DetailUrl = "https://www.lenovo.com/nl/nl/p/tablets/android-tablets/lenovo-tab-series/lenovo-yoga-tab-gen-2/len103y0003";
+    private const string ListerSourceId = "lenovo-com/tablet-lister";
+    private const string ListerUrl = "https://www.lenovo.com/nl/nl/tablets/";
 
     public static int Main(string[] args)
     {
         if (args is ["detail", "--offline"])
         {
             return RunDetail();
+        }
+
+        if (args is ["list", "--offline"])
+        {
+            return RunList();
         }
 
         Console.Error.WriteLine("Usage: Sanare.Samples.Lenovo <detail|list|validate> [--offline]");
@@ -70,6 +77,48 @@ public static class Program
             }
 
             Console.Out.WriteLine(JsonSerializer.Serialize(product, LenovoJsonContext.Default.TabletProduct));
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            return Fail(exception.Message);
+        }
+    }
+
+    private static int RunList()
+    {
+        try
+        {
+            var root = FindRepositoryRoot();
+            var state = Path.Combine(root, "samples", "Sanare.Samples.Lenovo.State");
+            var planPath = Path.Combine(state, "scripts", "plans", "lenovo-com", "tablet-lister.json");
+            var plan = new PlanSerializer().Read(File.ReadAllText(planPath));
+            var schema = new SchemaDeriver().Derive<TabletListing>("nl-NL");
+            var fixtures = new FileFixtureContentProvider(
+                Path.Combine(state, "fixtures"),
+                Path.Combine(state, "fixtures", "manifest.json"));
+            if (!fixtures.TryGet(ListerSourceId, new Uri(ListerUrl), out var content))
+            {
+                return Fail("Offline fixture was not found.");
+            }
+
+            var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, content, schema);
+            if (outcomes.Any(static outcome => !outcome.RequiredFieldsPresent))
+            {
+                return Fail("Extraction failed required-field validation.");
+            }
+
+            var materializer = new DocumentMaterializer();
+            var listings = outcomes
+                .Select(outcome => materializer.Materialize<TabletListing>(outcome.Values))
+                .DistinctBy(static listing => listing.ProductUrl)
+                .ToArray();
+            if (listings.Length == 0)
+            {
+                return Fail("No tablet listings were extracted.");
+            }
+
+            Console.Out.WriteLine(JsonSerializer.Serialize(listings, LenovoJsonContext.Default.TabletListingArray));
             return 0;
         }
         catch (Exception exception)

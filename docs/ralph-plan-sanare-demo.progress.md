@@ -99,3 +99,11 @@ Ended 2026-10-02 23:09:39 +02:00.
 - Validation: passed
 - Commit: committed: 34085a2 feat(lenovo): add canonical tablet detail extraction plan; e826e2e docs(ralph): record the verified spec-row extraction recipe
 
+## Iteration 3 — ok
+
+- Elapsed: 00:18:09
+- Open tasks: 6 -> 5
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-detail.json, samples/Sanare.Samples.Lenovo/Program.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, tests/Sanare.Samples.Lenovo.Tests/TabletSchemasTests.cs, samples/Sanare.Samples.Lenovo.State/fixtures/manifest.json, samples/Sanare.Samples.Lenovo.State/golden/yoga-tab-gen2.json
+- Validation: passed
+- Commit: committed: c508be2 feat(lenovo): add offline detail extraction demo
+
