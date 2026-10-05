@@ -59,6 +59,31 @@ Two real pages are already committed under
 - The lister fixture is a marketing page whose product links (`/p/tablets/...`) live in
   an embedded navigation JSON. Treat it as a best-effort listing over that fixture.
 
+### A locator chain that is *proven* to work against the committed fixture
+
+This exact `FieldPlan` was executed against `yoga-tab-gen2-detail.html` and returned
+`Lenovo Yoga Tab Gen 2`. Reuse this shape for the scalar `ld+json` fields:
+
+```
+pointer:    /Name
+locators:   Html                                      (0 args — whole document markup)
+            RegexCapture  <script[^>]*application/ld\+json[^>]*>([^<]*"@type":"Product"[^<]*)</script>  1
+            JsonPath      $.name
+```
+
+Swap the final `JsonPath` for `$.offers.price`, `$.offers.priceCurrency`,
+`$.offers.availability`, `$.sku`, or `$.image[0]` for the other scalar fields.
+
+For the specification rows, the `$pdpAllData` island must first be cut out of the page.
+`ExecuteMany` parses its `content` argument as **raw JSON** when `Root` starts with `$`,
+so pass the island JSON itself — *not* wrapped in a `<script>` tag. The island is the
+text between `var $pdpAllData = ` and the next `</script>`, trimmed of a trailing `;`.
+With `Root = "$.techSpecs.tables[*].specs[*]"` and item fields
+`/Specifications/*/Name` → `$.headline`, `/Specifications/*/Value` → `$.text`, that
+yields the 14 rows **once T8b is fixed**. `Group` comes from the enclosing
+`groupHeadline`, which a flat `[*].specs[*]` root loses — either extract groups with a
+second pass over `$.techSpecs.tables[*]`, or accept `Group` as null and say so in Notes.
+
 ## Known code constraints — read before writing code
 
 - `PlanExecutor.Locate` supports only `SelectFirst`/`Text` (1 arg) and `Attribute`
@@ -147,6 +172,23 @@ Two real pages are already committed under
   JSON only; every log and diagnostic goes to stderr.** Prices are JSON numbers.
   Unit-test schema derivation for all three types and the stdout/stderr split. Depends on: T7.
 
+- [ ] **T8b — Fix the two `ExecuteMany` bugs found by running it against the real fixture.**
+  Both are proven by execution, not by reading; fix them before attempting T9.
+  1. **Pointer collision.** `ExecuteMany` relativizes *all* schema fields, so
+     `/Specifications/*/Name` becomes `/Name` and collides with `TabletProduct`'s own
+     top-level `/Name`. `Execute`'s `schema.Fields.ToDictionary(...)` then throws
+     `ArgumentException: An item with the same key has already been added. Key: /Name`.
+     Fix: `ExecuteMany` must **keep only the fields under the collection pointer** (both
+     plan fields and schema fields) before relativizing, and drop the rest.
+  2. **`ResolveJsonArray` cannot traverse arrays.** It splits the path on `.` and only
+     ever calls `TryGetProperty`, so a `Root` such as
+     `$.techSpecs.tables[*].specs[*]` resolves to nothing and yields zero items. The
+     14 spec rows are nested one array inside another, so this must work. Extend it to
+     handle `[*]` (flatten every element at that level) and `[n]` (index), consistent
+     with the `JsonPath` locator grammar from T3.
+  Add unit tests for both: a schema whose item field name collides with a top-level
+  field name, and a doubly-nested `[*]` root. Depends on: T5.
+
 - [ ] **T9 — The detail extraction plan, as committed data.**
   Hand-write canonical plan JSON for `lenovo-com/tablet-detail` under
   `samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/`, with
@@ -222,3 +264,5 @@ the next iteration needs to know.
 - T7 completed: created the `net10.0` console sample with usage written to stderr and exit 0, plus the Lenovo test project; both are registered in `/samples/` and `/tests/` respectively in `Sanare.slnx`. The sample references `Sanare.Core` and `Sanare.Abstractions`; the test project references the sample and uses the existing xUnit package versions. Verified `dotnet build Sanare.slnx -c Release` succeeds with 0 warnings and 0 errors. Next unblocked task: T8.
 
 - T8 completed: added writable, parameterless `TabletListing`, `TabletProduct`, and `ProductSpecification` classes (rather than positional records) because `DocumentMaterializer` requires writable properties. `TabletProduct.Specifications` is the sole `[ScrapeCollection]`, producing `/Specifications/*` field pointers. Added source-generated camel-case `LenovoJsonContext`, so prices serialize as JSON numbers. Made `Program.Main(string[] args)` public to unit-test the current usage stdout/stderr contract. Added schema derivation, source-generated serialization, and stderr-only usage tests. Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --no-restore` (3 passed) and `dotnet build Sanare.slnx -c Release --no-restore` (0 warnings/errors). Next unblocked task: T9.
+
+- **Supervisor note (before T9 was attempted).** The supervising session ran the real `PlanExecutor` against the real committed fixture rather than reading the code, and found the two `ExecuteMany` defects now written up as **T8b**. The scalar `ld+json` locator chain in "Established ground truth" is verified working output, not a guess: it returned `Lenovo Yoga Tab Gen 2`. Do **T8b first** — T9 and T10 cannot pass without it.
