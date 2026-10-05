@@ -213,6 +213,41 @@ public sealed class PlanExecutorTests
     }
 
     [Fact]
+    public void ExecuteMany_excludes_top_level_fields_that_collide_with_item_fields()
+    {
+        var locator = new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]);
+        var plan = CreatePlan([locator]) with
+        {
+            Root = "$.products",
+            Fields =
+            [
+                new FieldPlan("/Name", true, "string", [locator, new LocatorStep(PlanOperation.JsonPath, ["$.name"])], []),
+                new FieldPlan("/Products/*/Name", true, "string", [locator, new LocatorStep(PlanOperation.JsonPath, ["$.name"])], []),
+            ],
+        };
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, "{\"name\":\"page\",\"products\":[{\"name\":\"Yoga\"}]}", new SchemaDeriver().Derive<ProductPage>());
+
+        var outcome = Assert.Single(outcomes);
+        Assert.Equal("Yoga", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void ExecuteMany_extracts_items_from_doubly_nested_json_wildcards()
+    {
+        var locator = new LocatorStep(PlanOperation.SelectFirst, [".sanare-json-item"]);
+        var plan = CreatePlan([locator]) with
+        {
+            Root = "$.groups[*].products[*]",
+            Fields = [new FieldPlan("/Products/*/Name", true, "string", [locator, new LocatorStep(PlanOperation.JsonPath, ["$.name"])], [])],
+        };
+
+        var outcomes = new PlanExecutor(new TypeCoercer()).ExecuteMany(plan, "{\"groups\":[{\"products\":[{\"name\":\"Yoga\"}]},{\"products\":[{\"name\":\"Tab\"}]}]}", new SchemaDeriver().Derive<ProductCollection>());
+
+        Assert.Equal(["Yoga", "Tab"], outcomes.Select(outcome => outcome.Values["/Name"]));
+    }
+
+    [Fact]
     public void ExecuteMany_returns_no_outcomes_for_an_empty_collection()
     {
         var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".name"])]) with { Root = ".item" };
@@ -248,6 +283,14 @@ public sealed class PlanExecutorTests
 
     private sealed class ProductCollection
     {
+        [ScrapeCollection]
+        public List<Product> Products { get; set; } = [];
+    }
+
+    private sealed class ProductPage
+    {
+        public string Name { get; set; } = string.Empty;
+
         [ScrapeCollection]
         public List<Product> Products { get; set; } = [];
     }

@@ -172,7 +172,7 @@ second pass over `$.techSpecs.tables[*]`, or accept `Group` as null and say so i
   JSON only; every log and diagnostic goes to stderr.** Prices are JSON numbers.
   Unit-test schema derivation for all three types and the stdout/stderr split. Depends on: T7.
 
-- [ ] **T8b — Fix the two `ExecuteMany` bugs found by running it against the real fixture.**
+- [x] **T8b — Fix the two `ExecuteMany` bugs found by running it against the real fixture.**
   Both are proven by execution, not by reading; fix them before attempting T9.
   1. **Pointer collision.** `ExecuteMany` relativizes *all* schema fields, so
      `/Specifications/*/Name` becomes `/Name` and collides with `TabletProduct`'s own
@@ -266,3 +266,5 @@ the next iteration needs to know.
 - T8 completed: added writable, parameterless `TabletListing`, `TabletProduct`, and `ProductSpecification` classes (rather than positional records) because `DocumentMaterializer` requires writable properties. `TabletProduct.Specifications` is the sole `[ScrapeCollection]`, producing `/Specifications/*` field pointers. Added source-generated camel-case `LenovoJsonContext`, so prices serialize as JSON numbers. Made `Program.Main(string[] args)` public to unit-test the current usage stdout/stderr contract. Added schema derivation, source-generated serialization, and stderr-only usage tests. Verified `dotnet test tests\\Sanare.Samples.Lenovo.Tests\\Sanare.Samples.Lenovo.Tests.csproj -c Release --no-restore` (3 passed) and `dotnet build Sanare.slnx -c Release --no-restore` (0 warnings/errors). Next unblocked task: T9.
 
 - **Supervisor note (before T9 was attempted).** The supervising session ran the real `PlanExecutor` against the real committed fixture rather than reading the code, and found the two `ExecuteMany` defects now written up as **T8b**. The scalar `ld+json` locator chain in "Established ground truth" is verified working output, not a guess: it returned `Lenovo Yoga Tab Gen 2`. Do **T8b first** — T9 and T10 cannot pass without it.
+
+- T8b completed: `ExecuteMany` now filters both plan and schema fields to the declared collection pointer before relativizing, preventing collection item names from colliding with top-level fields. JSON collection roots now traverse `[*]` and `[n]` selectors across nested arrays and return every selected item. Added collision and doubly nested wildcard regression tests. Verified `dotnet test tests\\Sanare.Core.Tests\\Sanare.Core.Tests.csproj -c Release --filter "FullyQualifiedName~PlanExecutorTests" --no-restore` (27 passed, 0 failed). Next unblocked task: T9.
