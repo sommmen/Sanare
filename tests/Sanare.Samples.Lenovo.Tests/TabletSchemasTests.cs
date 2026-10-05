@@ -6,8 +6,6 @@ namespace Sanare.Samples.Lenovo.Tests;
 
 public sealed class TabletSchemasTests
 {
-    private static readonly Lock ConsoleLock = new();
-
     [Fact]
     public void Derive_maps_all_lenovo_schema_shapes()
     {
@@ -33,7 +31,7 @@ public sealed class TabletSchemasTests
     [Fact]
     public void Detail_offline_writes_the_extracted_product_as_json()
     {
-        lock (ConsoleLock)
+        lock (ConsoleTestLock.Instance)
         {
             var stdout = new StringWriter();
             var stderr = new StringWriter();
@@ -70,7 +68,7 @@ public sealed class TabletSchemasTests
     [Fact]
     public void Program_writes_usage_only_to_stderr()
     {
-        lock (ConsoleLock)
+        lock (ConsoleTestLock.Instance)
         {
             var stdout = new StringWriter();
             var stderr = new StringWriter();

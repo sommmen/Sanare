@@ -107,3 +107,11 @@ Ended 2026-10-02 23:09:39 +02:00.
 - Validation: passed
 - Commit: committed: c508be2 feat(lenovo): add offline detail extraction demo
 
+## Iteration 4 — ok
+
+- Elapsed: 00:17:45
+- Open tasks: 5 -> 4
+- Files changed (git): docs/ralph-plan-sanare-demo.md, docs/ralph-plan-sanare-demo.progress.md, samples/Sanare.Samples.Lenovo.State/fixtures/manifest.json, samples/Sanare.Samples.Lenovo/Program.cs, src/Sanare.Core/Runtime/PlanExecutor.cs, samples/Sanare.Samples.Lenovo.State/golden/tablet-list.json, samples/Sanare.Samples.Lenovo.State/scripts/plans/lenovo-com/tablet-lister.json, tests/Sanare.Samples.Lenovo.Tests/ListCommandTests.cs
+- Validation: passed
+- Commit: committed: 08b0c1a feat(lenovo): add offline tablet listing demo
+

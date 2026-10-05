@@ -53,3 +53,13 @@ public sealed class ProductSpecification
     [ScrapeField(Required = true)]
     public string Value { get; set; } = string.Empty;
 }
+
+/// <summary>Per-plan outcome reported by the <c>validate</c> command.</summary>
+public sealed class PlanValidationReport
+{
+    public string PlanSourceId { get; set; } = string.Empty;
+
+    public bool IsValid { get; set; }
+
+    public IReadOnlyList<string> Defects { get; set; } = [];
+}

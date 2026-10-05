@@ -7,8 +7,6 @@ namespace Sanare.Samples.Lenovo.Tests;
 
 public sealed class ListCommandTests
 {
-    private static readonly Lock ConsoleLock = new();
-
     [Fact]
     public void Lister_plan_is_canonical_and_valid_for_the_tablet_listing_schema()
     {
@@ -24,7 +22,7 @@ public sealed class ListCommandTests
     [Fact]
     public void List_offline_writes_unique_absolute_product_urls_as_json()
     {
-        lock (ConsoleLock)
+        lock (ConsoleTestLock.Instance)
         {
             var stdout = new StringWriter();
             var stderr = new StringWriter();

@@ -6,6 +6,8 @@ using Sanare.Core.Schema;
 using Sanare.Core.Schema.Coercion;
 using Sanare.Core.Schema.Materialization;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Sanare.Samples.Lenovo.Tests")]
+
 namespace Sanare.Samples.Lenovo;
 
 public static class Program
@@ -25,6 +27,11 @@ public static class Program
         if (args is ["list", "--offline"])
         {
             return RunList();
+        }
+
+        if (args is ["validate"])
+        {
+            return RunValidate();
         }
 
         Console.Error.WriteLine("Usage: Sanare.Samples.Lenovo <detail|list|validate> [--offline]");
@@ -126,6 +133,47 @@ public static class Program
             return Fail(exception.Message);
         }
     }
+
+    private static int RunValidate() => RunValidate(null);
+
+    internal static int RunValidate(string? plansDirectoryOverride)
+    {
+        try
+        {
+            var plansDirectory = plansDirectoryOverride ?? Path.Combine(
+                FindRepositoryRoot(), "samples", "Sanare.Samples.Lenovo.State", "scripts", "plans", "lenovo-com");
+            var serializer = new PlanSerializer();
+            var validator = new PlanValidator();
+
+            var detailPlan = serializer.Read(File.ReadAllText(Path.Combine(plansDirectory, "tablet-detail.json")));
+            var detailSchema = new SchemaDeriver().Derive<TabletProduct>("nl-NL");
+            var detailResult = validator.Validate(detailPlan, detailSchema);
+
+            var listerPlan = serializer.Read(File.ReadAllText(Path.Combine(plansDirectory, "tablet-lister.json")));
+            var listerSchema = new SchemaDeriver().Derive<TabletListing>("nl-NL");
+            var listerResult = validator.Validate(listerPlan, listerSchema);
+
+            var reports = new[]
+            {
+                ToReport(detailPlan.SourceId, detailResult),
+                ToReport(listerPlan.SourceId, listerResult),
+            };
+
+            Console.Out.WriteLine(JsonSerializer.Serialize(reports, LenovoJsonContext.Default.PlanValidationReportArray));
+            return reports.All(static report => report.IsValid) ? 0 : 1;
+        }
+        catch (Exception exception)
+        {
+            return Fail(exception.Message);
+        }
+    }
+
+    private static PlanValidationReport ToReport(string sourceId, PlanValidationResult result) => new()
+    {
+        PlanSourceId = sourceId,
+        IsValid = result.IsValid,
+        Defects = result.Defects.Select(static defect => $"{defect.PlanPointer}: {defect.Message}").ToArray(),
+    };
 
     private static IReadOnlyList<Uri> ExtractImages(string content)
     {
