@@ -381,9 +381,84 @@ public sealed class PlanExecutorTests
         Assert.Contains(outcome.Diagnostics, diagnostic => diagnostic.JsonPointer == "/acquisition/urlTemplate");
     }
 
+    [Fact]
+    public void Execute_reports_a_required_field_whose_transform_failed_as_missing()
+    {
+        // The locator finds text but ParseDecimal rejects it. Reporting only SNR-EXT-001 would leave
+        // RequiredFieldsPresent true, so ExecuteMany's callers would keep the item as a success while
+        // its required value is null.
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".price"])]) with
+        {
+            Fields =
+            [
+                new FieldPlan("/Price", true, "decimal",
+                    [new LocatorStep(PlanOperation.Text, [".price"])],
+                    [new TransformStep(PlanOperation.ParseDecimal, ["en-US"])]),
+            ],
+        };
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<span class='price'>not a number</span>", new SchemaDeriver().Derive<RequiredPricedProduct>());
+
+        Assert.Null(outcome.Values["/Price"]);
+        Assert.False(outcome.RequiredFieldsPresent);
+    }
+
+    [Fact]
+    public void Locate_supports_select_all_followed_by_index()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectAll, [".tag"]),
+            new LocatorStep(PlanOperation.Index, ["1"]),
+        ]);
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<i class='tag'>first</i><i class='tag'>second</i>", new SchemaDeriver().Derive<Product>());
+
+        Assert.Equal("second", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Locate_supports_split_followed_by_index()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.Text, [".csv"]),
+            new LocatorStep(PlanOperation.Split, [","]),
+            new LocatorStep(PlanOperation.Index, ["2"]),
+        ]);
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<span class='csv'>a,b,c</span>", new SchemaDeriver().Derive<Product>());
+
+        Assert.Equal("c", outcome.Values["/Name"]);
+    }
+
+    [Fact]
+    public void Locate_returns_null_for_an_index_outside_the_list()
+    {
+        var plan = CreatePlan(
+        [
+            new LocatorStep(PlanOperation.SelectAll, [".tag"]),
+            new LocatorStep(PlanOperation.Index, ["7"]),
+        ]);
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<i class='tag'>only</i>", new SchemaDeriver().Derive<Product>());
+
+        Assert.Null(outcome.Values["/Name"]);
+    }
+
     private sealed class Product
     {
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class RequiredPricedProduct
+    {
+        [ScrapeField(Required = true)]
+        public decimal? Price { get; set; }
     }
 
     private sealed class PricedProduct

@@ -64,6 +64,15 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
             {
                 values[field.JsonPointer] = null;
                 diagnostics.Add(new ScrapeDiagnostic("SNR-EXT-001", DiagnosticSeverity.Warning, transformError!, field.JsonPointer));
+
+                // A required field whose transform rejected the located text is just as absent as one whose
+                // locator missed. Without this, RequiredFieldsPresent stays true and ExecuteMany's callers
+                // retain the item as successful while the value is null.
+                if (field.Required || fieldPlan.Required)
+                {
+                    diagnostics.Add(new ScrapeDiagnostic("SNR-SCH-004", DiagnosticSeverity.Error, "A required field is missing.", field.JsonPointer));
+                }
+
                 continue;
             }
 
@@ -356,6 +365,10 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         PlanOperation.SelectFirst or PlanOperation.Text when locator.Arguments.Count == 1 => document.SelectText(locator.Arguments[0]),
         PlanOperation.Attribute when locator.Arguments.Count == 2 => document.SelectAttribute(locator.Arguments[0], locator.Arguments[1]),
         PlanOperation.XPath when locator.Arguments.Count == 1 => document.SelectXPath(locator.Arguments[0]),
+        // Every match's text, newline-joined, so a following Index step can take one of them and Concat can
+        // rejoin them. This is the same list convention the Split/Index/Concat transforms use.
+        PlanOperation.SelectAll when locator.Arguments.Count == 1 =>
+            document.SelectAllTextContent(locator.Arguments[0]) is { Count: > 0 } matches ? string.Join('\n', matches) : null,
         // Zero-arg Html as a first step has no selector to apply, so it yields the whole document's markup.
         PlanOperation.Html when locator.Arguments.Count == 0 => document.OuterHtml,
         _ => throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset."),
@@ -377,6 +390,15 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 return RegexCapture(value, locator.Arguments);
             case PlanOperation.JsonPath when locator.Arguments.Count == 1:
                 return JsonPath(value, locator.Arguments[0]);
+            // Split and Index pair up, using the same newline-joined list convention as their transform
+            // counterparts so a value means the same thing wherever these operations appear. Keeping the
+            // list as text preserves the pipeline's invariant that every step yields a single string.
+            case PlanOperation.Split when locator.Arguments.Count == 1:
+                return string.Join('\n', value.Split(locator.Arguments[0]));
+            case PlanOperation.Index when locator.Arguments.Count == 1
+                && int.TryParse(locator.Arguments[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var index):
+                var elements = value.Split('\n');
+                return index >= 0 && index < elements.Length ? elements[index] : null;
             default:
                 throw new NotSupportedException($"Plan operation '{locator.Operation}' is outside the v0.1 HTML runtime subset.");
         }
