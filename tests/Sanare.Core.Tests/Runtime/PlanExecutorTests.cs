@@ -324,9 +324,71 @@ public sealed class PlanExecutorTests
         Provenance = new PlanProvenance("test", "none", 1, Array.Empty<string>(), 1d, DateTimeOffset.UnixEpoch),
     };
 
+    [Fact]
+    public void Execute_reads_a_localised_value_using_the_fields_own_culture()
+    {
+        // No parser transform runs, so the raw page text is locale-formatted and must be read as nl-NL:
+        // "649,01" is six hundred forty-nine and one cent, not sixty-four thousand nine hundred and one.
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".price"])]) with
+        {
+            Culture = "nl-NL",
+            Fields = [new FieldPlan("/Price", false, "decimal", [new LocatorStep(PlanOperation.Text, [".price"])], [])],
+        };
+
+        var schema = new SchemaDeriver().Derive<PricedProduct>("nl-NL");
+        Assert.Equal("nl-NL", schema.Fields.Single(field => field.JsonPointer == "/Price").Culture);
+
+        var outcome = new PlanExecutor(new TypeCoercer()).Execute(plan, "<span class='price'>649,01</span>", schema);
+
+        Assert.Equal(649.01m, outcome.Values["/Price"]);
+    }
+
+    [Fact]
+    public void Execute_does_not_reapply_the_field_culture_to_a_parsed_value()
+    {
+        // ParseDecimal emits its result in the invariant culture. Reparsing that canonical "649.01"
+        // under nl-NL, where '.' groups thousands, would silently yield 64901.
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".price"])]) with
+        {
+            Culture = "nl-NL",
+            Fields =
+            [
+                new FieldPlan("/Price", false, "decimal",
+                    [new LocatorStep(PlanOperation.Text, [".price"])],
+                    [new TransformStep(PlanOperation.ParseDecimal, ["en-US"])]),
+            ],
+        };
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<span class='price'>649.01</span>", new SchemaDeriver().Derive<PricedProduct>("nl-NL"));
+
+        Assert.Equal(649.01m, outcome.Values["/Price"]);
+    }
+
+    [Fact]
+    public void Execute_reports_a_malformed_url_template_as_a_diagnostic_rather_than_throwing()
+    {
+        var plan = CreatePlan([new LocatorStep(PlanOperation.Text, [".name"])]) with
+        {
+            Acquisition = new AcquisitionSpec(
+                AcquisitionMethod.Get, "not-an-absolute-uri", new Dictionary<string, string>(), null, Array.Empty<InteractionStep>()),
+        };
+
+        var outcome = new PlanExecutor(new TypeCoercer())
+            .Execute(plan, "<span class='name'>Yoga</span>", new SchemaDeriver().Derive<Product>());
+
+        Assert.Equal("Yoga", outcome.Values["/Name"]);
+        Assert.Contains(outcome.Diagnostics, diagnostic => diagnostic.JsonPointer == "/acquisition/urlTemplate");
+    }
+
     private sealed class Product
     {
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class PricedProduct
+    {
+        public decimal? Price { get; set; }
     }
 
     private sealed class ProductCollection

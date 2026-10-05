@@ -27,6 +27,19 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         var coercionFailedFields = new HashSet<string>(StringComparer.Ordinal);
         var fields = schema.Fields.ToDictionary(static field => field.JsonPointer, StringComparer.Ordinal);
 
+        // Validation of the URL template is IPlanValidator's job and is optional, so Execute may be
+        // handed a plan whose template is still templated or malformed. Resolving it once, leniently,
+        // keeps that a per-field relative-URL limitation rather than an exception that aborts the
+        // whole extraction while every other failure is reported as a diagnostic.
+        if (!Uri.TryCreate(plan.Acquisition.UrlTemplate, UriKind.Absolute, out var documentBaseUri))
+        {
+            diagnostics.Add(new ScrapeDiagnostic(
+                "SNR-EXT-001",
+                DiagnosticSeverity.Warning,
+                "The plan's acquisition URL template is not an absolute URI; relative URLs cannot be resolved.",
+                "/acquisition/urlTemplate"));
+        }
+
         foreach (var fieldPlan in plan.Fields.OrderBy(static field => field.Pointer, StringComparer.Ordinal))
         {
             if (!fields.TryGetValue(fieldPlan.Pointer, out var field))
@@ -47,17 +60,23 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
                 continue;
             }
 
-            if (!TryTransform(raw, fieldPlan.Transforms, out var transformed, out var transformError))
+            if (!TryTransform(raw, fieldPlan.Transforms, out var transformed, out var transformError, out var canonical))
             {
                 values[field.JsonPointer] = null;
                 diagnostics.Add(new ScrapeDiagnostic("SNR-EXT-001", DiagnosticSeverity.Warning, transformError!, field.JsonPointer));
                 continue;
             }
 
+            // When no parser transform ran, culture is left unset so CoercionContext.ResolveCulture falls
+            // back to the field's own culture — forcing invariant here would misread a locale-formatted
+            // "649,01" as 64901. When a parser transform did run it already emitted invariant text, so
+            // the field's display culture must not be applied a second time.
             var coercion = coercer.Coerce(
                 transformed,
                 field,
-                new CoercionContext(Culture: CultureInfo.InvariantCulture, DocumentBaseUri: new Uri(plan.Acquisition.UrlTemplate, UriKind.Absolute)));
+                new CoercionContext(
+                    Culture: canonical ? CultureInfo.InvariantCulture : null,
+                    DocumentBaseUri: documentBaseUri));
             if (!coercion.Success)
             {
                 values[field.JsonPointer] = null;
@@ -502,11 +521,22 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
         return group.Success ? group.Value : null;
     }
 
-    private static bool TryTransform(string input, IReadOnlyList<TransformStep> transforms, out string output, out string? error)
+    /// <summary>
+    /// Applies a field's transform chain.
+    /// </summary>
+    /// <param name="canonical">
+    /// Set when a parser transform (<c>ParseInt</c>, <c>ParseDecimal</c>, <c>ParseBool</c>) ran. Those
+    /// transforms emit their result in the invariant culture, so the value handed to coercion is already
+    /// canonical and must not be reparsed under the field's display culture — doing so reads an invariant
+    /// "649.01" as the nl-NL integer 64901.
+    /// </param>
+    private static bool TryTransform(string input, IReadOnlyList<TransformStep> transforms, out string output, out string? error, out bool canonical)
     {
         output = input;
+        canonical = false;
         foreach (var transform in transforms)
         {
+            canonical |= transform.Operation is PlanOperation.ParseInt or PlanOperation.ParseDecimal or PlanOperation.ParseBool;
             switch (transform.Operation)
             {
                 case PlanOperation.Trim:

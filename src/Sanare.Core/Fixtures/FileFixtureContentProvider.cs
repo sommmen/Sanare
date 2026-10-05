@@ -31,8 +31,7 @@ public sealed class FileFixtureContentProvider : IFixtureContentProvider
         }
 
         var path = Path.GetFullPath(Path.Combine(_fixtureRoot, relativePath));
-        if (!path.StartsWith(_fixtureRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            || !File.Exists(path))
+        if (!IsContainedIn(_fixtureRoot, path) || !File.Exists(path))
         {
             html = string.Empty;
             return false;
@@ -40,6 +39,25 @@ public sealed class FileFixtureContentProvider : IFixtureContentProvider
 
         html = File.ReadAllText(path);
         return true;
+    }
+
+    /// <summary>
+    /// Reports whether <paramref name="candidate"/> lies beneath <paramref name="root"/>.
+    /// </summary>
+    /// <remarks>
+    /// A textual prefix comparison cannot answer this correctly: an ordinal-ignore-case check treats
+    /// <c>/tmp/foo/secret</c> as inside <c>/tmp/Foo</c>, which is wrong on a case-sensitive filesystem and
+    /// lets a manifest entry escape the fixture root. <see cref="Path.GetRelativePath(string, string)"/>
+    /// applies the host's own path semantics, and a relative path that stays inside the root can neither
+    /// be rooted nor begin with a parent-directory segment.
+    /// </remarks>
+    private static bool IsContainedIn(string root, string candidate)
+    {
+        var relative = Path.GetRelativePath(root, candidate);
+        return !Path.IsPathRooted(relative)
+            && relative != ".."
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     private static IReadOnlyDictionary<string, string> LoadManifest(string manifestPath)

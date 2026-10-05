@@ -63,6 +63,16 @@ public static class Program
             var executor = new PlanExecutor(new TypeCoercer());
             var productOutcome = executor.Execute(plan, content, scalarSchema);
             var specificationOutcomes = executor.ExecuteMany(plan, content, schema);
+
+            // An empty collection satisfies Any(...) vacuously, and the schema validation below
+            // deliberately covers only the scalar fields. Without this check a plan whose collection
+            // root stopped matching would exit 0 and print an empty specification table, which is the
+            // exact silent failure this command exists to make impossible.
+            if (specificationOutcomes.Length == 0)
+            {
+                return Fail("Extraction produced no specification rows; the plan's collection root matched nothing.");
+            }
+
             if (!productOutcome.RequiredFieldsPresent || specificationOutcomes.Any(static outcome => !outcome.RequiredFieldsPresent))
             {
                 var diagnostics = productOutcome.Diagnostics

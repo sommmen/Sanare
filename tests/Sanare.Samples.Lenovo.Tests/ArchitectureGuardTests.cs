@@ -65,6 +65,15 @@ public sealed class ArchitectureGuardTests
         @"^\$[.\[][\w\[\]*.]*$",
         RegexOptions.Compiled);
 
+    // A content-regex-looking literal uses regex metasyntax that has no purpose in ordinary prose or
+    // configuration text: a character class, a capture/non-capture group, an escape class such as \w
+    // or \d, or an anchored quantifier. Matching on these markers rather than on "contains a dot or
+    // star" keeps file names, format strings, and usage text from tripping the guard, while a real
+    // extraction pattern — for example "SKU: (\w+)" or "price-([\d,.]+)" — is caught.
+    private static readonly Regex RegexLikeLiteral = new(
+        @"(?:\[\^?[^\]]*\][*+?{])|(?:\((?:\?[:=!<][^)]*|[^)]*)\)[*+?]?)|(?:\\[wdsWDSbB])|(?:[.\w)\]][*+][?]?(?:$|[^\w]))|(?:^\^)|(?:\$$)",
+        RegexOptions.Compiled);
+
     [Fact]
     public void Sample_source_declares_no_lenovo_urls_beyond_the_two_start_urls()
     {
@@ -96,6 +105,12 @@ public sealed class ArchitectureGuardTests
     public void Sample_source_contains_no_json_path_literals_into_lenovo_payloads()
     {
         AssertNoLiteralMatches(JsonPathLikeLiteral, "a JSONPath-looking");
+    }
+
+    [Fact]
+    public void Sample_source_contains_no_content_regex_literals()
+    {
+        AssertNoLiteralMatches(RegexLikeLiteral, "a content-regex-looking");
     }
 
     private static void AssertNoLiteralMatches(Regex literalShape, string description)
