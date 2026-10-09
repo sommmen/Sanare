@@ -26,7 +26,7 @@ public sealed class BrowserTestSiteFixture : IAsyncLifetime
     /// <summary>Clears the response-byte counter used by resource-blocking tests.</summary>
     public void ResetByteCount() => Interlocked.Exchange(ref _bytesServed, 0);
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var sitePath = Path.Combine(AppContext.BaseDirectory, "TestSite");
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ContentRootPath = sitePath });
@@ -50,7 +50,7 @@ public sealed class BrowserTestSiteFixture : IAsyncLifetime
         _application = application;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_application is not null)
         {
