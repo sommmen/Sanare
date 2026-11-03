@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Renovate
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      # Configuration: re-run so config changes take effect immediately.
+      - "renovate.json"
+      - "renovate-config.json"
+      - ".github/workflows/renovate.yml"
+      # Shared dependency manifests: a merge here puts every other open
+      # dependency PR one commit behind main. Re-running lets Renovate rebase
+      # them right away instead of leaving them conflicted until the next cron.
+      - "Directory.Build.props"
+      - "**/dotnet-tools.json"
+  workflow_dispatch: # Allow running the workflow manually from the GitHub UI
+  schedule:
+    - cron: "0 8 * * *"
+
+# Renovate mutates branches, so overlapping runs can race. Queue a follow-up run
+# instead of cancelling: the in-progress run may predate the merge that triggered
+# this one, so cancelling it could drop the rebase we want.
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  security-events: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v46.3.10
+        with:
+          configurationFile: renovate-config.json
+        env:
+          # A PAT (not GITHUB_TOKEN) is required so automerge can trigger
+          # further workflow runs (e.g. required status checks).
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+#          LOG_LEVEL: "debug"

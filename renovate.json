@@ -1,0 +1,60 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits"
+  ],
+  "configMigration": true,
+  "pruneStaleBranches": true,
+  "branchConcurrentLimit": 0,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "labels": [
+    "deps"
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": [
+        "/^[Rr]enovatebot/github-action/"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Test-only infrastructure ships nothing to production, so a bad version can only turn the required 'Build and Test (.NET)' check red, which already blocks the merge. That makes these self-policing, so all update types automerge including majors.",
+      "matchManagers": [
+        "nuget"
+      ],
+      "matchDepNames": [
+        "/^[Xx]unit/",
+        "/^[Mm]icrosoft\\.NET\\.Test\\./",
+        "/^[Mm]icrosoft\\.Testing\\./",
+        "/^[Nn]Substitute/",
+        "/^[Aa]utoFixture/",
+        "/^[Cc]overlet/"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "PublicApiGenerator is referenced only by the Abstractions and Http test projects, where it drives approved-API snapshot tests. A behavioural change in it breaks those snapshots, which turns the required check red, so it cannot land silently.",
+      "matchManagers": [
+        "nuget"
+      ],
+      "matchDepNames": [
+        "/^[Pp]ublic[Aa]pi[Gg]enerator/"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Microsoft.Playwright is a runtime dependency of Sanare.Browser, not a test package, and the Category=Browser tests that would exercise it are excluded from CI because no Chromium is installed on the runner. Nothing in CI meaningfully covers a Playwright bump, so these stay manual.",
+      "matchManagers": [
+        "nuget"
+      ],
+      "matchDepNames": [
+        "/^[Mm]icrosoft\\.Playwright/"
+      ],
+      "automerge": false
+    }
+  ]
+}
