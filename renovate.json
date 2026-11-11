@@ -47,14 +47,28 @@
       "automerge": true
     },
     {
-      "description": "Microsoft.Playwright is a runtime dependency of Sanare.Browser, not a test package, and the Category=Browser tests that would exercise it are excluded from CI because no Chromium is installed on the runner. Nothing in CI meaningfully covers a Playwright bump, so these stay manual.",
+      "description": "AngleSharp parses HTML in Sanare's scraping path. It is a leaf dependency whose output the parsing tests assert directly, so a behavioural change surfaces as a failing test rather than silent drift.",
+      "matchManagers": [
+        "nuget"
+      ],
+      "matchDepNames": [
+        "/^[Aa]ngle[Ss]harp(\\.|$)/"
+      ],
+      "automerge": true,
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "description": "Microsoft.Playwright is a runtime dependency of Sanare.Browser, and the Category=Browser tests that would exercise it are excluded from CI because no Chromium is installed on the runner, so CI only proves it still compiles. Automerged on all update types at owner's judgement that Playwright is well behaved and a browser-automation failure is obvious in use and cheap to revert; restore automerge:false if that stops holding.",
       "matchManagers": [
         "nuget"
       ],
       "matchDepNames": [
         "/^[Mm]icrosoft\\.Playwright/"
       ],
-      "automerge": false
+      "automerge": true
     }
   ]
 }
