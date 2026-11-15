@@ -55,7 +55,11 @@ public interface IScriptRepository
     /// Lists the commits touching one plan's path, newest first, each carrying the approval tag pointing at
     /// it when there is one (AC-GIT-009, AC-GIT-010). Renames are not followed. Takes no write lease.
     /// </summary>
+    /// <param name="sourceId">The source the plan belongs to.</param>
+    /// <param name="schemaName">The schema the plan extracts.</param>
+    /// <param name="schemaVersion">The schema version the plan targets.</param>
     /// <param name="limit">Caps the number of entries returned; <see langword="null"/> returns all of them.</param>
+    /// <param name="ct">Cancellation token.</param>
     ValueTask<PlanHistory> GetHistoryAsync(
         string sourceId, string schemaName, int schemaVersion, int? limit = null, CancellationToken ct = default);
 
@@ -70,10 +74,14 @@ public interface IScriptRepository
     /// falling back to the default branch tip when nothing is approved yet (AC-GIT-013). Returns the branch
     /// name, which gains a numeric suffix on same-day collision.
     /// </summary>
+    /// <param name="sourceId">The source the plan belongs to.</param>
+    /// <param name="schemaName">The schema the plan extracts.</param>
+    /// <param name="schemaVersion">The schema version the plan targets.</param>
     /// <param name="shortReason">
     /// Slugified into the branch name and rejected with <c>SNR-GIT-015</c> when it cannot be reduced to
     /// <c>^[a-z0-9-]+$</c>, so it can never inject a ref path.
     /// </param>
+    /// <param name="ct">Cancellation token.</param>
     ValueTask<string> CreateHealBranchAsync(
         string sourceId, string schemaName, int schemaVersion, string shortReason, CancellationToken ct = default);
 

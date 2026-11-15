@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>Sanare.Core</RootNamespace>
     <AssemblyName>Sanare.Core</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>The Sanare engine: schema derivation and materialization, the plan executor, the Git-backed plan repository and resolver, observability primitives, and the on-disk fixture corpus.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -546,6 +546,10 @@ public sealed class PlanExecutor(ITypeCoercer coercer) : IPlanExecutor
     /// <summary>
     /// Applies a field's transform chain.
     /// </summary>
+    /// <param name="input">The raw value produced by the field's locator.</param>
+    /// <param name="transforms">The ordered transform steps to apply.</param>
+    /// <param name="output">The transformed value.</param>
+    /// <param name="error">A failure description when a transform fails; otherwise <see langword="null"/>.</param>
     /// <param name="canonical">
     /// Set when a parser transform (<c>ParseInt</c>, <c>ParseDecimal</c>, <c>ParseBool</c>) ran. Those
     /// transforms emit their result in the invariant culture, so the value handed to coercion is already

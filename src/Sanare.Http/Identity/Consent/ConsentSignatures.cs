@@ -7,6 +7,7 @@ namespace Sanare.Http.Identity.Consent;
 /// standard "accept necessary" cookie each CMP itself would set
 /// (docs/features/browsing-identity.md, "Key Behaviors" &gt; "Consent walls").
 /// </summary>
+/// <param name="Name">The CMP's display name.</param>
 /// <param name="MarkerSelector">A CSS selector (or, for TCF, a script-global check) identifying the CMP's banner markup.</param>
 /// <param name="CookieName">The name of the documented, static consent cookie the CMP sets on "accept necessary".</param>
 /// <param name="CookieValue">The documented, static value for that cookie.</param>
