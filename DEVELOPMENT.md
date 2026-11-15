@@ -14,6 +14,8 @@ dotnet format Sanare.slnx --verify-no-changes
 Requires .NET SDK 10.0+. See [README.md](README.md) for the current architecture
 and scope of the v0.1 foundation.
 
+`dotnet pack -c Release` packs the four `src/` libraries (versions come from Nerdbank.GitVersioning via `version.json`; there is no publish workflow yet).
+
 ## Todo
 
 - [x] Implement the v0.1 project skeleton, core domain/engine contracts, and a minimal deterministic offline engine path (`Sanare.Abstractions` + `Sanare.Core`), proving the intended architecture end-to-end via fixture-backed execution.

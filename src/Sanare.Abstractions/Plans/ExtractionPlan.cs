@@ -14,7 +14,7 @@ namespace Sanare.Abstractions.Plans;
 /// docs/features/extraction-plan-model.md). Structural validation is available via
 /// <c>Sanare.Core.Plans.IPlanValidator</c>; execution via <c>plan-runtime</c> belongs to the full
 /// <c>plan-runtime</c> feature and is not implemented in v0.1 — the narrow
-/// <see cref="Sanare.Core.PlanExecutor"/> that does exist trusts its hand-authored, in-process plans and
+/// <c>Sanare.Core.PlanExecutor</c> that does exist trusts its hand-authored, in-process plans and
 /// rejects unsupported operations at run time instead.
 /// </para>
 /// <para>A plan object graph is never mutated after construction; every collection here is read-only.</para>

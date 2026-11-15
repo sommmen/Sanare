@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>Sanare.Abstractions</RootNamespace>
     <AssemblyName>Sanare.Abstractions</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>Core domain and engine contracts for Sanare: scrape requests and results, the extraction-plan model, schema attributes, diagnostics, and quality/provenance types. BCL only.</Description>
     <!--
       This project must have zero third-party dependencies (BCL only). It defines the
       public contract surface shared by every other Sanare package. See

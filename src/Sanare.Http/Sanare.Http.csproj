@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>Sanare.Http</RootNamespace>
     <AssemblyName>Sanare.Http</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>Governed HTTP acquisition for Sanare: per-host pacing, robots.txt enforcement, retries, conditional caching, browsing identities, and consent handling.</Description>
   </PropertyGroup>
 
   <ItemGroup>

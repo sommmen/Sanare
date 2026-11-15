@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>Sanare.Browser</RootNamespace>
     <AssemblyName>Sanare.Browser</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <Description>Opt-in Playwright browser tier for Sanare: browser pool, page scope, wait strategies, interactions, resource blocking, and manual challenge hand-off.</Description>
   </PropertyGroup>
 
   <ItemGroup>

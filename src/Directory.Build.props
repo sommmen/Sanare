@@ -1,0 +1,37 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <Authors>sommmen</Authors>
+    <PackageProjectUrl>https://github.com/sommmen/Sanare</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sommmen/Sanare</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>scraping;extraction;agent;self-healing;playwright</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      CS1591 (missing XML doc comment) is suppressed on purpose: the XML file is still worth shipping for
+      IntelliSense, but the public surface is not fully doc-commented yet. Revisit once docs are written.
+    -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Symbols stay embedded in the DLL (SDK default DebugType=embedded), so no snupkg is produced. -->
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+    <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+</Project>

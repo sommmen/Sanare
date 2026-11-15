@@ -52,7 +52,7 @@ public enum PlanOperationCategory
 /// added silently). Actually validating a real (e.g. LLM- or JSON-authored) plan against it is
 /// <c>IPlanValidator</c>, which belongs to the full <c>extraction-plan-model</c> feature together with the
 /// plan JSON serializer, canonical writer, and content hash — deliberately deferred past v0.1 because
-/// v0.1 plans are hand-authored in-process (<see cref="Sanare.Core.InMemoryExtractionPlanProvider"/>),
+/// v0.1 plans are hand-authored in-process (<c>Sanare.Core.InMemoryExtractionPlanProvider</c>),
 /// not deserialized from untrusted JSON, so the security boundary this catalogue metadata exists to
 /// support has no caller yet. Execution against a validated plan is the separately out-of-scope
 /// <c>plan-runtime</c> feature (M2).

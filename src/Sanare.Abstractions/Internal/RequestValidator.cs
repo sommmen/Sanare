@@ -17,7 +17,7 @@ public sealed record ValidationOutcome(
 /// <summary>
 /// Applies the normalisation rules from docs/features/scrape-api-contracts.md ("Request record and
 /// normalisation") before a <see cref="ScrapeRequest"/> is executed. Failures are represented as data,
-/// never thrown, with the sole exception of a null <paramref name="request"/> — a programming error.
+/// never thrown, with the sole exception of a null <c>request</c> — a programming error.
 /// </summary>
 public static class RequestValidator
 {
@@ -30,7 +30,7 @@ public static class RequestValidator
     private static readonly Regex SourceIdPattern =
         new("^[a-z0-9-]+(/[a-z0-9-]+)*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    /// <summary>Validates and normalises <paramref name="request"/>, applying rules 1 through 5 in order.</summary>
+    /// <summary>Validates and normalises <c>request</c>, applying rules 1 through 5 in order.</summary>
     public static ValidationOutcome Validate(ScrapeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
