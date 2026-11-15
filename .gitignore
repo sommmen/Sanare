@@ -429,8 +429,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# Serena MCP local project index/cache (not part of the project source)
-.serena/
+# Commit Serena's project config; ignore its machine-local index and memories.
+.serena/*
+!.serena/project.yml
 
 
 ### VisualStudioCode ###

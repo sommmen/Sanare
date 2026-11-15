@@ -14,7 +14,7 @@ on:
       # Shared dependency manifests: a merge here puts every other open
       # dependency PR one commit behind main. Re-running lets Renovate rebase
       # them right away instead of leaving them conflicted until the next cron.
-      - "Directory.Build.props"
+      - "Directory.Packages.props"
       - "**/dotnet-tools.json"
   workflow_dispatch: # Allow running the workflow manually from the GitHub UI
   schedule:

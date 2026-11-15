@@ -2,14 +2,16 @@
 
 ## Overview
 
-Sanare is a specification-first project for a schema-driven, self-healing .NET scraping library. The intended implementation uses the Microsoft Agent Framework to generate and repair versioned extraction plans, favoring normal HTTP and structured-data acquisition before browser automation. See [README.md](README.md) for the documentation index and [docs/sanare/tech-design.md](docs/sanare/tech-design.md) for the canonical design.
+Sanare is a schema-driven, self-healing .NET scraping library. It uses the Microsoft Agent Framework to generate and repair versioned extraction plans, favoring normal HTTP and structured-data acquisition before browser automation. A v0.1 foundation is implemented (Abstractions, Core, Http, Browser, and the Lenovo sample); plan authoring/healing and pagination remain design-only. See [README.md](README.md) for the documentation index and current status, and [docs/sanare/tech-design.md](docs/sanare/tech-design.md) for the canonical design. Build and test commands are in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Project structure
 
+- `src/` — library projects: `Sanare.Abstractions` (contracts), `Sanare.Core` (engine and local infrastructure), `Sanare.Http` (governed HTTP acquisition), `Sanare.Browser` (Playwright browser tier).
+- `tests/` — one test project per `src/` project plus `Sanare.Samples.Lenovo.Tests`.
+- `samples/` — `Sanare.Samples.Lenovo` console sample and its `.State` fixtures, golden output, and plan scripts.
 - `docs/sanare/` — canonical technical design.
 - `docs/features/` — implementation-ordered component feature specifications.
 - `ideas/sanare/` — graduated product idea, discovery research, and trace state.
-
 ## Commit conventions
 
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for
