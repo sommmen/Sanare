@@ -4,16 +4,6 @@
 
 Sanare is a schema-driven, self-healing .NET scraping library. It uses the Microsoft Agent Framework to generate and repair versioned extraction plans, favoring normal HTTP and structured-data acquisition before browser automation. A v0.1 foundation is implemented (Abstractions, Core, Http, Browser, and the Lenovo sample); plan authoring/healing and pagination remain design-only. See [README.md](README.md) for the documentation index and current status, and [docs/sanare/tech-design.md](docs/sanare/tech-design.md) for the canonical design. Build and test commands are in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-## Related repositories
-
-These are separate public .NET projects by the same author, usually cloned side by side; for cross-repo questions first check the sibling folders next to this repository's checkout. If they are not there, read them on GitHub.
-
-- **Sanare** (this repo) — schema-driven, self-healing .NET scraping library built on the Microsoft Agent Framework. Independent of the other projects. <https://github.com/sommmen/Sanare>
-- **dotnet-agent-surface** — library that exposes an application's operations through an MCP server, a CLI and generated agent skills from one catalog. Published as the `DotNetAgentSurface.*` NuGet packages and consumed by `Anvilboard` and `dotnet-efcore-mcp`. <https://github.com/sommmen/dotnet-agent-surface>
-- **Anvilboard** — local-first, single-process issue tracker and dashboard backed by one SQLite file. <https://github.com/sommmen/Anvilboard>
-- **dotnet-efcore-mcp** — MCP server that queries an existing EF Core application's database by reflecting over its `DbContext`. <https://github.com/sommmen/dotnet-efcore-mcp>
-- **lightr** — C# API client for the Lightr handwritten-card SAAS, generated from its OpenAPI document. <https://github.com/sommmen/lightr>
-
 ## Project structure
 
 - `src/` — library projects: `Sanare.Abstractions` (contracts), `Sanare.Core` (engine and local infrastructure), `Sanare.Http` (governed HTTP acquisition), `Sanare.Browser` (Playwright browser tier).
