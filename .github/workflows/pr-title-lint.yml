@@ -27,7 +27,8 @@ jobs:
         with:
           script: |
             const title = context.payload.pull_request.title;
-            const pattern = /^(?:build|chore|ci|docs|feat|fix|perf|ref|refactor|revert|style|test)(?:\(.+\))?!?: .{4,}(?<![.\s])$/;
+            // The lookahead rejects a nested type such as `chore: feat(x): ...`.
+            const pattern = /^(?:build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(?:\([^)]+\))?!?: (?!(?:build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(?:\([^)]+\))?!?: ).{4,}(?<![.\s])$/;
 
             if (pattern.test(title)) {
               core.info(`PR title OK: "${title}"`);

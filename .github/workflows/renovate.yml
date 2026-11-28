@@ -29,7 +29,7 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: read
+  packages: read
 
 jobs:
   renovate:
@@ -39,11 +39,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Self-hosted Renovate
-        uses: renovatebot/github-action@v46.3.14
+        uses: renovatebot/github-action@1376d90bcd3a4d4e7393ae762eea56ac684aee38 # v48.0.0
         with:
           configurationFile: renovate-config.json
-        env:
           # A PAT (not GITHUB_TOKEN) is required so automerge can trigger
           # further workflow runs (e.g. required status checks).
-          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          token: ${{ secrets.RENOVATE_TOKEN }}
 #          LOG_LEVEL: "debug"

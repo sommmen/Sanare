@@ -24,9 +24,13 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: global.json
+
+      - name: Restore .NET local tools
+        if: hashFiles('dotnet-tools.json', '.config/dotnet-tools.json') != ''
+        run: dotnet tool restore
 
       - name: Restore dependencies
         run: dotnet restore
@@ -41,3 +45,20 @@ jobs:
         # Category=Browser tests launch a real Chromium instance via Playwright, which is not installed
         # on this runner (see docs/features/browser-tier.md). They run in a dedicated job/step instead.
         run: dotnet test --no-build --no-restore --configuration Release --verbosity normal --report-gh -- --filter-not-trait "Category=Browser"
+
+  # The single required check once the ruleset switches from `Build and Test (.NET)` to `ci`;
+  # both contexts exist meanwhile so the rename never blocks a pull request.
+  ci:
+    name: ci
+    needs: [build-and-test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report CI result
+        run: |
+          if [[ "${{ needs.build-and-test.result }}" != "success" ]]; then
+            echo "CI checks failed"
+            exit 1
+          fi
+          echo "All required CI checks passed."

@@ -11,10 +11,24 @@ dotnet test Sanare.slnx
 dotnet format Sanare.slnx --verify-no-changes
 ```
 
-Requires .NET SDK 10.0+. See [README.md](README.md) for the current architecture
+Requires the .NET SDK pinned in `global.json` (10.0.401, rolling forward to a newer 10.0 feature band). See [README.md](README.md) for the current architecture
 and scope of the v0.1 foundation.
 
 `dotnet pack -c Release` packs the four `src/` libraries (versions come from Nerdbank.GitVersioning via `version.json`; there is no publish workflow yet).
+
+## Build output
+
+Every project builds into the git-ignored `.a/` folder at the repository root
+(`UseArtifactsOutput`, see `Directory.Build.props`): `.a/bin/<Project>/<config>`,
+`.a/obj/<Project>/<config>` and `.a/publish/<Project>/<config>`, with a lower-case
+configuration and no target framework segment. A clean build is "delete `.a`".
+
+## Branch protection
+
+The `main` ruleset currently requires the `Build and Test (.NET)` check. CI also
+publishes a `ci` rollup job. Once the owner switches the ruleset to require exactly
+`ci`, remove the `Build and Test (.NET)` requirement and, in a follow-up change, the
+rollup indirection can be collapsed into a single job named `ci`.
 
 ## Todo
 
