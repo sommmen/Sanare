@@ -53,6 +53,7 @@ jobs:
     needs: [build-and-test]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Report CI result
         run: |
@@ -61,3 +62,4 @@ jobs:
             exit 1
           fi
           echo "All required CI checks passed."
+
