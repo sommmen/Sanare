@@ -46,4 +46,3 @@ jobs:
           # further workflow runs (e.g. required status checks).
           token: ${{ secrets.RENOVATE_TOKEN }}
 #          LOG_LEVEL: "debug"
-
