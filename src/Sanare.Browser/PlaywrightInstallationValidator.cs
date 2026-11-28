@@ -48,7 +48,7 @@ public sealed class PlaywrightInstallationValidator : IPlaywrightInstallationVal
             throw new AcquisitionException(
                 "SNR-BRW-005",
                 $"Playwright's Chromium browser is not installed (expected at '{executablePath}'). " +
-                "Run `pwsh bin/Debug/net10.0/playwright.ps1 install chromium` to install it.");
+                "Run `pwsh playwright.ps1 install chromium` from the application's build output directory to install it.");
         }
     }
 

@@ -466,7 +466,7 @@ gate needs. Depends on: —
 `Sanare.slnx`, and add `--filter "Category!=Browser"` to the `dotnet test` step in
 `.github/workflows/ci.yml` with a comment naming why. Add `PlaywrightInstallationValidator` with a single
 `Validate()` that resolves the browser executable path and throws a `SNR-BRW-005` fatal naming
-`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`, plus its unit test. Landing the CI filter and the
+`pwsh playwright.ps1 install chromium` (run from the build output directory), plus its unit test. Landing the CI filter and the
 validator together means the suite is green on a runner with no Chromium from the first commit.
 Depends on: T1
 

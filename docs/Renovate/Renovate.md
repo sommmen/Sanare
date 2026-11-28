@@ -7,7 +7,7 @@ The self-hosted Renovate run needs one GitHub Actions secret.
 - `RENOVATE_TOKEN` — a PAT used by the workflow. A PAT (not `GITHUB_TOKEN`)
   lets Renovate-triggered changes, such as automerge, start further required
   workflow runs. The workflow keeps a minimal `permissions:` block
-  (`contents: read`, `security-events: read`) because the PAT does the
+  (`contents: read`, `packages: read`) because the PAT does the
   repository writes.
 
 There is no private package feed, so no Renovate host rules are configured;

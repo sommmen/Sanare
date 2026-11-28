@@ -16,13 +16,14 @@
   ],
   "packageRules": [
     {
+      "description": "Renovate action updates automerge once required checks pass.",
       "matchDepNames": [
         "/^[Rr]enovatebot/github-action/"
       ],
       "automerge": true
     },
     {
-      "description": "Test-only infrastructure ships nothing to production, so a bad version can only turn the required 'Build and Test (.NET)' check red, which already blocks the merge. That makes these self-policing, so all update types automerge including majors.",
+      "description": "Test-only infrastructure ships nothing to production, so a bad version can only turn the required CI check red, which already blocks the merge. That makes these self-policing, so all update types automerge including majors.",
       "matchManagers": [
         "nuget"
       ],

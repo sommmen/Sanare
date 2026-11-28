@@ -12,6 +12,9 @@ Sanare is a schema-driven, self-healing .NET scraping library. It uses the Micro
 - `docs/sanare/` — canonical technical design.
 - `docs/features/` — implementation-ordered component feature specifications.
 - `ideas/sanare/` — graduated product idea, discovery research, and trace state.
+
+Build output goes to the git-ignored `.a/` folder (`UseArtifactsOutput`); delete it for a clean build.
+
 ## Commit conventions
 
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for

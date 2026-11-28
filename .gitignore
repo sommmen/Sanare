@@ -429,20 +429,21 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+### VisualStudioCode ###
+!*.code-workspace
+
+### Agent tooling ###
 # Commit Serena's project config; ignore its machine-local index and memories.
 .serena/*
 !.serena/project.yml
 
+# Agent tooling: local worktrees, orchestration state and CLI scratch.
+.worktrees/
+.orchestrator/
+.copilot-cli/
+.copilot-build/
+.codex
 
-### VisualStudioCode ###
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
-!*.code-workspace
-
-# Built Visual Studio Code Extensions
-*.vsix
+### Repo-specific ###
+# .NET artifacts output (UseArtifactsOutput), see Directory.Build.props
+.a/
