@@ -12,11 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!--
-      The Tier 3 (browser) automation engine; see docs/features/browser-tier.md. No Central Package
-      Management exists in this repo yet, so the version is pinned here, matching Sanare.Http's
-      System.Threading.RateLimiting reference.
-    -->
+    <!-- The Tier 3 (browser) automation engine; see docs/features/browser-tier.md. -->
     <PackageReference Include="Microsoft.Playwright" />
   </ItemGroup>
 
